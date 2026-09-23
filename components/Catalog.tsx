@@ -74,6 +74,7 @@ export default function Catalog() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todas");
   const [addedCode, setAddedCode] = useState<string | null>(null);
+  const [expandedCode, setExpandedCode] = useState<string | null>(null);
   const [livePrices, setLivePrices] = useState<Record<string, LivePrice>>({});
   const [livePricingActive, setLivePricingActive] = useState(false);
 
@@ -221,7 +222,17 @@ export default function Catalog() {
                 <h3>{product.viator.title}</h3>
 
                 {product.description && (
-                  <p className="product-description">{product.description}</p>
+                  <div className={expandedCode === product.code ? "product-description-wrap is-expanded" : "product-description-wrap"}>
+                    <p className="product-description">{product.description}</p>
+                    <button
+                      className="product-details-toggle"
+                      type="button"
+                      aria-expanded={expandedCode === product.code}
+                      onClick={() => setExpandedCode(expandedCode === product.code ? null : product.code)}
+                    >
+                      {expandedCode === product.code ? "Ver menos ↑" : "Ver detalhes ↓"}
+                    </button>
+                  </div>
                 )}
 
                 <div className="catalog-bottom">
