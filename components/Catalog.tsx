@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Experience } from "@/data/products";
+import { experiences } from "@/data/products";
+import { viatorListings, viatorPriceCheckedAt } from "@/data/viator";
 
 type ProposalItem = {
   code: string;
@@ -23,26 +24,31 @@ function readProposal(): ProposalItem[] {
   }
 }
 
-function categoryClass(category: string) {
-  const key = category.toLowerCase();
-  if (key.includes("cavalo")) return "cover-horse";
-  if (key.includes("mar")) return "cover-sea";
-  if (key.includes("praia")) return "cover-beach";
-  if (key.includes("cultura")) return "cover-culture";
-  if (key.includes("arrábida")) return "cover-arrabida";
-  if (key.includes("lisboa")) return "cover-lisbon";
-  return "cover-tour";
+function euro(value: number) {
+  return new Intl.NumberFormat("pt-PT", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: value % 1 === 0 ? 0 : 2,
+  }).format(value);
 }
 
-export default function Catalog({ products }: { products: Experience[] }) {
+export default function Catalog() {
+  const products = useMemo(
+    () =>
+      experiences
+        .filter((product) => Boolean(viatorListings[product.code]))
+        .map((product) => ({ ...product, viator: viatorListings[product.code] })),
+    []
+  );
+
   const categories = useMemo(
     () => ["Todas", ...Array.from(new Set(products.map((p) => p.category)))],
     [products]
   );
+
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todas");
   const [addedCode, setAddedCode] = useState<string | null>(null);
-  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -50,31 +56,30 @@ export default function Catalog({ products }: { products: Experience[] }) {
       const categoryMatch = category === "Todas" || product.category === category;
       const queryMatch =
         !q ||
-        product.title.toLowerCase().includes(q) ||
+        product.viator.title.toLowerCase().includes(q) ||
         product.location.toLowerCase().includes(q) ||
         product.code.toLowerCase().includes(q);
       return categoryMatch && queryMatch;
     });
   }, [products, query, category]);
 
-  function addToProposal(product: Experience) {
-    const selectedCode = selectedOptions[product.code] || product.options[0]?.optionCode || "DEFAULT";
-    const selected = product.options.find((o) => o.optionCode === selectedCode) || product.options[0];
+  function addToProposal(product: (typeof products)[number]) {
+    const option = product.options[0];
     const existing = readProposal();
-    const key = product.code + "-" + (selected?.optionCode || "DEFAULT");
-    const already = existing.some((item) => item.code + "-" + item.optionCode === key);
+    const already = existing.some((item) => item.code === product.code);
 
     if (!already) {
       existing.push({
         code: product.code,
-        title: product.title,
-        optionCode: selected?.optionCode || "DEFAULT",
-        optionName: selected?.optionName || "Opção standard",
-        price: "",
+        title: product.viator.title,
+        optionCode: option?.optionCode || "DEFAULT",
+        optionName: option?.optionName || "Opção standard",
+        price: String(product.viator.price),
         notes: "",
       });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
     }
+
     setAddedCode(product.code);
     window.setTimeout(() => setAddedCode(null), 1400);
   }
@@ -83,10 +88,10 @@ export default function Catalog({ products }: { products: Experience[] }) {
     <section className="catalog-section" id="experiencias">
       <div className="section-heading">
         <div>
-          <p className="eyebrow dark">CATÁLOGO</p>
-          <h2>Experiências Watermelon</h2>
+          <p className="eyebrow dark">EXPERIÊNCIAS</p>
+          <h2>Watermelon Experiences</h2>
         </div>
-        <a className="text-link" href="/proposta">Ver proposta →</a>
+        <span className="price-check">Preços Viator consultados em {viatorPriceCheckedAt}</span>
       </div>
 
       <div className="filters">
@@ -95,7 +100,7 @@ export default function Catalog({ products }: { products: Experience[] }) {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Lisboa, praia, cavalos, código…"
+            placeholder="Lisboa, praia, cavalos, Arrábida…"
           />
         </label>
         <div className="category-row" aria-label="Categorias">
@@ -117,67 +122,81 @@ export default function Catalog({ products }: { products: Experience[] }) {
       </div>
 
       <div className="product-grid">
-        {filtered.map((product) => {
-          const optionCode = selectedOptions[product.code] || product.options[0]?.optionCode || "DEFAULT";
-          const option = product.options.find((o) => o.optionCode === optionCode) || product.options[0];
-          return (
-            <article className="product-card" key={product.code}>
-              <div className={"product-cover " + categoryClass(product.category)}>
-                <span className="cover-category">{product.category}</span>
-                <span className="cover-location">{product.location}</span>
+        {filtered.map((product) => (
+          <article className="product-card catalog-card" key={product.code}>
+            <a
+              className="product-photo-link"
+              href={product.viator.url}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={"Ver " + product.viator.title + " na Viator"}
+            >
+              <img
+                className="product-photo"
+                src={product.viator.image}
+                alt={product.viator.title}
+                loading="lazy"
+              />
+              <span className="photo-badge">{product.category}</span>
+            </a>
+
+            <div className="product-body">
+              <div className="product-meta">
+                <span>{product.location}</span>
+                <span>{product.viator.duration}</span>
               </div>
-              <div className="product-body">
-                <div className="product-meta">
-                  <span>{product.code}</span>
-                  {option?.pickup && <span>Pickup disponível</span>}
-                </div>
-                <h3>{product.title}</h3>
+
+              <h3>{product.viator.title}</h3>
+
+              {product.description && (
                 <p className="product-description">{product.description}</p>
+              )}
 
-                {product.options.length > 1 ? (
-                  <label className="option-field">
-                    <span>Opção</span>
-                    <select
-                      value={optionCode}
-                      onChange={(e) =>
-                        setSelectedOptions((current) => ({ ...current, [product.code]: e.target.value }))
-                      }
-                    >
-                      {product.options.map((item) => (
-                        <option key={item.optionCode} value={item.optionCode}>
-                          {item.optionName} ({item.optionCode})
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : (
-                  <div className="single-option">{option?.optionName || "Opção standard"}</div>
-                )}
+              <div className="catalog-bottom">
+                <div className="price-block">
+                  <span>Desde</span>
+                  <strong>{euro(product.viator.price)}</strong>
+                  <small>preço apresentado na Viator</small>
+                </div>
 
-                {option?.startTimes && (
-                  <div className="start-times"><strong>Horários:</strong> {option.startTimes}</div>
-                )}
-
-                <details className="details">
-                  <summary>Ver detalhes</summary>
-                  <div className="details-body">
-                    {option?.optionDescription ? <p>{option.optionDescription}</p> : <p>Detalhes completos serão confirmados na proposta.</p>}
-                    <p><strong>Preço:</strong> a definir na proposta.</p>
+                {product.viator.rating && (
+                  <div className="rating-block">
+                    <strong>★ {product.viator.rating.toFixed(1)}</strong>
+                    <span>{product.viator.reviews || 0} avaliações</span>
                   </div>
-                </details>
-
-                <button className="button button-card" type="button" onClick={() => addToProposal(product)}>
-                  {addedCode === product.code ? "Adicionado ✓" : "Adicionar à proposta"}
-                </button>
+                )}
               </div>
-            </article>
-          );
-        })}
+
+              <a
+                className="button button-card viator-button"
+                href={product.viator.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Ver disponibilidade na Viator
+              </a>
+
+              <button
+                className="proposal-secondary"
+                type="button"
+                onClick={() => addToProposal(product)}
+              >
+                {addedCode === product.code ? "Adicionado à proposta ✓" : "Adicionar a uma proposta personalizada"}
+              </button>
+            </div>
+          </article>
+        ))}
       </div>
+
+      <p className="catalog-note">
+        Os preços são valores “desde” apresentados pela Viator e podem mudar conforme a data,
+        o número de participantes, a opção escolhida e a disponibilidade. A confirmação final
+        é sempre feita na página da Viator.
+      </p>
 
       {filtered.length === 0 && (
         <div className="empty-state">
-          <h3>Nenhum programa encontrado</h3>
+          <h3>Nenhuma experiência encontrada</h3>
           <p>Tente outro termo ou selecione outra categoria.</p>
         </div>
       )}
