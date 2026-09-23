@@ -1,5 +1,4 @@
 import Catalog from "@/components/Catalog";
-import { currentViatorCodes } from "@/data/viator";
 
 export default function Home() {
   return (
@@ -15,11 +14,6 @@ export default function Home() {
           <div className="hero-actions">
             <a className="button button-primary" href="#experiencias">Ver experiências</a>
             <a className="button button-light" href="/proposta">Pedir proposta personalizada</a>
-          </div>
-          <div className="hero-stats">
-            <span><strong>{currentViatorCodes.length}</strong> experiências com preço Viator</span>
-            <span><strong>Fotos reais</strong> das experiências</span>
-            <span><strong>Portugal</strong> Lisboa e além</span>
           </div>
         </div>
       </section>
