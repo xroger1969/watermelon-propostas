@@ -80,6 +80,16 @@ button { cursor: pointer; }
 }
 .hero-copy { max-width: 650px; font-size: clamp(18px, 2vw, 22px); opacity: .88; margin: 28px 0; }
 .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.hero-proposal-link {
+  min-height: 46px;
+  padding: 12px 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255,255,255,.78);
+  font-size: 14px;
+}
+.hero-proposal-link strong { color: white; font-weight: 800; }
 .button {
   border: 0; border-radius: 12px;
   min-height: 46px; padding: 12px 18px;
@@ -503,7 +513,14 @@ button { cursor: pointer; }
     margin-bottom: 24px;
   }
   .hero-actions {
-    gap: 10px;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .hero-proposal-link {
+    width: 100%;
+    min-height: auto;
+    padding: 3px 0 0;
+    font-size: 14px;
   }
 }
 
