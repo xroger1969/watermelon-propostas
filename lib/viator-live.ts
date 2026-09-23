@@ -135,6 +135,29 @@ type ViatorProductImage = {
   variants?: ViatorProductImageVariant[];
 };
 
+const inclusionLabels: Record<string, string> = {
+  LUNCH: "Almoço",
+  DINNER: "Jantar",
+  BREAKFAST: "Pequeno-almoço",
+  SNACKS: "Snacks",
+  BOTTLED_WATER: "Água engarrafada",
+  AIR_CONDITIONED_VEHICLE: "Veículo com ar-condicionado",
+  PRIVATE_TRANSPORTATION: "Transporte privado",
+  WIFI_ON_BOARD: "Wi-Fi a bordo",
+  ALCOHOLIC_BEVERAGES: "Bebidas alcoólicas",
+  COFFEE_AND_OR_TEA: "Café e/ou chá",
+  PROFESSIONAL_GUIDE: "Guia",
+  HOTEL_PICKUP_AND_DROPOFF: "Recolha e regresso ao hotel",
+};
+
+function cleanFact(item: { description?: string; typeDescription?: string }) {
+  const description = item.description?.trim();
+  if (description && description.toLowerCase() !== "other" && description.toLowerCase() !== "outros") return description;
+  const type = item.typeDescription?.trim();
+  if (!type || type.toLowerCase() === "other" || type.toLowerCase() === "outros") return "";
+  return inclusionLabels[type.toUpperCase()] || type.replaceAll("_", " ").toLowerCase().replace(/^./, (char) => char.toUpperCase());
+}
+
 type ViatorProductResponse = {
   productCode?: string;
   images?: ViatorProductImage[];
@@ -182,12 +205,8 @@ export async function getLiveViatorProduct(productCode: string): Promise<LiveVia
   const uniqueImages = Array.from(new Set(images));
   if (!product.productCode) return null;
 
-  const inclusions = (product.inclusions || [])
-    .map((item) => item.description || item.typeDescription || "")
-    .filter(Boolean);
-  const exclusions = (product.exclusions || [])
-    .map((item) => item.description || item.typeDescription || "")
-    .filter(Boolean);
+  const inclusions = Array.from(new Set((product.inclusions || []).map(cleanFact).filter(Boolean)));
+  const exclusions = Array.from(new Set((product.exclusions || []).map(cleanFact).filter(Boolean)));
   const start = product.logistics?.start?.[0];
   const meetingPoint = start?.location?.name || start?.name || start?.location?.address || start?.address;
   const pickup = product.logistics?.travelerPickup?.additionalInfo;
