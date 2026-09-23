@@ -4,15 +4,102 @@ export type LiveViatorPrice = {
   currency: string;
 };
 
-type ViatorSchedule = {
-  productCode?: string;
-  currency?: string;
-  summary?: {
-    fromPrice?: number;
+type PricePart = {
+  recommendedRetailPrice?: number;
+};
+
+type PricingDetail = {
+  ageBand?: string;
+  price?: {
+    original?: PricePart;
+    special?: PricePart;
   };
 };
 
+type PricingRecord = {
+  pricingDetails?: PricingDetail[];
+};
+
+type Season = {
+  pricingRecords?: PricingRecord[];
+};
+
+type BookableItem = {
+  seasons?: Season[];
+};
+
+type ViatorSchedule = {
+  productCode?: string;
+  currency?: string;
+  bookableItems?: BookableItem[];
+};
+
 const VIATOR_BASE_URL = "https://api.viator.com/partner";
+
+function findFromPrice(schedule: ViatorSchedule): number | null {
+  const preferred: number[] = [];
+  const fallback: number[] = [];
+
+  for (const item of schedule.bookableItems || []) {
+    for (const season of item.seasons || []) {
+      for (const record of season.pricingRecords || []) {
+        for (const detail of record.pricingDetails || []) {
+          const special = Number(detail.price?.special?.recommendedRetailPrice);
+          const original = Number(detail.price?.original?.recommendedRetailPrice);
+          const value = Number.isFinite(special) && special > 0
+            ? special
+            : Number.isFinite(original) && original > 0
+              ? original
+              : null;
+
+          if (value === null) continue;
+
+          const band = (detail.ageBand || "").toUpperCase();
+          if (band === "ADULT" || band === "TRAVELER") {
+            preferred.push(value);
+          } else {
+            fallback.push(value);
+          }
+        }
+      }
+    }
+  }
+
+  const candidates = preferred.length ? preferred : fallback;
+  return candidates.length ? Math.min(...candidates) : null;
+}
+
+async function getSchedule(productCode: string, apiKey: string): Promise<LiveViatorPrice | null> {
+  const response = await fetch(
+    `${VIATOR_BASE_URL}/availability/schedules/${encodeURIComponent(productCode)}`,
+    {
+      method: "GET",
+      headers: {
+        "exp-api-key": apiKey,
+        "Accept-Language": "pt-PT",
+        Accept: "application/json;version=2.0",
+      },
+      cache: "no-store",
+    }
+  );
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const schedule = (await response.json()) as ViatorSchedule;
+  const price = findFromPrice(schedule);
+
+  if (!schedule.productCode || price === null) {
+    return null;
+  }
+
+  return {
+    code: schedule.productCode,
+    price,
+    currency: schedule.currency || "EUR",
+  };
+}
 
 export async function getLiveViatorPrices(productCodes: string[]): Promise<LiveViatorPrice[]> {
   const apiKey = process.env.VIATOR_PARTNER_API_KEY;
@@ -21,44 +108,11 @@ export async function getLiveViatorPrices(productCodes: string[]): Promise<LiveV
     throw new Error("VIATOR_PARTNER_API_KEY is not configured");
   }
 
-  const response = await fetch(`${VIATOR_BASE_URL}/availability/schedules/bulk`, {
-    method: "POST",
-    headers: {
-      "exp-api-key": apiKey,
-      "Accept-Language": "pt-PT",
-      Accept: "application/json;version=2.0",
-      "Content-Type": "application/json;version=2.0",
-    },
-    body: JSON.stringify({ productCodes }),
-    cache: "no-store",
-  });
+  const results = await Promise.allSettled(
+    productCodes.map((productCode) => getSchedule(productCode, apiKey))
+  );
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Viator API returned ${response.status}: ${body.slice(0, 300)}`);
-  }
-
-  const json = await response.json();
-  const schedules: ViatorSchedule[] = Array.isArray(json)
-    ? json
-    : Array.isArray(json?.availabilitySchedules)
-      ? json.availabilitySchedules
-      : Array.isArray(json?.data)
-        ? json.data
-        : [];
-
-  return schedules
-    .map((schedule) => {
-      const price = Number(schedule?.summary?.fromPrice);
-      const code = schedule?.productCode;
-
-      if (!code || !Number.isFinite(price)) return null;
-
-      return {
-        code,
-        price,
-        currency: schedule.currency || "EUR",
-      };
-    })
-    .filter((item): item is LiveViatorPrice => Boolean(item));
+  return results.flatMap((result) =>
+    result.status === "fulfilled" && result.value ? [result.value] : []
+  );
 }
