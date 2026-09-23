@@ -44,6 +44,19 @@ function money(value: number, currency = "EUR") {
   }).format(value);
 }
 
+function affiliateUrl(url: string) {
+  try {
+    const target = new URL(url);
+    target.searchParams.set("pid", "P00321532");
+    target.searchParams.set("mcid", "42383");
+    target.searchParams.set("medium", "link");
+    target.searchParams.set("campaign", "watermelon-site");
+    return target.toString();
+  } catch {
+    return url;
+  }
+}
+
 export default function Catalog() {
   const products = useMemo(
     () =>
@@ -185,9 +198,9 @@ export default function Catalog() {
             <article className="product-card catalog-card" key={product.code}>
               <a
                 className="product-photo-link"
-                href={product.viator.url}
+                href={affiliateUrl(product.viator.url)}
                 target="_blank"
-                rel="noreferrer"
+                rel="sponsored noreferrer"
                 aria-label={"Ver " + product.viator.title + " na Viator"}
               >
                 <img
@@ -228,9 +241,9 @@ export default function Catalog() {
 
                 <a
                   className="button button-card viator-button"
-                  href={product.viator.url}
+                  href={affiliateUrl(product.viator.url)}
                   target="_blank"
-                  rel="noreferrer"
+                  rel="sponsored noreferrer"
                 >
                   Ver disponibilidade na Viator
                 </a>
