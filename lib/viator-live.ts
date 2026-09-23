@@ -31,12 +31,15 @@ type BookableItem = {
 type ViatorSchedule = {
   productCode?: string;
   currency?: string;
+  summary?: {
+    fromPrice?: number;
+  };
   bookableItems?: BookableItem[];
 };
 
 const VIATOR_BASE_URL = "https://api.viator.com/partner";
 
-function findFromPrice(schedule: ViatorSchedule): number | null {
+function findFallbackPrice(schedule: ViatorSchedule): number | null {
   const preferred: number[] = [];
   const fallback: number[] = [];
 
@@ -88,7 +91,10 @@ async function getSchedule(productCode: string, apiKey: string): Promise<LiveVia
   }
 
   const schedule = (await response.json()) as ViatorSchedule;
-  const price = findFromPrice(schedule);
+  const summaryPrice = Number(schedule.summary?.fromPrice);
+  const price = Number.isFinite(summaryPrice) && summaryPrice > 0
+    ? summaryPrice
+    : findFallbackPrice(schedule);
 
   if (!schedule.productCode || price === null) {
     return null;
