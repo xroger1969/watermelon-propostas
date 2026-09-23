@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Watermelon Experiences">
+  <circle cx="256" cy="256" r="244" fill="#45b649"/>
+  <circle cx="256" cy="256" r="218" fill="#ffffff"/>
+  <circle cx="256" cy="256" r="202" fill="#ed1d4f"/>
+  <g fill="#000">
+    <ellipse cx="256" cy="72" rx="10" ry="19"/>
+    <ellipse cx="329" cy="90" rx="10" ry="19" transform="rotate(25 329 90)"/>
+    <ellipse cx="387" cy="135" rx="10" ry="19" transform="rotate(50 387 135)"/>
+    <ellipse cx="420" cy="202" rx="10" ry="19" transform="rotate(75 420 202)"/>
+    <ellipse cx="420" cy="310" rx="10" ry="19" transform="rotate(105 420 310)"/>
+    <ellipse cx="386" cy="377" rx="10" ry="19" transform="rotate(130 386 377)"/>
+    <ellipse cx="329" cy="421" rx="10" ry="19" transform="rotate(155 329 421)"/>
+    <ellipse cx="256" cy="440" rx="10" ry="19"/>
+    <ellipse cx="184" cy="421" rx="10" ry="19" transform="rotate(25 184 421)"/>
+    <ellipse cx="125" cy="377" rx="10" ry="19" transform="rotate(50 125 377)"/>
+    <ellipse cx="92" cy="310" rx="10" ry="19" transform="rotate(75 92 310)"/>
+    <ellipse cx="92" cy="202" rx="10" ry="19" transform="rotate(105 92 202)"/>
+    <ellipse cx="125" cy="135" rx="10" ry="19" transform="rotate(130 125 135)"/>
+    <ellipse cx="184" cy="90" rx="10" ry="19" transform="rotate(155 184 90)"/>
+    <ellipse cx="195" cy="181" rx="9" ry="17" transform="rotate(128 195 181)"/>
+    <ellipse cx="320" cy="181" rx="9" ry="17" transform="rotate(52 320 181)"/>
+    <ellipse cx="178" cy="275" rx="9" ry="17" transform="rotate(80 178 275)"/>
+    <ellipse cx="334" cy="275" rx="9" ry="17" transform="rotate(100 334 275)"/>
+    <ellipse cx="202" cy="345" rx="9" ry="17" transform="rotate(35 202 345)"/>
+    <ellipse cx="310" cy="345" rx="9" ry="17" transform="rotate(145 310 345)"/>
+  </g>
+  <g fill="#000">
+    <polygon points="244,145 279,240 253,231"/>
+    <polygon points="268,367 233,272 259,281"/>
+    <circle cx="256" cy="256" r="21"/>
+  </g>
+  <circle cx="256" cy="256" r="11" fill="#ed1d4f"/>
+</svg>

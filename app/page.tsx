@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Catalog from "@/components/Catalog";
 
 export default function Home() {
@@ -7,13 +6,7 @@ export default function Home() {
       <section className="hero">
         <div className="hero-inner">
           <div className="hero-logo-badge" aria-hidden="true">
-            <Image
-              src="/logo-icon.png"
-              alt=""
-              width={76}
-              height={76}
-              priority
-            />
+            <img src="/watermelon-mark.svg" alt="" />
           </div>
 
           <p className="eyebrow">WATERMELON EXPERIENCES · PORTUGAL</p>

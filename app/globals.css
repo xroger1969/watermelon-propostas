@@ -432,3 +432,51 @@ button { cursor: pointer; }
     width: 180px;
   }
 }
+
+/* Fix brand artwork on all browsers */
+.brand-logo-wrap {
+  background: #fff;
+}
+.brand-logo {
+  width: 46px;
+  height: 46px;
+  display: block;
+  object-fit: contain;
+}
+.hero-logo-badge {
+  overflow: hidden;
+  padding: 8px;
+}
+.hero-logo-badge img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+.footer-brand-line {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+.footer-mark {
+  width: 58px;
+  height: 58px;
+  display: block;
+}
+.footer-brand-line strong,
+.footer-brand-line span {
+  display: block;
+}
+.footer-brand-line strong {
+  color: var(--ink);
+  font-size: 18px;
+  letter-spacing: .03em;
+  line-height: 1;
+}
+.footer-brand-line span {
+  margin-top: 5px;
+  font-size: 11px;
+  letter-spacing: .25em;
+  color: var(--muted);
+}
+.footer-logo { display: none !important; }
