@@ -754,3 +754,32 @@ button { cursor: pointer; }
     font-size: 29px;
   }
 }
+
+
+/* Live experience facts */
+.experience-modal-facts {
+  display: grid;
+  gap: 14px;
+  margin: 4px 0 22px;
+  padding: 18px;
+  border-radius: 16px;
+  background: #f4f7f5;
+}
+.experience-modal-facts h3 {
+  margin: 0 0 7px;
+  color: #0f5d43;
+  font-size: 14px;
+}
+.experience-modal-facts p,
+.experience-modal-facts ul {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.experience-modal-facts ul {
+  padding-left: 18px;
+}
+.experience-modal-facts li + li {
+  margin-top: 4px;
+}
