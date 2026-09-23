@@ -77,6 +77,7 @@ export default function Catalog() {
   const [detailCode, setDetailCode] = useState<string | null>(null);
   const [galleryImages, setGalleryImages] = useState<Record<string, string[]>>({});
   const [galleryIndex, setGalleryIndex] = useState(0);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [livePrices, setLivePrices] = useState<Record<string, LivePrice>>({});
   const [livePricingActive, setLivePricingActive] = useState(false);
 
@@ -328,7 +329,20 @@ export default function Catalog() {
               onClick={(event) => event.stopPropagation()}
             >
               <button className="experience-modal-close" type="button" aria-label="Fechar" onClick={() => setDetailCode(null)}>×</button>
-              <div className="experience-modal-gallery">
+              <div
+                className="experience-modal-gallery"
+                onTouchStart={(event) => setTouchStartX(event.touches[0]?.clientX ?? null)}
+                onTouchEnd={(event) => {
+                  if (touchStartX === null || !galleryImages[product.code]?.length) return;
+                  const endX = event.changedTouches[0]?.clientX ?? touchStartX;
+                  const delta = endX - touchStartX;
+                  const total = galleryImages[product.code].length;
+                  if (Math.abs(delta) > 45) {
+                    setGalleryIndex((index) => delta < 0 ? (index + 1) % total : (index - 1 + total) % total);
+                  }
+                  setTouchStartX(null);
+                }}
+              >
                 <img
                   className="experience-modal-image"
                   src={(galleryImages[product.code]?.length ? galleryImages[product.code] : [product.viator.image])[galleryIndex] || product.viator.image}
