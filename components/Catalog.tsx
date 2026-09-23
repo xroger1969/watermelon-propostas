@@ -79,6 +79,22 @@ export default function Catalog() {
   const [livePricingActive, setLivePricingActive] = useState(false);
 
   useEffect(() => {
+    if (!detailCode) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setDetailCode(null);
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [detailCode]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function refreshPrices() {
