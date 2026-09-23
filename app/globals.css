@@ -710,3 +710,47 @@ button { cursor: pointer; }
     padding-bottom: 6px;
   }
 }
+
+
+/* Live Viator photo gallery */
+.experience-modal-gallery {
+  position: relative;
+  overflow: hidden;
+  background: #e9eeeb;
+}
+.gallery-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255,255,255,.94);
+  color: #17382b;
+  font-size: 32px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 5px 18px rgba(0,0,0,.16);
+}
+.gallery-prev { left: 14px; }
+.gallery-next { right: 14px; }
+.gallery-count {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(5,25,17,.72);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+@media (max-width: 650px) {
+  .gallery-nav {
+    width: 40px;
+    height: 40px;
+    font-size: 29px;
+  }
+}
