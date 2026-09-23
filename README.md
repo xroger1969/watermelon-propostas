@@ -14,6 +14,10 @@ O catálogo foi migrado do ficheiro `productList.csv` exportado do Viator Suppli
 - partilhar a proposta por WhatsApp;
 - imprimir ou guardar em PDF.
 
+## Preços Viator em produção
+
+A aplicação está preparada para usar `VIATOR_PARTNER_API_KEY` na Vercel e atualizar automaticamente os preços públicos através da Viator Partner API.
+
 ## Segurança
 
 A chave API da Viator/Bókun **não está no código**. Uma integração futura deverá guardar credenciais apenas em variáveis de ambiente da Vercel.
