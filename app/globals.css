@@ -484,6 +484,29 @@ button { cursor: pointer; }
 .footer-logo { display: none !important; }
 
 
+/* Mobile hero refinement — compact without changing desktop */
+@media (max-width: 650px) {
+  .hero {
+    min-height: 500px;
+  }
+  .hero-inner {
+    padding: 42px 0 38px;
+  }
+  .hero h1 {
+    font-size: 43px;
+    line-height: .99;
+    margin: 14px 0 18px;
+  }
+  .hero-copy {
+    font-size: 17px;
+    line-height: 1.55;
+    margin-bottom: 24px;
+  }
+  .hero-actions {
+    gap: 10px;
+  }
+}
+
 /* Final mobile brand tuning */
 @media (max-width: 650px) {
   .brand-logo-wrap {
