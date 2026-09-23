@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Watermelon Experiences | Propostas",
-  description: "Experiências privadas em Portugal e propostas personalizadas.",
+  title: "Watermelon Experiences | Tours e experiências em Portugal",
+  description: "Tours privados, praia, mar, gastronomia e experiências a cavalo em Portugal.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -20,7 +20,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           </a>
           <nav className="main-nav" aria-label="Navegação principal">
             <a href="/#experiencias">Experiências</a>
-            <a className="nav-cta" href="/proposta">Criar proposta</a>
+            <a className="nav-cta" href="/proposta">Proposta personalizada</a>
           </nav>
         </header>
         {children}
@@ -29,7 +29,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <strong>Watermelon Experiences</strong>
             <p>Experiências privadas e programas personalizados em Portugal.</p>
           </div>
-          <div className="footer-note">Catálogo preparado a partir do Supplier Center.</div>
+          <div className="footer-note">Preços sujeitos a disponibilidade na Viator.</div>
         </footer>
       </body>
     </html>
