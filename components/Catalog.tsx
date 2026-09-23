@@ -19,6 +19,14 @@ type LivePrice = {
   currency: string;
 };
 
+type LiveProductDetails = {
+  images?: string[];
+  inclusions?: string[];
+  exclusions?: string[];
+  meetingPoint?: string;
+  pickup?: string;
+};
+
 type PriceResponse = {
   prices?: LivePrice[];
   source?: string;
@@ -76,6 +84,7 @@ export default function Catalog() {
   const [addedCode, setAddedCode] = useState<string | null>(null);
   const [detailCode, setDetailCode] = useState<string | null>(null);
   const [galleryImages, setGalleryImages] = useState<Record<string, string[]>>({});
+  const [productDetails, setProductDetails] = useState<Record<string, LiveProductDetails>>({});
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [livePrices, setLivePrices] = useState<Record<string, LivePrice>>({});
@@ -89,8 +98,11 @@ export default function Catalog() {
       fetch(`/api/viator-product?code=${encodeURIComponent(detailCode)}`)
         .then((response) => response.ok ? response.json() : null)
         .then((data) => {
-          if (data?.images?.length) {
-            setGalleryImages((current) => ({ ...current, [detailCode]: data.images }));
+          if (data) {
+            setProductDetails((current) => ({ ...current, [detailCode]: data }));
+            if (data.images?.length) {
+              setGalleryImages((current) => ({ ...current, [detailCode]: data.images }));
+            }
           }
         })
         .catch(() => {});
@@ -369,6 +381,30 @@ export default function Catalog() {
                 </div>
                 <h2>{product.viator.title}</h2>
                 <p className="experience-modal-description">{product.description}</p>
+                {productDetails[product.code] && (
+                  <div className="experience-modal-facts">
+                    {productDetails[product.code].inclusions?.length ? (
+                      <div>
+                        <h3>Incluído</h3>
+                        <ul>
+                          {productDetails[product.code].inclusions!.slice(0, 6).map((item, index) => <li key={index}>{item}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {productDetails[product.code].meetingPoint ? (
+                      <div>
+                        <h3>Ponto de encontro</h3>
+                        <p>{productDetails[product.code].meetingPoint}</p>
+                      </div>
+                    ) : null}
+                    {productDetails[product.code].pickup ? (
+                      <div>
+                        <h3>Recolha</h3>
+                        <p>{productDetails[product.code].pickup}</p>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
                 <div className="experience-modal-summary">
                   <div className="price-block">
                     <span>Desde</span>
