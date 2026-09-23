@@ -391,6 +391,14 @@ export default function Catalog() {
                         </ul>
                       </div>
                     ) : null}
+                    {productDetails[product.code].exclusions?.length ? (
+                      <div>
+                        <h3>Não incluído</h3>
+                        <ul>
+                          {productDetails[product.code].exclusions!.slice(0, 4).map((item, index) => <li key={index}>{item}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
                     {productDetails[product.code].meetingPoint ? (
                       <div>
                         <h3>Ponto de encontro</h3>
