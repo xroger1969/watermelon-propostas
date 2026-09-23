@@ -553,3 +553,32 @@ button { cursor: pointer; }
     gap: 11px;
   }
 }
+
+
+/* Expandable catalogue descriptions */
+.product-description-wrap {
+  margin: 0;
+}
+.product-description-wrap .product-description {
+  margin-bottom: 6px;
+}
+.product-description-wrap:not(.is-expanded) .product-description {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.product-details-toggle {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 2px 0 8px;
+  color: var(--green);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.product-details-toggle:hover {
+  text-decoration: underline;
+}
