@@ -138,11 +138,21 @@ type ViatorProductImage = {
 type ViatorProductResponse = {
   productCode?: string;
   images?: ViatorProductImage[];
+  inclusions?: Array<{ description?: string; typeDescription?: string }>;
+  exclusions?: Array<{ description?: string; typeDescription?: string }>;
+  logistics?: {
+    start?: Array<{ location?: { name?: string; address?: string }; name?: string; address?: string }>;
+    travelerPickup?: { pickupOptionType?: string; additionalInfo?: string };
+  };
 };
 
 export type LiveViatorProduct = {
   code: string;
   images: string[];
+  inclusions: string[];
+  exclusions: string[];
+  meetingPoint?: string;
+  pickup?: string;
 };
 
 export async function getLiveViatorProduct(productCode: string): Promise<LiveViatorProduct | null> {
@@ -172,5 +182,15 @@ export async function getLiveViatorProduct(productCode: string): Promise<LiveVia
   const uniqueImages = Array.from(new Set(images));
   if (!product.productCode) return null;
 
-  return { code: product.productCode, images: uniqueImages };
+  const inclusions = (product.inclusions || [])
+    .map((item) => item.description || item.typeDescription || "")
+    .filter(Boolean);
+  const exclusions = (product.exclusions || [])
+    .map((item) => item.description || item.typeDescription || "")
+    .filter(Boolean);
+  const start = product.logistics?.start?.[0];
+  const meetingPoint = start?.location?.name || start?.name || start?.location?.address || start?.address;
+  const pickup = product.logistics?.travelerPickup?.additionalInfo;
+
+  return { code: product.productCode, images: uniqueImages, inclusions, exclusions, meetingPoint, pickup };
 }
