@@ -689,3 +689,24 @@ button { cursor: pointer; }
     gap: 5px;
   }
 }
+
+
+/* Final modal interaction polish */
+.experience-modal {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.experience-modal-close {
+  display: grid;
+  place-items: center;
+  padding: 0 0 3px;
+}
+@media (max-width: 650px) {
+  .experience-modal-content .viator-button {
+    min-height: 54px;
+  }
+  .experience-modal-content .proposal-secondary {
+    padding-top: 16px;
+    padding-bottom: 6px;
+  }
+}
