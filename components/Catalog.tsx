@@ -74,7 +74,7 @@ export default function Catalog() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todas");
   const [addedCode, setAddedCode] = useState<string | null>(null);
-  const [expandedCode, setExpandedCode] = useState<string | null>(null);
+  const [detailCode, setDetailCode] = useState<string | null>(null);
   const [livePrices, setLivePrices] = useState<Record<string, LivePrice>>({});
   const [livePricingActive, setLivePricingActive] = useState(false);
 
@@ -222,16 +222,17 @@ export default function Catalog() {
                 <h3>{product.viator.title}</h3>
 
                 {product.description && (
-                  <div className={expandedCode === product.code ? "product-description-wrap is-expanded" : "product-description-wrap"}>
+                  <div className="product-description-wrap">
                     <p className="product-description">{product.description}</p>
-                    <button
-                      className="product-details-toggle"
-                      type="button"
-                      aria-expanded={expandedCode === product.code}
-                      onClick={() => setExpandedCode(expandedCode === product.code ? null : product.code)}
-                    >
-                      {expandedCode === product.code ? "Ver menos ↑" : "Ver detalhes ↓"}
-                    </button>
+                    {product.code === "9963P14" && (
+                      <button
+                        className="product-details-toggle"
+                        type="button"
+                        onClick={() => setDetailCode(product.code)}
+                      >
+                        Ver detalhes →
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -283,6 +284,53 @@ export default function Catalog() {
           <p>Tente outro termo ou selecione outra categoria.</p>
         </div>
       )}
+
+      {detailCode === "9963P14" && (() => {
+        const product = products.find((item) => item.code === detailCode);
+        if (!product) return null;
+        const currentPrice = priceFor(product.code);
+        return (
+          <div className="experience-modal-backdrop" role="presentation" onClick={() => setDetailCode(null)}>
+            <section
+              className="experience-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-label={product.viator.title}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button className="experience-modal-close" type="button" aria-label="Fechar" onClick={() => setDetailCode(null)}>×</button>
+              <img className="experience-modal-image" src={product.viator.image} alt={product.viator.title} />
+              <div className="experience-modal-content">
+                <div className="experience-modal-kicker">
+                  <span>{product.category}</span>
+                  <span>{product.location} · {product.viator.duration}</span>
+                </div>
+                <h2>{product.viator.title}</h2>
+                <p className="experience-modal-description">{product.description}</p>
+                <div className="experience-modal-summary">
+                  <div className="price-block">
+                    <span>Desde</span>
+                    <strong>{money(currentPrice.price, currentPrice.currency)}</strong>
+                    <small>{currentPrice.isLive ? "preço atualizado automaticamente" : "preço Viator"}</small>
+                  </div>
+                  {product.viator.rating && (
+                    <div className="rating-block">
+                      <strong>★ {product.viator.rating.toFixed(1)}</strong>
+                      <span>{product.viator.reviews || 0} avaliações</span>
+                    </div>
+                  )}
+                </div>
+                <a className="button button-card viator-button" href={affiliateUrl(product.viator.url)} target="_blank" rel="sponsored noreferrer">
+                  Ver disponibilidade na Viator
+                </a>
+                <button className="proposal-secondary" type="button" onClick={() => addToProposal(product)}>
+                  {addedCode === product.code ? "Adicionado à proposta ✓" : "Adicionar a uma proposta personalizada"}
+                </button>
+              </div>
+            </section>
+          </div>
+        );
+      })()}
     </section>
   );
 }
