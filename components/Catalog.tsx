@@ -75,11 +75,26 @@ export default function Catalog() {
   const [category, setCategory] = useState("Todas");
   const [addedCode, setAddedCode] = useState<string | null>(null);
   const [detailCode, setDetailCode] = useState<string | null>(null);
+  const [galleryImages, setGalleryImages] = useState<Record<string, string[]>>({});
+  const [galleryIndex, setGalleryIndex] = useState(0);
   const [livePrices, setLivePrices] = useState<Record<string, LivePrice>>({});
   const [livePricingActive, setLivePricingActive] = useState(false);
 
   useEffect(() => {
     if (!detailCode) return;
+    setGalleryIndex(0);
+
+    if (!galleryImages[detailCode]) {
+      fetch(`/api/viator-product?code=${encodeURIComponent(detailCode)}`)
+        .then((response) => response.ok ? response.json() : null)
+        .then((data) => {
+          if (data?.images?.length) {
+            setGalleryImages((current) => ({ ...current, [detailCode]: data.images }));
+          }
+        })
+        .catch(() => {});
+    }
+
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
@@ -92,7 +107,7 @@ export default function Catalog() {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [detailCode]);
+  }, [detailCode, galleryImages]);
 
   useEffect(() => {
     let cancelled = false;
@@ -313,7 +328,26 @@ export default function Catalog() {
               onClick={(event) => event.stopPropagation()}
             >
               <button className="experience-modal-close" type="button" aria-label="Fechar" onClick={() => setDetailCode(null)}>×</button>
-              <img className="experience-modal-image" src={product.viator.image} alt={product.viator.title} />
+              <div className="experience-modal-gallery">
+                <img
+                  className="experience-modal-image"
+                  src={(galleryImages[product.code]?.length ? galleryImages[product.code] : [product.viator.image])[galleryIndex] || product.viator.image}
+                  alt={product.viator.title}
+                />
+                {(galleryImages[product.code]?.length || 1) > 1 && (
+                  <>
+                    <button className="gallery-nav gallery-prev" type="button" aria-label="Fotografia anterior" onClick={() => {
+                      const total = galleryImages[product.code].length;
+                      setGalleryIndex((index) => (index - 1 + total) % total);
+                    }}>‹</button>
+                    <button className="gallery-nav gallery-next" type="button" aria-label="Fotografia seguinte" onClick={() => {
+                      const total = galleryImages[product.code].length;
+                      setGalleryIndex((index) => (index + 1) % total);
+                    }}>›</button>
+                    <span className="gallery-count">{galleryIndex + 1} / {galleryImages[product.code].length}</span>
+                  </>
+                )}
+              </div>
               <div className="experience-modal-content">
                 <div className="experience-modal-kicker">
                   <span>{product.category}</span>
