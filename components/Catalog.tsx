@@ -240,15 +240,13 @@ export default function Catalog() {
                 {product.description && (
                   <div className="product-description-wrap">
                     <p className="product-description">{product.description}</p>
-                    {product.code === "9963P14" && (
-                      <button
-                        className="product-details-toggle"
-                        type="button"
-                        onClick={() => setDetailCode(product.code)}
-                      >
-                        Ver detalhes →
-                      </button>
-                    )}
+                    <button
+                      className="product-details-toggle"
+                      type="button"
+                      onClick={() => setDetailCode(product.code)}
+                    >
+                      Ver detalhes →
+                    </button>
                   </div>
                 )}
 
@@ -301,7 +299,7 @@ export default function Catalog() {
         </div>
       )}
 
-      {detailCode === "9963P14" && (() => {
+      {detailCode && (() => {
         const product = products.find((item) => item.code === detailCode);
         if (!product) return null;
         const currentPrice = priceFor(product.code);
