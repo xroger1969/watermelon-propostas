@@ -214,7 +214,8 @@ button { cursor: pointer; }
 @media (max-width: 900px) {
   .product-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .proposal-shell { grid-template-columns: 1fr; }
-  .proposal-summary { position: static; order: -1; }
+  .proposal-summary { position: static; order: 2; }
+  .proposal-form { order: 1; }
 }
 @media (max-width: 650px) {
   .site-header { padding: 12px 18px; }
