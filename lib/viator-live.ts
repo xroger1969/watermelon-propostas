@@ -122,3 +122,55 @@ export async function getLiveViatorPrices(productCodes: string[]): Promise<LiveV
     result.status === "fulfilled" && result.value ? [result.value] : []
   );
 }
+
+
+type ViatorProductImageVariant = {
+  height?: number;
+  width?: number;
+  url?: string;
+};
+
+type ViatorProductImage = {
+  isCover?: boolean;
+  variants?: ViatorProductImageVariant[];
+};
+
+type ViatorProductResponse = {
+  productCode?: string;
+  images?: ViatorProductImage[];
+};
+
+export type LiveViatorProduct = {
+  code: string;
+  images: string[];
+};
+
+export async function getLiveViatorProduct(productCode: string): Promise<LiveViatorProduct | null> {
+  const apiKey = process.env.VIATOR_PARTNER_API_KEY;
+  if (!apiKey) throw new Error("VIATOR_PARTNER_API_KEY is not configured");
+
+  const response = await fetch(`${VIATOR_BASE_URL}/products/${encodeURIComponent(productCode)}`, {
+    method: "GET",
+    headers: {
+      "exp-api-key": apiKey,
+      "Accept-Language": "pt-PT",
+      Accept: "application/json;version=2.0",
+    },
+    next: { revalidate: 3600 },
+  });
+
+  if (!response.ok) return null;
+
+  const product = (await response.json()) as ViatorProductResponse;
+  const images = (product.images || []).flatMap((image) => {
+    const variants = (image.variants || []).filter((variant) => variant.url);
+    if (!variants.length) return [];
+    const best = variants.reduce((a, b) => ((b.width || 0) > (a.width || 0) ? b : a));
+    return best.url ? [best.url] : [];
+  });
+
+  const uniqueImages = Array.from(new Set(images));
+  if (!product.productCode) return null;
+
+  return { code: product.productCode, images: uniqueImages };
+}
