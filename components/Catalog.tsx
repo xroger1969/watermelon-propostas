@@ -84,7 +84,7 @@ export default function Catalog() {
     }
 
     refreshPrices();
-    const timer = window.setInterval(refreshPrices, 60_000);
+    const timer = window.setInterval(refreshPrices, 15 * 60_000);
 
     return () => {
       cancelled = true;
