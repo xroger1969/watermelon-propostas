@@ -1,24 +1,24 @@
 import Catalog from "@/components/Catalog";
-import { experiences } from "@/data/products";
+import { currentViatorCodes } from "@/data/viator";
 
 export default function Home() {
   return (
     <main>
       <section className="hero">
         <div className="hero-inner">
-          <p className="eyebrow">PORTUGAL · EXPERIÊNCIAS PRIVADAS</p>
-          <h1>Propostas turísticas feitas à medida.</h1>
+          <p className="eyebrow">WATERMELON EXPERIENCES · PORTUGAL</p>
+          <h1>Experiências para descobrir Portugal de outra forma.</h1>
           <p className="hero-copy">
-            Escolha experiências Watermelon, combine vários programas e crie uma proposta
-            simples para cada cliente.
+            Tours privados, mar, praia, gastronomia e experiências a cavalo.
+            Veja fotografias, duração e o preço atualmente apresentado na Viator.
           </p>
           <div className="hero-actions">
             <a className="button button-primary" href="#experiencias">Ver experiências</a>
-            <a className="button button-light" href="/proposta">Abrir proposta</a>
+            <a className="button button-light" href="/proposta">Pedir proposta personalizada</a>
           </div>
           <div className="hero-stats">
-            <span><strong>{experiences.length}</strong> programas</span>
-            <span><strong>100%</strong> catálogo Watermelon</span>
+            <span><strong>{currentViatorCodes.length}</strong> experiências com preço Viator</span>
+            <span><strong>Fotos reais</strong> das experiências</span>
             <span><strong>Portugal</strong> Lisboa e além</span>
           </div>
         </div>
@@ -26,16 +26,17 @@ export default function Home() {
 
       <section className="intro">
         <div>
-          <p className="eyebrow dark">ESCOLHA, COMBINE, PROPONHA</p>
-          <h2>Um catálogo comercial simples.</h2>
+          <p className="eyebrow dark">CATÁLOGO WATERMELON</p>
+          <h2>Escolha a experiência certa.</h2>
         </div>
         <p>
-          Selecione um ou vários programas, escolha a opção pretendida e adicione-os à proposta.
-          Os preços são preenchidos por si antes de enviar ao cliente.
+          O catálogo apresenta apenas experiências para as quais conseguimos confirmar
+          neste momento um preço público e uma fotografia na Viator. O botão de cada
+          experiência abre a respetiva página na Viator para consultar a disponibilidade.
         </p>
       </section>
 
-      <Catalog products={experiences} />
+      <Catalog />
     </main>
   );
 }
