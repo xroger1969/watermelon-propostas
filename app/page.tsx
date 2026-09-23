@@ -18,7 +18,7 @@ export default function Home() {
 
           <div className="hero-actions">
             <a className="button button-primary" href="#experiencias">Ver experiências</a>
-            <a className="button button-light" href="/proposta">Pedir proposta personalizada</a>
+            <a className="hero-proposal-link" href="/proposta">Prefere algo à sua medida? <strong>Peça uma proposta →</strong></a>
           </div>
         </div>
       </section>
