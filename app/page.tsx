@@ -24,9 +24,8 @@ export default function Home() {
           <h2>Escolha a experiência certa.</h2>
         </div>
         <p>
-          O catálogo apresenta apenas experiências para as quais conseguimos confirmar
-          neste momento um preço público e uma fotografia na Viator. O botão de cada
-          experiência abre a respetiva página na Viator para consultar a disponibilidade.
+          Descubra experiências selecionadas em Portugal, compare opções e encontre
+          o programa que melhor combina com a sua viagem.
         </p>
       </section>
 
