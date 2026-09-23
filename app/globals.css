@@ -562,6 +562,12 @@ button { cursor: pointer; }
 .product-description-wrap .product-description {
   margin-bottom: 6px;
 }
+.product-description-wrap.is-expanded .product-description {
+  display: block;
+  -webkit-line-clamp: unset;
+  -webkit-box-orient: initial;
+  overflow: visible;
+}
 .product-description-wrap:not(.is-expanded) .product-description {
   display: -webkit-box;
   -webkit-line-clamp: 3;
