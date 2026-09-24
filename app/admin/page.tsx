@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
-import AdminBookings from "@/components/AdminBookings";
+import AdminCRM from "@/components/AdminCRM";
 
 export const metadata: Metadata = {
-  title: "Booking Admin | Watermelon Experiences",
+  title: "Watermelon CRM | Watermelon Experiences",
   robots: { index: false, follow: false },
 };
 
 export default function AdminPage() {
   return (
     <main className="admin-page">
-      <AdminBookings />
+      <AdminCRM />
     </main>
   );
 }
