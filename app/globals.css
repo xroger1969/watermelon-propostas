@@ -1054,3 +1054,125 @@ button { cursor: pointer; }
     transform: rotate(2deg);
   }
 }
+
+
+/* Direct Watermelon booking request */
+.direct-booking-button {
+  width: 100%;
+  border: 0;
+  background: var(--green);
+  color: #fff;
+  cursor: pointer;
+  margin-top: 2px;
+}
+.direct-booking-button:hover {
+  background: var(--green-2);
+}
+.booking-request-shell {
+  align-items: start;
+}
+.booking-selected-experience {
+  overflow: hidden;
+}
+.booking-selected-grid {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 22px;
+  align-items: center;
+}
+.booking-selected-grid > img {
+  width: 190px;
+  height: 150px;
+  border-radius: 18px;
+  object-fit: cover;
+  background: #eef3ef;
+}
+.booking-selected-grid h2 {
+  margin: 8px 0 5px;
+  font-size: 28px;
+  line-height: 1.08;
+}
+.booking-selected-grid > div > p:last-of-type {
+  color: var(--muted);
+  margin: 0;
+}
+.booking-status-note {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  padding: 13px 14px;
+  border-radius: 12px;
+  background: var(--mint);
+}
+.booking-status-note strong {
+  color: var(--green);
+  font-size: 14px;
+}
+.booking-status-note span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.booking-request-shell .form-grid select {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fff;
+  color: var(--ink);
+  padding: 12px 14px;
+  outline: none;
+  font: inherit;
+}
+.booking-request-shell .form-grid select:focus {
+  border-color: var(--green-2);
+  box-shadow: 0 0 0 3px rgba(23,122,85,.1);
+}
+.booking-request-shell .full-field {
+  display: grid;
+  gap: 7px;
+  margin-top: 14px;
+}
+.booking-request-shell .full-field > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.booking-option-note {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--green-2);
+  background: #f7faf8;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.booking-pending-note {
+  background: #fff8e8;
+  color: #74550b;
+}
+.booking-pending-note strong {
+  color: #74550b;
+}
+.booking-summary-card .button[disabled] {
+  opacity: .45;
+  cursor: not-allowed;
+}
+@media (max-width: 650px) {
+  .booking-selected-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .booking-selected-grid > img {
+    width: 100%;
+    height: 210px;
+  }
+  .booking-selected-grid h2 {
+    font-size: 25px;
+  }
+  .catalog-card .direct-booking-button {
+    min-height: 52px;
+  }
+}
