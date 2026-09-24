@@ -183,6 +183,24 @@ export default function ProposalEditor({
         version: draft.version,
         total: Number(draft.total || 0),
       });
+    } else if (latest) {
+      setValidUntil(latest.valid_until || isoInDays(7));
+      setIntroText(
+        latest.intro_text ||
+          "Thank you for your request. We are pleased to present the following personalized proposal."
+      );
+      setConditionsText(
+        latest.conditions_text ||
+          "This proposal is subject to availability at the time of confirmation. Final booking is secured after Watermelon confirms availability and payment is received."
+      );
+      setDiscount(String(latest.discount_amount || 0));
+      setExtras(String(latest.extras_amount || 0));
+      setItems(
+        latest.items?.length
+          ? [...latest.items].sort((a, b) => a.position - b.position).map(fromProposal)
+          : request.items.map(fromRequest)
+      );
+      setSavedDraft(null);
     } else {
       setValidUntil(isoInDays(7));
       setIntroText(
@@ -197,7 +215,7 @@ export default function ProposalEditor({
       setSavedDraft(null);
     }
     setFeedback("");
-  }, [request.id, request.proposals, request.items]);
+  }, [request.id, request.proposals, request.items, latest]);
 
   const subtotal = useMemo(
     () =>
