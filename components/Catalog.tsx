@@ -13,6 +13,23 @@ type ProposalItem = {
   notes: string;
 };
 
+type BookingSelection = {
+  code: string;
+  title: string;
+  optionCode: string;
+  optionName: string;
+  options: Array<{
+    optionCode: string;
+    optionName: string;
+    optionDescription?: string;
+  }>;
+  price: string;
+  currency: string;
+  image: string;
+  duration: string;
+  location: string;
+};
+
 type LivePrice = {
   code: string;
   price: number;
@@ -58,6 +75,7 @@ type CatalogResponse = {
 };
 
 const STORAGE_KEY = "watermelon-proposal";
+const BOOKING_STORAGE_KEY = "watermelon-booking-request";
 
 function readProposal(): ProposalItem[] {
   if (typeof window === "undefined") return [];
@@ -295,6 +313,30 @@ export default function Catalog() {
     };
   }
 
+  function startBooking(product: (typeof products)[number]) {
+    const option = product.options[0];
+    const currentPrice = priceFor(product.code);
+    const selection: BookingSelection = {
+      code: product.code,
+      title: product.viator.title,
+      optionCode: option?.optionCode || "DEFAULT",
+      optionName: option?.optionName || "Standard option",
+      options: product.options.map((item) => ({
+        optionCode: item.optionCode,
+        optionName: item.optionName,
+        optionDescription: item.optionDescription,
+      })),
+      price: currentPrice.price === null ? "" : String(currentPrice.price),
+      currency: currentPrice.currency,
+      image: product.viator.image,
+      duration: product.viator.duration,
+      location: product.location,
+    };
+
+    localStorage.setItem(BOOKING_STORAGE_KEY, JSON.stringify(selection));
+    window.location.href = "/reserva";
+  }
+
   function addToProposal(product: (typeof products)[number]) {
     const option = product.options[0];
     const currentPrice = priceFor(product.code);
@@ -416,13 +458,21 @@ export default function Catalog() {
                   )}
                 </div>
 
+                <button
+                  className="button button-card direct-booking-button"
+                  type="button"
+                  onClick={() => startBooking(product)}
+                >
+                  Request booking directly
+                </button>
+
                 <a
                   className="button button-card viator-button"
                   href={affiliateUrl(product.viator.url)}
                   target="_blank"
                   rel="sponsored noreferrer"
                 >
-                  Check availability on Viator
+                  Book on Viator
                 </a>
 
                 <button
@@ -549,8 +599,11 @@ export default function Catalog() {
                     </div>
                   )}
                 </div>
+                <button className="button button-card direct-booking-button" type="button" onClick={() => startBooking(product)}>
+                  Request booking directly
+                </button>
                 <a className="button button-card viator-button" href={affiliateUrl(product.viator.url)} target="_blank" rel="sponsored noreferrer">
-                  Check availability on Viator
+                  Book on Viator
                 </a>
                 <button className="proposal-secondary" type="button" onClick={() => addToProposal(product)}>
                   {addedCode === product.code ? "Added to proposal ✓" : "Add to my personalized proposal"}
