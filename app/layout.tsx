@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://watermelon-propostas.vercel.app"),
+  metadataBase: new URL("https://www.watermelonexperiences.pt"),
   title: {
     default: "Watermelon Experiences | Private Tours & Experiences in Portugal",
     template: "%s | Watermelon Experiences",
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Watermelon Experiences",
     description: "Private tours, food, beaches, nature and authentic local experiences in Lisbon and across Portugal.",
-    url: "https://watermelon-propostas.vercel.app",
+    url: "https://www.watermelonexperiences.pt",
     siteName: "Watermelon Experiences",
     locale: "en_GB",
     type: "website",
