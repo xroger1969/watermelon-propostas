@@ -236,39 +236,15 @@ function inferLocation(title: string, description: string) {
 
 function candidateProductCodes() {
   const prefix = process.env.VIATOR_SUPPLIER_PRODUCT_PREFIX || "9963P";
-  const configuredMax = Number.parseInt(process.env.VIATOR_SUPPLIER_PRODUCT_SCAN_MAX || "250", 10);
+  const configuredMax = Number.parseInt(process.env.VIATOR_SUPPLIER_PRODUCT_SCAN_MAX || "80", 10);
   const scanMax = Number.isFinite(configuredMax)
     ? Math.max(1, Math.min(500, configuredMax))
-    : 250;
+    : 80;
 
   return Array.from({ length: scanMax }, (_, index) => prefix + String(index + 1));
 }
 
-export async function getLiveViatorCatalog(): Promise<LiveViatorCatalogProduct[]> {
-  const apiKey = process.env.VIATOR_PARTNER_API_KEY;
-  if (!apiKey) throw new Error("VIATOR_PARTNER_API_KEY is not configured");
-
-  const response = await fetch(
-    VIATOR_BASE_URL + "/products/bulk?campaign-value=watermelon-site",
-    {
-      method: "POST",
-      headers: {
-        "exp-api-key": apiKey,
-        "Accept-Language": "en-GB",
-        Accept: "application/json;version=2.0",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ productCodes: candidateProductCodes() }),
-      cache: "no-store",
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error("Viator catalogue request failed with status " + response.status);
-  }
-
-  const products = (await response.json()) as ViatorCatalogResponseProduct[];
-
+function normaliseCatalogProducts(products: ViatorCatalogResponseProduct[]): LiveViatorCatalogProduct[] {
   return products
     .filter((product) => product.status === "ACTIVE" && product.productCode && product.title)
     .map((product) => {
@@ -300,6 +276,72 @@ export async function getLiveViatorCatalog(): Promise<LiveViatorCatalogProduct[]
       };
     })
     .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+}
+
+async function fetchCatalogProduct(productCode: string, apiKey: string): Promise<ViatorCatalogResponseProduct | null> {
+  const response = await fetch(
+    VIATOR_BASE_URL + "/products/" + encodeURIComponent(productCode) + "?campaign-value=watermelon-site",
+    {
+      method: "GET",
+      headers: {
+        "exp-api-key": apiKey,
+        "Accept-Language": "en-GB",
+        Accept: "application/json;version=2.0",
+      },
+      next: { revalidate: 3600 },
+    }
+  );
+
+  if (!response.ok) return null;
+  return (await response.json()) as ViatorCatalogResponseProduct;
+}
+
+async function fetchCatalogIndividually(productCodes: string[], apiKey: string) {
+  const products: ViatorCatalogResponseProduct[] = [];
+  const concurrency = 8;
+
+  for (let index = 0; index < productCodes.length; index += concurrency) {
+    const batch = productCodes.slice(index, index + concurrency);
+    const results = await Promise.all(
+      batch.map((productCode) => fetchCatalogProduct(productCode, apiKey))
+    );
+    products.push(...results.filter((product): product is ViatorCatalogResponseProduct => Boolean(product)));
+  }
+
+  return products;
+}
+
+export async function getLiveViatorCatalog(): Promise<LiveViatorCatalogProduct[]> {
+  const apiKey = process.env.VIATOR_PARTNER_API_KEY;
+  if (!apiKey) throw new Error("VIATOR_PARTNER_API_KEY is not configured");
+
+  const productCodes = candidateProductCodes();
+  const bulkResponse = await fetch(
+    VIATOR_BASE_URL + "/products/bulk?campaign-value=watermelon-site",
+    {
+      method: "POST",
+      headers: {
+        "exp-api-key": apiKey,
+        "Accept-Language": "en-GB",
+        Accept: "application/json;version=2.0",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ productCodes }),
+      cache: "no-store",
+    }
+  );
+
+  if (bulkResponse.ok) {
+    const products = (await bulkResponse.json()) as ViatorCatalogResponseProduct[];
+    return normaliseCatalogProducts(products);
+  }
+
+  if (![401, 403, 405].includes(bulkResponse.status)) {
+    throw new Error("Viator catalogue request failed with status " + bulkResponse.status);
+  }
+
+  const products = await fetchCatalogIndividually(productCodes, apiKey);
+  return normaliseCatalogProducts(products);
 }
 
 
