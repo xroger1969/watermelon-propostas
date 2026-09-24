@@ -1,27 +1,15 @@
 import { NextResponse } from "next/server";
-import { currentViatorCodes } from "@/data/viator";
-import { getLiveViatorCatalog, getLiveViatorPrices } from "@/lib/viator-live";
+import { getLiveViatorCatalog } from "@/lib/viator-live";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    let productCodes = currentViatorCodes;
-
-    try {
-      const catalog = await getLiveViatorCatalog();
-      if (catalog.length) {
-        productCodes = catalog.map((product) => product.code);
-      }
-    } catch {
-      // Keep the confirmed static code list if catalogue discovery is temporarily unavailable.
-    }
-
-    const prices = await getLiveViatorPrices(productCodes);
+    const products = await getLiveViatorCatalog();
 
     return NextResponse.json(
       {
-        prices,
+        products,
         updatedAt: new Date().toISOString(),
         source: "viator-partner-api",
       },
@@ -32,11 +20,11 @@ export async function GET() {
       }
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to fetch Viator prices";
+    const message = error instanceof Error ? error.message : "Unable to fetch Viator catalogue";
 
     return NextResponse.json(
       {
-        prices: [],
+        products: [],
         source: "static-fallback",
         error: message,
       },
