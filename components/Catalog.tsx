@@ -128,7 +128,7 @@ export default function Catalog() {
             title: live.title || product.viator.title,
             image: live.image || product.viator.image,
             url: live.url || product.viator.url,
-            duration: live.duration || product.viator.duration,
+            duration: live.duration && live.duration !== "Duration on request" ? live.duration : product.viator.duration,
             rating: live.rating ?? product.viator.rating,
             reviews: live.reviews ?? product.viator.reviews,
           },
