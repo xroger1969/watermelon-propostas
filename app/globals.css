@@ -1493,3 +1493,99 @@ button { cursor: pointer; }
     width: 100%;
   }
 }
+
+
+/* Watermelon payment configuration */
+.admin-payment-settings {
+  margin: 0 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 34px rgba(8, 42, 29, .045);
+  overflow: hidden;
+}
+.admin-payment-settings > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 20px;
+  cursor: pointer;
+  list-style: none;
+}
+.admin-payment-settings > summary::-webkit-details-marker {
+  display: none;
+}
+.admin-payment-settings > summary > div {
+  display: grid;
+  gap: 3px;
+}
+.admin-payment-settings > summary strong {
+  color: var(--ink);
+  font-size: 15px;
+}
+.admin-payment-settings > summary span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.admin-payment-settings > summary > span {
+  color: var(--green);
+  font-weight: 850;
+}
+.admin-payment-settings-body {
+  display: grid;
+  gap: 16px;
+  padding: 18px 20px 20px;
+  border-top: 1px solid var(--line);
+  background: #f8faf9;
+}
+.admin-payment-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.admin-payment-settings-grid label {
+  display: grid;
+  gap: 6px;
+}
+.admin-payment-settings-grid label > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.admin-payment-settings-grid input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fff;
+  color: var(--ink);
+  padding: 11px 13px;
+  outline: none;
+  font: inherit;
+}
+.admin-payment-settings-grid input:focus {
+  border-color: var(--green-2);
+  box-shadow: 0 0 0 3px rgba(23,122,85,.1);
+}
+.admin-payment-settings-body > .button {
+  justify-self: start;
+}
+@media (max-width: 650px) {
+  .admin-payment-settings > summary {
+    align-items: flex-start;
+    padding: 16px;
+  }
+  .admin-payment-settings-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-payment-settings-body {
+    padding: 16px;
+  }
+  .admin-payment-settings-body > .button {
+    width: 100%;
+  }
+}
