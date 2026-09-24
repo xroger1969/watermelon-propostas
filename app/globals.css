@@ -802,3 +802,15 @@ button { cursor: pointer; }
 .experience-modal-facts li + li {
   margin-top: 4px;
 }
+
+.direct-proposal-note {
+  display: grid;
+  gap: 5px;
+  margin: 4px 0 14px;
+  padding: 14px 15px;
+  border-radius: 12px;
+  background: var(--mint);
+  color: var(--green);
+}
+.direct-proposal-note strong { font-size: 14px; }
+.direct-proposal-note span { font-size: 12px; line-height: 1.45; color: var(--muted); }
