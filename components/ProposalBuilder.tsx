@@ -26,8 +26,6 @@ type ClientData = {
   name: string;
   email: string;
   phone: string;
-  tripStart: string;
-  tripEnd: string;
   notes: string;
 };
 
@@ -91,8 +89,6 @@ export default function ProposalBuilder() {
     name: "",
     email: "",
     phone: "",
-    tripStart: "",
-    tripEnd: "",
     notes: "",
   });
 
@@ -120,13 +116,6 @@ export default function ProposalBuilder() {
 
   const total = useMemo(() => items.reduce((sum, item) => sum + itemSubtotal(item), 0), [items]);
 
-  const tripWindow = useMemo(() => {
-    if (client.tripStart && client.tripEnd) return displayDate(client.tripStart) + " — " + displayDate(client.tripEnd);
-    if (client.tripStart) return "From " + displayDate(client.tripStart);
-    if (client.tripEnd) return "Until " + displayDate(client.tripEnd);
-    return "—";
-  }, [client.tripStart, client.tripEnd]);
-
   function proposalText() {
     const lines = [
       "WATERMELON EXPERIENCES",
@@ -135,8 +124,6 @@ export default function ProposalBuilder() {
       client.name ? "Name: " + client.name : "",
       client.email ? "Email: " + client.email : "",
       client.phone ? "Phone: " + client.phone : "",
-      client.tripStart ? "Trip starts: " + displayDate(client.tripStart) : "",
-      client.tripEnd ? "Trip ends: " + displayDate(client.tripEnd) : "",
       "",
       ...items.flatMap((item, index) => {
         const base = unitPrice(item);
@@ -188,15 +175,13 @@ export default function ProposalBuilder() {
             <span>1</span>
             <div>
               <h2>Your details</h2>
-              <p>Tell us how to contact you. Trip dates are optional and help us coordinate the experiences.</p>
+              <p>Tell us how to contact you.</p>
             </div>
           </div>
           <div className="form-grid">
             <label><span>Name</span><input value={client.name} onChange={(e) => setClient({ ...client, name: e.target.value })} placeholder="Your name" /></label>
             <label><span>Email</span><input type="email" value={client.email} onChange={(e) => setClient({ ...client, email: e.target.value })} placeholder="you@email.com" /></label>
             <label><span>Phone</span><input value={client.phone} onChange={(e) => setClient({ ...client, phone: e.target.value })} placeholder="+351 …" /></label>
-            <label><span>Trip starts</span><input type="date" value={client.tripStart} onChange={(e) => setClient({ ...client, tripStart: e.target.value })} /></label>
-            <label><span>Trip ends</span><input type="date" value={client.tripEnd} onChange={(e) => setClient({ ...client, tripEnd: e.target.value })} /></label>
           </div>
         </div>
 
@@ -352,7 +337,6 @@ export default function ProposalBuilder() {
           <h2>{client.name || "New proposal"}</h2>
           <div className="summary-list">
             <div><span>Experiences</span><strong>{items.length}</strong></div>
-            <div><span>Trip dates</span><strong className="summary-trip">{tripWindow}</strong></div>
           </div>
 
           {items.length > 0 && (
@@ -396,7 +380,6 @@ export default function ProposalBuilder() {
           <p><strong>Guest:</strong> {client.name || "—"}</p>
           <p><strong>Email:</strong> {client.email || "—"}</p>
           <p><strong>Phone:</strong> {client.phone || "—"}</p>
-          <p><strong>Trip:</strong> {tripWindow}</p>
         </div>
         {items.map((item, index) => (
           <div className="print-item" key={"print-" + item.code + "-" + index}>
