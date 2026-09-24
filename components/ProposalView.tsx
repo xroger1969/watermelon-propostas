@@ -21,6 +21,7 @@ type ProposalData = {
   reference: string;
   version: number;
   status: "sent" | "accepted" | "changes_requested";
+  is_expired: boolean;
   created_at: string;
   sent_at: string | null;
   accepted_at: string | null;
@@ -174,6 +175,7 @@ export default function ProposalView({
 
   const accepted = proposal.status === "accepted";
   const changesRequested = proposal.status === "changes_requested";
+  const expired = Boolean(proposal.is_expired);
 
   return (
     <main className="customer-proposal-shell">
@@ -187,9 +189,11 @@ export default function ProposalView({
           <div className={"customer-proposal-status " + proposal.status}>
             {accepted
               ? "Accepted"
-              : changesRequested
-                ? "Changes requested"
-                : "Ready for review"}
+              : expired
+                ? "Expired"
+                : changesRequested
+                  ? "Changes requested"
+                  : "Ready for review"}
           </div>
         </header>
 
@@ -251,6 +255,11 @@ export default function ProposalView({
             <span>
               Watermelon has been notified. We will confirm the remaining booking details and payment instructions with you.
             </span>
+          </section>
+        ) : expired ? (
+          <section className="customer-proposal-result changes">
+            <strong>This proposal has expired.</strong>
+            <span>Please contact Watermelon so we can confirm current availability and prepare an updated proposal.</span>
           </section>
         ) : changesRequested ? (
           <section className="customer-proposal-result changes">
