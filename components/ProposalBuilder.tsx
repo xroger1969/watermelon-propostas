@@ -105,8 +105,8 @@ export default function ProposalBuilder() {
           <div className="block-title">
             <span>1</span>
             <div>
-              <h2>Cliente</h2>
-              <p>Dados que vão aparecer na proposta.</p>
+              <h2>Os seus dados</h2>
+              <p>Para podermos preparar e confirmar a sua proposta.</p>
             </div>
           </div>
           <div className="form-grid">
@@ -202,7 +202,8 @@ export default function ProposalBuilder() {
             <span>Total</span>
             <strong>{money(total)}</strong>
           </div>
-          <p className="summary-hint">Se algum preço ficar vazio, aparecerá como “sob consulta”.</p>
+          <div className="direct-proposal-note"><strong>Peça-nos uma proposta direta.</strong><span>Podemos preparar condições personalizadas para o seu grupo, de acordo com a data, os programas escolhidos e a disponibilidade.</span></div>
+          <p className="summary-hint">Os valores apresentados servem de referência. A proposta final é confirmada pela Watermelon Experiences.</p>
           <button className="button button-primary wide" type="button" onClick={shareWhatsApp} disabled={!items.length}>
             Partilhar por WhatsApp
           </button>
