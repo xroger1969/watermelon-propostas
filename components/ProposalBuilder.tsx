@@ -91,7 +91,7 @@ export default function ProposalBuilder() {
   }
 
   function shareWhatsApp() {
-    const url = "https://wa.me/?text=" + encodeURIComponent("Hello Watermelon Experiences,\n\nI would like to request a personalized proposal.\n\n" + proposalText());
+    const url = "https://wa.me/351918404101?text=" + encodeURIComponent("Hello Watermelon Experiences,\n\nI would like to request a personalized proposal.\n\n" + proposalText());
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
