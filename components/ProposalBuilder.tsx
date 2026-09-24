@@ -58,10 +58,15 @@ export default function ProposalBuilder() {
     persist(items.filter((_, i) => i !== index));
   }
 
-  const total = useMemo(
-    () => items.reduce((sum, item) => sum + (Number.parseFloat(item.price.replace(",", ".")) || 0), 0),
-    [items]
-  );
+  const total = useMemo(() => {
+    const guests = Math.max(1, Number.parseInt(client.people, 10) || 1);
+    const pricePerGuest = items.reduce(
+      (sum, item) => sum + (Number.parseFloat(item.price.replace(",", ".")) || 0),
+      0
+    );
+
+    return pricePerGuest * guests;
+  }, [items, client.people]);
 
   function proposalText() {
     const lines = [
@@ -116,7 +121,7 @@ export default function ProposalBuilder() {
             <label><span>Email</span><input type="email" value={client.email} onChange={(e) => setClient({ ...client, email: e.target.value })} placeholder="you@email.com" /></label>
             <label><span>Phone</span><input value={client.phone} onChange={(e) => setClient({ ...client, phone: e.target.value })} placeholder="+351 …" /></label>
             <label><span>Preferred date</span><input type="date" value={client.date} onChange={(e) => setClient({ ...client, date: e.target.value })} /></label>
-            <label><span>Number of guests</span><input inputMode="numeric" value={client.people} onChange={(e) => setClient({ ...client, people: e.target.value })} placeholder="E.g. 4" /></label>
+            <label><span>Number of guests</span><input type="number" min="1" step="1" inputMode="numeric" value={client.people} onChange={(e) => setClient({ ...client, people: e.target.value })} placeholder="E.g. 4" /></label>
           </div>
         </div>
 
