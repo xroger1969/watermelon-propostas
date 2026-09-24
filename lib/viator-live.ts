@@ -124,6 +124,185 @@ export async function getLiveViatorPrices(productCodes: string[]): Promise<LiveV
 }
 
 
+export type LiveViatorCatalogProduct = {
+  code: string;
+  title: string;
+  description: string;
+  image: string;
+  url: string;
+  duration: string;
+  category: string;
+  location: string;
+  rating?: number;
+  reviews?: number;
+  options: Array<{
+    optionCode: string;
+    optionName: string;
+    optionDescription: string;
+  }>;
+};
+
+type ViatorCatalogDuration = {
+  fixedDurationInMinutes?: number;
+  variableDurationFromMinutes?: number;
+  variableDurationToMinutes?: number;
+};
+
+type ViatorCatalogResponseProduct = {
+  status?: string;
+  productCode?: string;
+  title?: string;
+  description?: string;
+  productUrl?: string;
+  duration?: ViatorCatalogDuration;
+  images?: ViatorProductImage[];
+  productOptions?: Array<{
+    productOptionCode?: string;
+    title?: string;
+    description?: string;
+  }>;
+  reviews?: {
+    combinedAverageRating?: number;
+    totalReviews?: number;
+  };
+};
+
+function cleanText(value?: string) {
+  return (value || "")
+    .replace(/<br\s*\/?\s*>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function bestProductImage(images?: ViatorProductImage[]) {
+  if (!images?.length) return "";
+
+  const preferred = images.find((image) => image.isCover) || images[0];
+  const variants = (preferred.variants || []).filter((variant) => variant.url);
+  if (!variants.length) return "";
+
+  const best = variants.reduce((a, b) => ((b.width || 0) > (a.width || 0) ? b : a));
+  return best.url || "";
+}
+
+function formatMinutes(total?: number) {
+  if (!total || total <= 0) return "";
+  const hours = Math.floor(total / 60);
+  const minutes = total % 60;
+  if (hours && minutes) return hours + " h " + minutes + " min";
+  if (hours) return hours + " h";
+  return minutes + " min";
+}
+
+function formatDuration(duration?: ViatorCatalogDuration) {
+  if (!duration) return "Duration on request";
+
+  if (duration.fixedDurationInMinutes) {
+    return formatMinutes(duration.fixedDurationInMinutes);
+  }
+
+  const from = formatMinutes(duration.variableDurationFromMinutes);
+  const to = formatMinutes(duration.variableDurationToMinutes);
+  if (from && to) return from + "–" + to;
+  return from || to || "Duration on request";
+}
+
+function inferCategory(title: string, description: string) {
+  const value = (title + " " + description).toLowerCase();
+  if (/horse|riding|equestrian|carriage/.test(value)) return "Horse Riding";
+  if (/dolphin|trawler|boat|sailing|cruise/.test(value)) return "Sea & Dolphins";
+  if (/surf|beach|caparica|sunset/.test(value)) return "Beach & Surf";
+  if (/cook|food|tile|azulejo|wine|cellar|market/.test(value)) return "Culture & Food";
+  if (/arr[aá]bida|set[uú]bal|palmela/.test(value)) return "Arrábida & Setúbal";
+  if (/lisbon|lisboa|bel[eé]m/.test(value)) return "Lisbon";
+  return "Private Tours";
+}
+
+function inferLocation(title: string, description: string) {
+  const value = (title + " " + description).toLowerCase();
+  if (/sintra|cascais/.test(value)) return "Sintra & Cascais";
+  if (/porto/.test(value)) return "Porto";
+  if (/azeit[aã]o/.test(value)) return "Azeitão";
+  if (/palmela/.test(value)) return "Palmela";
+  if (/set[uú]bal/.test(value)) return "Setúbal";
+  if (/arr[aá]bida/.test(value)) return "Arrábida";
+  if (/caparica|almada|cacilhas/.test(value)) return "Almada & Costa da Caparica";
+  if (/lisbon|lisboa|bel[eé]m/.test(value)) return "Lisbon";
+  return "Portugal";
+}
+
+function candidateProductCodes() {
+  const prefix = process.env.VIATOR_SUPPLIER_PRODUCT_PREFIX || "9963P";
+  const configuredMax = Number.parseInt(process.env.VIATOR_SUPPLIER_PRODUCT_SCAN_MAX || "250", 10);
+  const scanMax = Number.isFinite(configuredMax)
+    ? Math.max(1, Math.min(500, configuredMax))
+    : 250;
+
+  return Array.from({ length: scanMax }, (_, index) => prefix + String(index + 1));
+}
+
+export async function getLiveViatorCatalog(): Promise<LiveViatorCatalogProduct[]> {
+  const apiKey = process.env.VIATOR_PARTNER_API_KEY;
+  if (!apiKey) throw new Error("VIATOR_PARTNER_API_KEY is not configured");
+
+  const response = await fetch(
+    VIATOR_BASE_URL + "/products/bulk?campaign-value=watermelon-site",
+    {
+      method: "POST",
+      headers: {
+        "exp-api-key": apiKey,
+        "Accept-Language": "en-GB",
+        Accept: "application/json;version=2.0",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ productCodes: candidateProductCodes() }),
+      cache: "no-store",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Viator catalogue request failed with status " + response.status);
+  }
+
+  const products = (await response.json()) as ViatorCatalogResponseProduct[];
+
+  return products
+    .filter((product) => product.status === "ACTIVE" && product.productCode && product.title)
+    .map((product) => {
+      const code = product.productCode as string;
+      const title = cleanText(product.title);
+      const description = cleanText(product.description);
+      const options = (product.productOptions || [])
+        .filter((option) => option.productOptionCode)
+        .map((option) => ({
+          optionCode: option.productOptionCode as string,
+          optionName: cleanText(option.title) || "Standard option",
+          optionDescription: cleanText(option.description),
+        }));
+
+      return {
+        code,
+        title,
+        description,
+        image: bestProductImage(product.images),
+        url: product.productUrl || "",
+        duration: formatDuration(product.duration),
+        category: inferCategory(title, description),
+        location: inferLocation(title, description),
+        rating: product.reviews?.combinedAverageRating,
+        reviews: product.reviews?.totalReviews,
+        options: options.length
+          ? options
+          : [{ optionCode: "DEFAULT", optionName: "Standard option", optionDescription: "" }],
+      };
+    })
+    .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+}
+
+
 type ViatorProductImageVariant = {
   height?: number;
   width?: number;
