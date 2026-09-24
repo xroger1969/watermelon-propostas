@@ -52,7 +52,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             </div>
             <p>Experiências privadas e programas personalizados em Portugal.</p>
           </div>
-          <div className="footer-note">Preços sujeitos a disponibilidade na Viator.</div>
+          <div className="footer-note">Preços e disponibilidade sujeitos a confirmação.</div>
         </footer>
       </body>
     </html>
