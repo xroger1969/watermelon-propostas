@@ -91,6 +91,9 @@ export default function ProposalBuilder() {
     phone: "",
     notes: "",
   });
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
+  const [savedReference, setSavedReference] = useState("");
 
   useEffect(() => {
     try {
@@ -116,10 +119,11 @@ export default function ProposalBuilder() {
 
   const total = useMemo(() => items.reduce((sum, item) => sum + itemSubtotal(item), 0), [items]);
 
-  function proposalText() {
+  function proposalText(reference?: string) {
     const lines = [
       "WATERMELON EXPERIENCES",
       "PERSONALIZED PROPOSAL REQUEST",
+      reference ? "Reference: " + reference : "",
       "",
       client.name ? "Name: " + client.name : "",
       client.email ? "Email: " + client.email : "",
@@ -157,9 +161,72 @@ export default function ProposalBuilder() {
     return lines.join("\n");
   }
 
-  function shareWhatsApp() {
-    const url = "https://wa.me/351918404101?text=" + encodeURIComponent("Hello Watermelon Experiences,\n\nI would like to request a personalized proposal.\n\n" + proposalText());
-    window.open(url, "_blank", "noopener,noreferrer");
+  async function sendProposalRequest() {
+    if (!items.length || sending) return;
+
+    if (!client.name.trim() || !client.phone.trim()) {
+      setSendError("Please add your name and phone / WhatsApp number.");
+      return;
+    }
+
+    setSending(true);
+    setSendError("");
+    setSavedReference("");
+
+    try {
+      const response = await fetch("/api/proposal-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerName: client.name.trim(),
+          customerEmail: client.email.trim(),
+          customerPhone: client.phone.trim(),
+          customerNotes: client.notes.trim(),
+          currency: "EUR",
+          items: items.map((item) => ({
+            code: item.code,
+            title: item.title,
+            optionCode: item.optionCode,
+            optionName: item.optionName,
+            date: item.date,
+            guests: itemGuests(item),
+            preferredTime: timeLabel(item),
+            dateFlexibility: item.dateFlexibility,
+            pickupLocation: item.pickupLocation,
+            language: item.language,
+            notes: item.notes,
+            childrenAges: item.childrenAges,
+            accessibility: item.accessibility,
+            dietary: item.dietary,
+            occasion: item.occasion,
+            unitPrice: unitPrice(item) || null,
+          })),
+        }),
+      });
+
+      const data = (await response.json()) as { reference?: string; error?: string };
+
+      if (!response.ok || !data.reference) {
+        throw new Error(data.error || "We could not save your proposal request.");
+      }
+
+      setSavedReference(data.reference);
+
+      const message =
+        "Hello Watermelon Experiences,\n\n" +
+        "I have submitted a personalized proposal request through your website.\n\n" +
+        proposalText(data.reference);
+
+      window.location.href =
+        "https://wa.me/351918404101?text=" + encodeURIComponent(message);
+    } catch (error) {
+      setSendError(
+        error instanceof Error
+          ? error.message
+          : "We could not save your proposal request."
+      );
+      setSending(false);
+    }
   }
 
   function clearProposal() {
@@ -361,9 +428,16 @@ export default function ProposalBuilder() {
           </div>
           <div className="direct-proposal-note"><strong>Request your proposal directly from Watermelon.</strong><span>Each experience can have its own date, group size, time and preferences.</span></div>
           <p className="summary-hint">Prices shown are a guide. Availability, date, participant ages and selected options may affect the final price.</p>
-          <div className="proposal-contact-cta"><strong>Ready to plan your experience?</strong><span>Send us your request on WhatsApp. Our team will review it personally and confirm the final proposal.</span></div>
-          <button className="button button-primary wide" type="button" onClick={shareWhatsApp} disabled={!items.length}>
-            Send my request to Watermelon
+          <div className="proposal-contact-cta"><strong>Ready to plan your experience?</strong><span>Your request is saved in Watermelon first, then WhatsApp opens so you can send us the same reference and details.</span></div>
+          {sendError && <p className="booking-send-error">{sendError}</p>}
+          {savedReference && <p className="proposal-saved-reference">Saved as <strong>{savedReference}</strong></p>}
+          <button
+            className="button button-primary wide"
+            type="button"
+            onClick={() => void sendProposalRequest()}
+            disabled={!items.length || sending}
+          >
+            {sending ? "Saving your request…" : "Send my request to Watermelon"}
           </button>
           <button className="button button-outline wide" type="button" onClick={() => window.print()} disabled={!items.length}>
             Print / Save PDF

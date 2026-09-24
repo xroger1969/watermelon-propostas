@@ -1845,3 +1845,321 @@ button { cursor: pointer; }
     grid-column: auto;
   }
 }
+
+
+/* Watermelon CRM */
+.crm-shell {
+  padding-bottom: 80px;
+}
+.crm-topbar-copy {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.crm-stats {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.crm-stats button,
+.crm-contact-stat {
+  display: grid;
+  gap: 6px;
+  min-height: 88px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+}
+.crm-stats button {
+  cursor: pointer;
+}
+.crm-stats button:hover {
+  border-color: var(--green-2);
+}
+.crm-stats span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+.crm-stats strong {
+  color: var(--green);
+  font-size: 26px;
+}
+.crm-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+  gap: 16px;
+  align-items: end;
+  margin-bottom: 18px;
+}
+.crm-filters {
+  margin: 0;
+}
+.crm-search {
+  display: grid;
+  gap: 6px;
+}
+.crm-search > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.crm-search input {
+  width: 100%;
+  min-height: 45px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 13px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+}
+.crm-search input:focus {
+  border-color: var(--green-2);
+  box-shadow: 0 0 0 3px rgba(23,122,85,.1);
+}
+.crm-request-list {
+  display: grid;
+  gap: 16px;
+}
+.crm-request-card {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 10px 34px rgba(8, 42, 29, .055);
+  overflow: hidden;
+}
+.crm-request-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px 22px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.crm-request-header h2 {
+  margin: 6px 0 4px;
+  font-size: 23px;
+  line-height: 1.15;
+}
+.crm-request-header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.crm-request-kicker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.crm-request-kicker > span:last-child {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+.crm-status {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #f2f4f3;
+  color: #5d6862;
+  font-size: 11px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+.crm-status-new { background: #fff3cf; color: #795e08; }
+.crm-status-in_review,
+.crm-status-proposal_drafting,
+.crm-status-customer_replied { background: #eef0fb; color: #46548f; }
+.crm-status-proposal_sent { background: #e8f1ff; color: #28558d; }
+.crm-status-accepted,
+.crm-status-awaiting_payment { background: #e7f5ed; color: #116144; }
+.crm-status-confirmed { background: #dff3e8; color: #0e5b3e; }
+.crm-status-declined,
+.crm-status-cancelled { background: #f8e8e8; color: #8d3f3f; }
+.crm-request-body {
+  display: grid;
+  gap: 16px;
+  padding: 18px 22px;
+}
+.crm-customer-panel {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.crm-customer-panel > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.crm-customer-panel span,
+.crm-notes-panel strong {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.crm-customer-panel strong {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.crm-experience-list {
+  display: grid;
+  gap: 8px;
+}
+.crm-experience-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fbfcfb;
+}
+.crm-experience-number {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--mint);
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 900;
+}
+.crm-experience-row > div:nth-child(2) {
+  display: grid;
+  gap: 3px;
+}
+.crm-experience-row strong {
+  font-size: 14px;
+}
+.crm-experience-row span,
+.crm-experience-row small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.crm-experience-row b {
+  color: var(--green);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.crm-notes-panel {
+  padding: 13px 14px;
+  border-radius: 13px;
+  background: #f7faf8;
+}
+.crm-notes-panel p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.crm-notes-panel p + p {
+  margin-top: 6px;
+}
+.crm-notes-panel strong {
+  margin-right: 4px;
+}
+.crm-activity {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.crm-activity summary {
+  cursor: pointer;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 850;
+}
+.crm-activity > div {
+  display: grid;
+  gap: 8px;
+  margin-top: 11px;
+}
+.crm-activity p {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 10px;
+  margin: 0;
+  font-size: 12px;
+}
+.crm-activity p span {
+  color: var(--muted);
+}
+.crm-request-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 16px 22px 20px;
+  border-top: 1px solid var(--line);
+  background: #fbfcfb;
+}
+.crm-request-actions .button {
+  min-height: 42px;
+  padding: 10px 15px;
+}
+.proposal-saved-reference {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--mint);
+  color: var(--green);
+  font-size: 12px;
+}
+@media (max-width: 1000px) {
+  .crm-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .crm-toolbar {
+    grid-template-columns: 1fr;
+  }
+  .crm-customer-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 650px) {
+  .crm-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+  .crm-request-header {
+    flex-direction: column;
+    padding: 17px;
+  }
+  .crm-request-body {
+    padding: 15px 17px;
+  }
+  .crm-customer-panel {
+    grid-template-columns: 1fr 1fr;
+  }
+  .crm-experience-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .crm-experience-row > b {
+    grid-column: 2;
+  }
+  .crm-request-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    padding: 14px 17px 17px;
+  }
+  .crm-request-actions .button {
+    width: 100%;
+  }
+  .crm-activity p {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
