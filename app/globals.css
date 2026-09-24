@@ -2163,3 +2163,84 @@ button { cursor: pointer; }
     gap: 2px;
   }
 }
+
+
+/* CRM WhatsApp composer */
+.crm-message-composer {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: #f8fbf9;
+}
+.crm-message-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+.crm-message-heading > div {
+  display: grid;
+  gap: 4px;
+}
+.crm-message-heading strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+.crm-message-heading span {
+  max-width: 760px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.crm-message-composer textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 88px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 13px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.45;
+  outline: none;
+}
+.crm-message-composer textarea:focus {
+  border-color: var(--green-2);
+  box-shadow: 0 0 0 3px rgba(23,122,85,.1);
+}
+.crm-message-preview {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.crm-message-preview summary {
+  cursor: pointer;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 850;
+}
+.crm-message-preview pre {
+  margin: 10px 0 0;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fff;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.crm-message-composer > .button {
+  justify-self: start;
+}
+@media (max-width: 650px) {
+  .crm-message-composer {
+    padding: 14px;
+  }
+  .crm-message-composer > .button {
+    width: 100%;
+  }
+}
