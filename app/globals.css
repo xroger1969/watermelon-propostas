@@ -1589,3 +1589,25 @@ button { cursor: pointer; }
     width: 100%;
   }
 }
+
+
+.admin-payment-save-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.admin-payment-saved {
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 800;
+}
+@media (max-width: 650px) {
+  .admin-payment-save-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .admin-payment-save-row .button {
+    width: 100%;
+  }
+}
