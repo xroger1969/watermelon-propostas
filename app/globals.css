@@ -2737,3 +2737,19 @@ button { cursor: pointer; }
     width: 100%;
   }
 }
+
+
+.crm-proposal-current-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+@media (max-width: 650px) {
+  .crm-proposal-current-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .crm-proposal-current-actions .button {
+    width: 100%;
+  }
+}
