@@ -3,18 +3,30 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://watermelon-propostas.vercel.app"),
-  title: "Watermelon Experiences | Tours & experiences in Portugal",
-  description: "Private tours, beach, sea, food and horseback riding experiences in Portugal.",
+  title: {
+    default: "Watermelon Experiences | Private Tours & Experiences in Portugal",
+    template: "%s | Watermelon Experiences",
+  },
+  description: "Discover private tours, food, beaches, nature and authentic local experiences in Lisbon, Arrábida, Setúbal and across Portugal.",
+  keywords: ["Portugal tours", "Lisbon private tours", "Costa da Caparica experiences", "Arrábida tours", "Setúbal tours", "Portuguese food experiences", "Watermelon Experiences"],
+  alternates: { canonical: "/" },
   icons: {
     icon: "/watermelon-mark.svg",
   },
   openGraph: {
     title: "Watermelon Experiences",
-    description: "Experiences to discover Portugal from a different perspective.",
+    description: "Private tours, food, beaches, nature and authentic local experiences in Lisbon and across Portugal.",
     url: "https://watermelon-propostas.vercel.app",
     siteName: "Watermelon Experiences",
     locale: "en_GB",
     type: "website",
+    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "Watermelon Experiences — authentic experiences in Portugal" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Watermelon Experiences | Portugal",
+    description: "Private tours and authentic local experiences in Lisbon and across Portugal.",
+    images: ["/opengraph-image"],
   },
 };
 
