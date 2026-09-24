@@ -54,19 +54,10 @@ function displayDate(value: string) {
   }).format(date);
 }
 
-function referenceCode() {
-  const now = new Date();
-  const date = [
-    String(now.getFullYear()).slice(-2),
-    String(now.getMonth() + 1).padStart(2, "0"),
-    String(now.getDate()).padStart(2, "0"),
-  ].join("");
-  const suffix = now.getTime().toString(36).slice(-5).toUpperCase();
-  return "WM-" + date + "-" + suffix;
-}
-
 export default function BookingRequest() {
   const [selection, setSelection] = useState<BookingSelection | null>(null);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
   const [form, setForm] = useState<BookingForm>({
     name: "",
     email: "",
@@ -113,49 +104,84 @@ export default function BookingRequest() {
     guests > 0
   );
 
-  function sendRequest() {
-    if (!selection || !canSend) return;
+  async function sendRequest() {
+    if (!selection || !canSend || sending) return;
 
-    const reference = referenceCode();
+    setSending(true);
+    setSendError("");
+
     const time =
       form.preferredTime === "Specific time" && form.specificTime
         ? form.specificTime
         : form.preferredTime;
 
-    const lines = [
-      "WATERMELON EXPERIENCES",
-      "DIRECT BOOKING REQUEST — PENDING",
-      "Reference: " + reference,
-      "Status: PENDING — awaiting Watermelon confirmation",
-      "",
-      "IMPORTANT: This is a booking request, not a confirmed reservation.",
-      "",
-      "Experience: " + selection.title,
-      "Code: " + selection.code,
-      selectedOption ? "Option: " + selectedOption.optionName : "",
-      "Date: " + displayDate(form.date),
-      "Guests: " + guests,
-      "Preferred time: " + time,
-      form.pickupLocation ? "Pickup / meeting place: " + form.pickupLocation : "",
-      form.language ? "Preferred language: " + form.language : "",
-      "",
-      "Guest: " + form.name.trim(),
-      form.email.trim() ? "Email: " + form.email.trim() : "",
-      "Phone: " + form.phone.trim(),
-      form.notes.trim() ? "Notes: " + form.notes.trim() : "",
-      "",
-      unitPrice
-        ? "Guide price: " + money(unitPrice, selection.currency) + " per person × " + guests + " = " + money(estimatedTotal, selection.currency)
-        : "Price: to be confirmed",
-      "",
-      "Please confirm availability before I consider this booking confirmed.",
-    ].filter(Boolean);
+    try {
+      const response = await fetch("/api/booking-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productCode: selection.code,
+          experienceTitle: selection.title,
+          optionCode: selectedOption?.optionCode || selection.optionCode || "DEFAULT",
+          optionName: selectedOption?.optionName || selection.optionName || "Standard option",
+          requestedDate: form.date,
+          preferredTime: time,
+          guests,
+          unitPrice: unitPrice || null,
+          currency: selection.currency || "EUR",
+          customerName: form.name.trim(),
+          customerEmail: form.email.trim(),
+          customerPhone: form.phone.trim(),
+          pickupLocation: form.pickupLocation.trim(),
+          language: form.language,
+          customerNotes: form.notes.trim(),
+        }),
+      });
 
-    const url =
-      "https://wa.me/351918404101?text=" +
-      encodeURIComponent("Hello Watermelon Experiences,\n\n" + lines.join("\n"));
+      const data = (await response.json()) as { reference?: string; error?: string };
 
-    window.open(url, "_blank", "noopener,noreferrer");
+      if (!response.ok || !data.reference) {
+        throw new Error(data.error || "We could not save your booking request.");
+      }
+
+      const lines = [
+        "WATERMELON EXPERIENCES",
+        "DIRECT BOOKING REQUEST — PENDING",
+        "Reference: " + data.reference,
+        "Status: PENDING — awaiting Watermelon confirmation",
+        "",
+        "IMPORTANT: This is a booking request, not a confirmed reservation.",
+        "",
+        "Experience: " + selection.title,
+        "Code: " + selection.code,
+        selectedOption ? "Option: " + selectedOption.optionName : "",
+        "Date: " + displayDate(form.date),
+        "Guests: " + guests,
+        "Preferred time: " + time,
+        form.pickupLocation ? "Pickup / meeting place: " + form.pickupLocation : "",
+        form.language ? "Preferred language: " + form.language : "",
+        "",
+        "Guest: " + form.name.trim(),
+        form.email.trim() ? "Email: " + form.email.trim() : "",
+        "Phone: " + form.phone.trim(),
+        form.notes.trim() ? "Notes: " + form.notes.trim() : "",
+        "",
+        unitPrice
+          ? "Guide price: " + money(unitPrice, selection.currency) + " per person × " + guests + " = " + money(estimatedTotal, selection.currency)
+          : "Price: to be confirmed",
+        "",
+        "Please confirm availability before I consider this booking confirmed.",
+      ].filter(Boolean);
+
+      const url =
+        "https://wa.me/351918404101?text=" +
+        encodeURIComponent("Hello Watermelon Experiences,\n\n" + lines.join("\n"));
+
+      window.location.href = url;
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : "We could not save your booking request.");
+      setSending(false);
+    }
   }
 
   if (!selection) {
@@ -362,13 +388,15 @@ export default function BookingRequest() {
             <span>After receiving your request, Watermelon checks availability and replies to confirm or suggest an alternative.</span>
           </div>
 
+          {sendError && <p className="booking-send-error">{sendError}</p>}
+
           <button
             className="button button-primary wide"
             type="button"
-            onClick={sendRequest}
-            disabled={!canSend}
+            onClick={() => void sendRequest()}
+            disabled={!canSend || sending}
           >
-            Send booking request on WhatsApp
+            {sending ? "Saving request…" : "Send booking request on WhatsApp"}
           </button>
 
           <a className="button button-ghost wide" href="/#experiencias">
