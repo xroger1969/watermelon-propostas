@@ -47,7 +47,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
 
           <nav className="main-nav" aria-label="Main navigation">
             <a href="/#experiencias">Experiences</a>
-            <a className="nav-cta" href="/proposta">Personalized proposal</a>
+            <a className="nav-cta" href="/proposta">Request a personalized proposal</a>
           </nav>
         </header>
 
