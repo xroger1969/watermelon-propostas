@@ -47,7 +47,6 @@ function displayDate(value: string | null) {
 
 export default function AdminBookings() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [authReady, setAuthReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [bookings, setBookings] = useState<BookingRequestRecord[]>([]);
@@ -71,7 +70,7 @@ export default function AdminBookings() {
     setMessage("");
 
     const { data, error } = await supabase
-      .from("booking_requests")
+      .from("watermelon_booking_requests")
       .select("*")
       .order("created_at", { ascending: false });
 
@@ -116,12 +115,16 @@ export default function AdminBookings() {
     setLoginLoading(true);
     setMessage("");
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      password,
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: window.location.origin + "/admin",
+      },
     });
 
     if (error) setMessage(error.message);
+    else setMessage("Check your email for the secure sign-in link.");
     setLoginLoading(false);
   }
 
@@ -151,7 +154,7 @@ export default function AdminBookings() {
     setMessage("");
 
     const { error } = await supabase
-      .from("booking_requests")
+      .from("watermelon_booking_requests")
       .update(patch)
       .eq("id", id);
 
@@ -204,7 +207,7 @@ export default function AdminBookings() {
         <form className="admin-login-card" onSubmit={signIn}>
           <p className="eyebrow dark">PRIVATE AREA</p>
           <h1>Watermelon Booking Admin</h1>
-          <p>Sign in to review booking requests, approvals and payments.</p>
+          <p>Enter your administrator email. We will send you a secure sign-in link.</p>
 
           <label>
             <span>Email</span>
@@ -216,21 +219,11 @@ export default function AdminBookings() {
               onChange={(event) => setEmail(event.target.value)}
             />
           </label>
-          <label>
-            <span>Password</span>
-            <input
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </label>
 
           {message && <p className="admin-error">{message}</p>}
 
           <button className="button button-primary wide" type="submit" disabled={loginLoading}>
-            {loginLoading ? "Signing in…" : "Sign in"}
+            {loginLoading ? "Sending link…" : "Send secure sign-in link"}
           </button>
         </form>
       </section>
