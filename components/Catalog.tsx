@@ -485,7 +485,7 @@ export default function Catalog() {
                   type="button"
                   onClick={() => addToProposal(product)}
                 >
-                  {addedCode === product.code ? "Added to proposal ✓" : "Add to my personalized proposal"}
+                  {addedCode === product.code ? "Added to proposal ✓" : "Add to my proposal"}
                 </button>
               </div>
             </article>
@@ -611,7 +611,7 @@ export default function Catalog() {
                   Book on Viator
                 </a>
                 <button className="proposal-secondary" type="button" onClick={() => addToProposal(product)}>
-                  {addedCode === product.code ? "Added to proposal ✓" : "Add to my personalized proposal"}
+                  {addedCode === product.code ? "Added to proposal ✓" : "Add to my proposal"}
                 </button>
               </div>
             </section>
