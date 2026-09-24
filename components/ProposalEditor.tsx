@@ -363,6 +363,62 @@ export default function ProposalEditor({
     ? "v" + latest.version + " · " + latest.status.replaceAll("_", " ")
     : "No proposal yet";
 
+  function proposalLink(token: string) {
+    return (
+      window.location.origin +
+      "/proposal/" +
+      encodeURIComponent(request.reference) +
+      "?token=" +
+      encodeURIComponent(token)
+    );
+  }
+
+  async function resendLatestProposal() {
+    if (!latest || latest.status === "draft") return;
+
+    const phone = (request.contact?.phone || "").replace(/[^0-9]/g, "");
+    const link = proposalLink(latest.public_token);
+    const lines = [
+      "Hello " + (request.contact?.name || "") + ",",
+      "",
+      "Here is your Watermelon proposal.",
+      "Reference: " + request.reference,
+      "Proposal: v" + latest.version,
+      "Total: " + money(Number(latest.total), request.currency),
+      latest.valid_until ? "Valid until: " + latest.valid_until : "",
+      "",
+      "View the full proposal here:",
+      link,
+      "",
+      "Watermelon Experiences",
+    ].filter(Boolean);
+
+    await supabase.from("watermelon_activities").insert({
+      request_id: request.id,
+      contact_id: request.contact?.id || null,
+      activity_type: "proposal_resent",
+      summary: "Proposal v" + latest.version + " reopened for WhatsApp",
+      metadata: {
+        proposal_id: latest.id,
+        version: latest.version,
+        link,
+      },
+    });
+
+    if (phone) {
+      window.location.href =
+        "https://wa.me/" + phone + "?text=" + encodeURIComponent(lines.join("\n"));
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(link);
+      setFeedback("Proposal link copied. This contact has no phone number.");
+    } catch {
+      setFeedback("Proposal link ready, but this contact has no phone number.");
+    }
+  }
+
   return (
     <section className="crm-proposal-editor">
       <button
@@ -379,6 +435,33 @@ export default function ProposalEditor({
 
       {open && (
         <div className="crm-proposal-body">
+          {latest && latest.status !== "draft" && (
+            <div className="crm-proposal-current-actions">
+              <a
+                className="button button-ghost"
+                href={
+                  "/proposal/" +
+                  encodeURIComponent(request.reference) +
+                  "?token=" +
+                  encodeURIComponent(latest.public_token)
+                }
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open current proposal
+              </a>
+              {latest.status !== "accepted" && (
+                <button
+                  className="button button-outline"
+                  type="button"
+                  onClick={() => void resendLatestProposal()}
+                >
+                  Resend current proposal
+                </button>
+              )}
+            </div>
+          )}
+
           {latest?.customer_response && latest.status === "changes_requested" && (
             <div className="crm-proposal-customer-response">
               <strong>Customer requested changes</strong>
