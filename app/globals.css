@@ -229,6 +229,24 @@ button { cursor: pointer; }
   .section-heading { align-items: flex-start; }
   .form-grid { grid-template-columns: 1fr; }
   .proposal-item-fields { grid-template-columns: 1fr; }
+  .proposal-hero {
+    padding-top: 38px;
+    padding-bottom: 24px;
+  }
+  .proposal-hero .eyebrow {
+    margin-bottom: 10px;
+  }
+  .proposal-hero h1 {
+    margin: 0 0 12px;
+    font-size: 38px;
+    line-height: 1.03;
+    letter-spacing: -.035em;
+  }
+  .proposal-hero p:last-child {
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.45;
+  }
   .site-footer { flex-direction: column; }
 }
 
