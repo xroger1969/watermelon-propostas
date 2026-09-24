@@ -10,27 +10,27 @@ export default function Home() {
           </div>
 
           <p className="eyebrow">WATERMELON EXPERIENCES · PORTUGAL</p>
-          <h1>Experiências para descobrir Portugal de outra forma.</h1>
+          <h1>Discover Portugal from a different perspective.</h1>
           <p className="hero-copy">
-            Tours privados, mar, praia, gastronomia e experiências a cavalo.
-            Veja fotografias, duração e o preço atualmente apresentado na Viator.
+            Private tours, sea, beach, food and horseback riding experiences.
+            Explore photos, duration and the current price shown on Viator.
           </p>
 
           <div className="hero-actions">
-            <a className="button button-primary" href="#experiencias">Ver experiências</a>
-            <a className="hero-proposal-link" href="/proposta">Prefere algo à sua medida? <strong>Peça uma proposta →</strong></a>
+            <a className="button button-primary" href="#experiencias">Explore experiences</a>
+            <a className="hero-proposal-link" href="/proposta">Looking for something tailored to you? <strong>Request a proposal →</strong></a>
           </div>
         </div>
       </section>
 
       <section className="intro">
         <div>
-          <p className="eyebrow dark">CATÁLOGO WATERMELON</p>
-          <h2>Escolha a experiência certa.</h2>
+          <p className="eyebrow dark">WATERMELON COLLECTION</p>
+          <h2>Find the right experience.</h2>
         </div>
         <p>
-          Descubra experiências selecionadas em Portugal, compare opções e encontre
-          o programa que melhor combina com a sua viagem.
+          Discover selected experiences in Portugal, compare options and find
+          the program that best fits your trip.
         </p>
       </section>
 
