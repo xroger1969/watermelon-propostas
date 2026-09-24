@@ -37,6 +37,7 @@ export type BookingRequestRecord = {
   payment_status: PaymentStatus;
   payment_method: PaymentMethod | null;
   payment_requested_at: string | null;
+  payment_token: string | null;
   product_code: string;
   experience_title: string;
   option_code: string | null;

@@ -243,7 +243,7 @@ export default function AdminBookings() {
     );
   }
 
-  function paymentMessage(booking: BookingRequestRecord) {
+  function paymentLinkMessage(booking: BookingRequestRecord, paymentUrl: string) {
     const lines = [
       "Hello " + booking.customer_name + ",",
       "",
@@ -252,39 +252,12 @@ export default function AdminBookings() {
         ? "Amount to pay: " + money(booking.estimated_total, booking.currency)
         : "Amount: as agreed",
       "",
-      "Please choose the payment method you prefer:",
+      "Choose your preferred payment method securely here:",
+      paymentUrl,
       "",
+      "You can choose PayPal, Revolut or bank transfer.",
+      "The booking becomes confirmed once the payment is received.",
     ];
-
-    if (paymentSettings.paypal_link) {
-      lines.push("PayPal");
-      lines.push(paymentSettings.paypal_link);
-      lines.push("");
-    }
-
-    if (paymentSettings.revolut_link) {
-      lines.push("Revolut");
-      lines.push(paymentSettings.revolut_link);
-      lines.push("");
-    }
-
-    if (paymentSettings.bank_iban) {
-      lines.push("Bank transfer");
-      if (paymentSettings.bank_account_name) {
-        lines.push("Account holder: " + paymentSettings.bank_account_name);
-      }
-      if (paymentSettings.bank_name) {
-        lines.push("Bank: " + paymentSettings.bank_name);
-      }
-      lines.push("IBAN: " + paymentSettings.bank_iban);
-      if (paymentSettings.bank_bic) {
-        lines.push("BIC/SWIFT: " + paymentSettings.bank_bic);
-      }
-      lines.push("");
-    }
-
-    lines.push("Please use " + booking.reference + " as the payment reference whenever possible.");
-    lines.push("The booking becomes confirmed once the payment is received.");
 
     return lines.join("\n");
   }
@@ -295,18 +268,28 @@ export default function AdminBookings() {
       return;
     }
 
+    const paymentToken = booking.payment_token || crypto.randomUUID();
+
     await updateBooking(booking.id, {
       payment_status: "awaiting",
       payment_method: null,
       payment_requested_at: new Date().toISOString(),
+      payment_token: paymentToken,
     }, false);
+
+    const paymentUrl =
+      window.location.origin +
+      "/payment/" +
+      encodeURIComponent(booking.reference) +
+      "?token=" +
+      encodeURIComponent(paymentToken);
 
     const phone = booking.customer_phone.replace(/[^0-9]/g, "");
     const url =
       "https://wa.me/" +
       phone +
       "?text=" +
-      encodeURIComponent(paymentMessage(booking));
+      encodeURIComponent(paymentLinkMessage(booking, paymentUrl));
 
     window.location.href = url;
   }
@@ -374,6 +357,7 @@ export default function AdminBookings() {
       | "payment_status"
       | "payment_method"
       | "payment_requested_at"
+      | "payment_token"
       | "admin_notes"
       | "alternative_date"
       | "alternative_time"
@@ -755,7 +739,7 @@ export default function AdminBookings() {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  WhatsApp customer
+                  General WhatsApp message
                 </a>
               </div>
             </article>
