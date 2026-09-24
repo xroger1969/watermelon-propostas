@@ -1,16 +1,16 @@
 import ProposalBuilder from "@/components/ProposalBuilder";
 
 export const metadata = {
-  title: "Criar proposta | Watermelon Experiences",
+  title: "Request a proposal | Watermelon Experiences",
 };
 
 export default function ProposalPage() {
   return (
     <main className="proposal-page">
       <section className="proposal-hero">
-        <p className="eyebrow dark">PROPOSTA PERSONALIZADA</p>
-        <h1>Peça a sua proposta personalizada.</h1>
-        <p>Escolha as experiências que prefere e indique os seus dados. Analisamos o pedido e preparamos uma proposta à sua medida.</p>
+        <p className="eyebrow dark">PERSONALIZED PROPOSAL</p>
+        <h1>Request your personalized proposal.</h1>
+        <p>Choose the experiences you prefer and tell us about your trip. We will review your request and prepare a proposal tailored to you.</p>
       </section>
       <ProposalBuilder />
     </main>
