@@ -3,24 +3,24 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://watermelon-propostas.vercel.app"),
-  title: "Watermelon Experiences | Tours e experiências em Portugal",
-  description: "Tours privados, praia, mar, gastronomia e experiências a cavalo em Portugal.",
+  title: "Watermelon Experiences | Tours & experiences in Portugal",
+  description: "Private tours, beach, sea, food and horseback riding experiences in Portugal.",
   icons: {
     icon: "/watermelon-mark.svg",
   },
   openGraph: {
     title: "Watermelon Experiences",
-    description: "Experiências para descobrir Portugal de outra forma.",
+    description: "Experiences to discover Portugal from a different perspective.",
     url: "https://watermelon-propostas.vercel.app",
     siteName: "Watermelon Experiences",
-    locale: "pt_PT",
+    locale: "en_GB",
     type: "website",
   },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt">
+    <html lang="en">
       <body>
         <header className="site-header">
           <a className="brand" href="/" aria-label="Watermelon Experiences">
@@ -33,9 +33,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             </span>
           </a>
 
-          <nav className="main-nav" aria-label="Navegação principal">
-            <a href="/#experiencias">Experiências</a>
-            <a className="nav-cta" href="/proposta">Proposta personalizada</a>
+          <nav className="main-nav" aria-label="Main navigation">
+            <a href="/#experiencias">Experiences</a>
+            <a className="nav-cta" href="/proposta">Personalized proposal</a>
           </nav>
         </header>
 
@@ -50,9 +50,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 <span>EXPERIENCES</span>
               </div>
             </div>
-            <p>Experiências privadas e programas personalizados em Portugal.</p>
+            <p>Private experiences and personalized programs in Portugal.</p>
           </div>
-          <div className="footer-note">Preços e disponibilidade sujeitos a confirmação.</div>
+          <div className="footer-note">Prices and availability subject to confirmation.</div>
         </footer>
       </body>
     </html>
