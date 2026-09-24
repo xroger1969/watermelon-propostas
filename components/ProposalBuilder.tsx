@@ -23,7 +23,7 @@ type ClientData = {
 const STORAGE_KEY = "watermelon-proposal";
 
 function money(value: number) {
-  return new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(value);
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency: "EUR" }).format(value);
 }
 
 export default function ProposalBuilder() {
@@ -66,22 +66,22 @@ export default function ProposalBuilder() {
   function proposalText() {
     const lines = [
       "WATERMELON EXPERIENCES",
-      "Proposta personalizada",
+      "Personalized proposal",
       "",
-      client.name ? "Cliente: " + client.name : "",
-      client.date ? "Data: " + client.date : "",
-      client.people ? "Participantes: " + client.people : "",
+      client.name ? "Guest: " + client.name : "",
+      client.date ? "Date: " + client.date : "",
+      client.people ? "Guests: " + client.people : "",
       "",
       ...items.flatMap((item, index) => [
         (index + 1) + ". " + item.title,
-        item.optionName ? "   Opção: " + item.optionName : "",
-        item.price ? "   Valor: " + money(Number.parseFloat(item.price.replace(",", ".")) || 0) : "   Valor: sob consulta",
-        item.notes ? "   Nota: " + item.notes : "",
+        item.optionName ? "   Option: " + item.optionName : "",
+        item.price ? "   Price: " + money(Number.parseFloat(item.price.replace(",", ".")) || 0) : "   Price: on request",
+        item.notes ? "   Request: " + item.notes : "",
         "",
       ]),
       "Total: " + money(total),
       client.notes ? "" : "",
-      client.notes ? "Observações: " + client.notes : "",
+      client.notes ? "Additional information: " + client.notes : "",
       "",
       "Watermelon Experiences",
     ].filter(Boolean);
@@ -94,7 +94,7 @@ export default function ProposalBuilder() {
   }
 
   function clearProposal() {
-    if (!window.confirm("Limpar todos os programas desta proposta?")) return;
+    if (!window.confirm("Remove all experiences from this proposal?")) return;
     persist([]);
   }
 
@@ -105,16 +105,16 @@ export default function ProposalBuilder() {
           <div className="block-title">
             <span>1</span>
             <div>
-              <h2>Os seus dados</h2>
-              <p>Para podermos preparar e confirmar a sua proposta.</p>
+              <h2>Your details</h2>
+              <p>Tell us how to contact you and when you would like to travel.</p>
             </div>
           </div>
           <div className="form-grid">
-            <label><span>Nome</span><input value={client.name} onChange={(e) => setClient({ ...client, name: e.target.value })} placeholder="Nome do cliente" /></label>
+            <label><span>Nome</span><input value={client.name} onChange={(e) => setClient({ ...client, name: e.target.value })} placeholder="Your name" /></label>
             <label><span>Email</span><input type="email" value={client.email} onChange={(e) => setClient({ ...client, email: e.target.value })} placeholder="cliente@email.com" /></label>
-            <label><span>Telefone</span><input value={client.phone} onChange={(e) => setClient({ ...client, phone: e.target.value })} placeholder="+351 …" /></label>
-            <label><span>Data pretendida</span><input type="date" value={client.date} onChange={(e) => setClient({ ...client, date: e.target.value })} /></label>
-            <label><span>N.º de participantes</span><input inputMode="numeric" value={client.people} onChange={(e) => setClient({ ...client, people: e.target.value })} placeholder="Ex.: 4" /></label>
+            <label><span>Phone</span><input value={client.phone} onChange={(e) => setClient({ ...client, phone: e.target.value })} placeholder="+351 …" /></label>
+            <label><span>Preferred date</span><input type="date" value={client.date} onChange={(e) => setClient({ ...client, date: e.target.value })} /></label>
+            <label><span>Number of guests</span><input inputMode="numeric" value={client.people} onChange={(e) => setClient({ ...client, people: e.target.value })} placeholder="E.g. 4" /></label>
           </div>
         </div>
 
@@ -122,16 +122,16 @@ export default function ProposalBuilder() {
           <div className="block-title">
             <span>2</span>
             <div>
-              <h2>Experiências</h2>
-              <p>Confirme os programas escolhidos e acrescente alguma indicação, se necessário.</p>
+              <h2>Experiences</h2>
+              <p>Review your selected experiences and add any special requests if needed.</p>
             </div>
           </div>
 
           {items.length === 0 ? (
             <div className="proposal-empty">
-              <h3>A proposta ainda está vazia.</h3>
-              <p>Volte ao catálogo e adicione os programas pretendidos.</p>
-              <a className="button button-primary" href="/#experiencias">Escolher experiências</a>
+              <h3>Your proposal is still empty.</h3>
+              <p>Browse our experiences and add the ones you would like to include.</p>
+              <a className="button button-primary" href="/#experiencias">Choose experiences</a>
             </div>
           ) : (
             <div className="proposal-items">
@@ -143,19 +143,19 @@ export default function ProposalBuilder() {
                       <h3>{item.title}</h3>
                       <p>{item.optionName}</p>
                     </div>
-                    <button className="remove-button" onClick={() => removeItem(index)} type="button">Remover</button>
+                    <button className="remove-button" onClick={() => removeItem(index)} type="button">Remove</button>
                   </div>
                   <div className="proposal-item-fields">
                     <div className="proposal-price-display">
-                      <span>Valor de referência</span>
-                      <strong>{item.price ? money(Number.parseFloat(item.price.replace(",", ".")) || 0) : "Sob consulta"}</strong>
+                      <span>From</span>
+                      <strong>{item.price ? money(Number.parseFloat(item.price.replace(",", ".")) || 0) : "On request"}</strong>
                     </div>
                     <label className="grow">
-                      <span>Pedido especial</span>
+                      <span>Special request</span>
                       <input
                         value={item.notes}
                         onChange={(e) => updateItem(index, { notes: e.target.value })}
-                        placeholder="Ex.: recolha no hotel, horário preferido…"
+                        placeholder="E.g. hotel pickup, preferred time…"
                       />
                     </label>
                   </div>
@@ -169,8 +169,8 @@ export default function ProposalBuilder() {
           <div className="block-title">
             <span>3</span>
             <div>
-              <h2>Observações</h2>
-              <p>Diga-nos o que podemos ter em conta ao preparar a sua proposta.</p>
+              <h2>Additional information</h2>
+              <p>Tell us anything that may help us tailor your proposal.</p>
             </div>
           </div>
           <label className="full-field">
@@ -178,7 +178,7 @@ export default function ProposalBuilder() {
               rows={4}
               value={client.notes}
               onChange={(e) => setClient({ ...client, notes: e.target.value })}
-              placeholder="Ex.: crianças no grupo, mobilidade reduzida, horário preferido, celebração especial…"
+              placeholder="E.g. children in the group, reduced mobility, preferred time, special celebration…"
             />
           </label>
         </div>
@@ -186,39 +186,39 @@ export default function ProposalBuilder() {
 
       <aside className="proposal-summary">
         <div className="summary-card">
-          <p className="eyebrow dark">RESUMO</p>
-          <h2>{client.name || "Nova proposta"}</h2>
+          <p className="eyebrow dark">SUMMARY</p>
+          <h2>{client.name || "New proposal"}</h2>
           <div className="summary-list">
-            <div><span>Programas</span><strong>{items.length}</strong></div>
-            <div><span>Participantes</span><strong>{client.people || "—"}</strong></div>
+            <div><span>Experiences</span><strong>{items.length}</strong></div>
+            <div><span>Guests</span><strong>{client.people || "—"}</strong></div>
             <div><span>Data</span><strong>{client.date || "—"}</strong></div>
           </div>
           <div className="summary-total">
             <span>Total</span>
             <strong>{money(total)}</strong>
           </div>
-          <div className="direct-proposal-note"><strong>Peça-nos uma proposta direta.</strong><span>Podemos preparar condições personalizadas para o seu grupo, de acordo com a data, os programas escolhidos e a disponibilidade.</span></div>
-          <p className="summary-hint">Os valores apresentados servem de referência. A proposta final é confirmada pela Watermelon Experiences.</p>
+          <div className="direct-proposal-note"><strong>Request your proposal directly from Watermelon.</strong><span>We can tailor the experience to your group, preferred date and selected activities, subject to availability.</span></div>
+          <p className="summary-hint">Prices shown are a guide. Your final proposal will be confirmed by Watermelon Experiences.</p>
           <button className="button button-primary wide" type="button" onClick={shareWhatsApp} disabled={!items.length}>
-            Partilhar por WhatsApp
+            Share via WhatsApp
           </button>
           <button className="button button-outline wide" type="button" onClick={() => window.print()} disabled={!items.length}>
-            Imprimir / Guardar PDF
+            Print / Save PDF
           </button>
-          <a className="button button-ghost wide" href="/#experiencias">Adicionar mais programas</a>
-          {items.length > 0 && <button className="clear-link" type="button" onClick={clearProposal}>Começar de novo</button>}
+          <a className="button button-ghost wide" href="/#experiencias">Add more experiences</a>
+          {items.length > 0 && <button className="clear-link" type="button" onClick={clearProposal}>Start again</button>}
         </div>
       </aside>
 
       <section className="print-proposal">
         <div className="print-brand">Watermelon Experiences</div>
-        <h1>Proposta personalizada</h1>
+        <h1>Personalized proposal</h1>
         <div className="print-client">
-          <p><strong>Cliente:</strong> {client.name || "—"}</p>
+          <p><strong>Guest:</strong> {client.name || "—"}</p>
           <p><strong>Email:</strong> {client.email || "—"}</p>
-          <p><strong>Telefone:</strong> {client.phone || "—"}</p>
-          <p><strong>Data:</strong> {client.date || "—"}</p>
-          <p><strong>Participantes:</strong> {client.people || "—"}</p>
+          <p><strong>Phone:</strong> {client.phone || "—"}</p>
+          <p><strong>Date:</strong> {client.date || "—"}</p>
+          <p><strong>Guests:</strong> {client.people || "—"}</p>
         </div>
         {items.map((item, index) => (
           <div className="print-item" key={"print-" + item.code + "-" + index}>
@@ -226,11 +226,11 @@ export default function ProposalBuilder() {
             <h3>{index + 1}. {item.title}</h3>
             <p>{item.optionName}</p>
             <p>{item.notes}</p>
-            <strong>{item.price ? money(Number.parseFloat(item.price.replace(",", ".")) || 0) : "Sob consulta"}</strong>
+            <strong>{item.price ? money(Number.parseFloat(item.price.replace(",", ".")) || 0) : "On request"}</strong>
           </div>
         ))}
         <div className="print-total"><span>Total</span><strong>{money(total)}</strong></div>
-        {client.notes && <div className="print-notes"><strong>Observações</strong><p>{client.notes}</p></div>}
+        {client.notes && <div className="print-notes"><strong>Additional information</strong><p>{client.notes}</p></div>}
       </section>
     </section>
   );
