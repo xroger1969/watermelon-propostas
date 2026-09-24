@@ -64,7 +64,7 @@ export async function POST(request: Request) {
   });
 
   const { data, error } = await supabase
-    .from("booking_requests")
+    .from("watermelon_booking_requests")
     .insert({
       reference,
       status: "pending",
