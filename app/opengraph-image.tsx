@@ -1,33 +1,27 @@
 import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
-export const alt = "Watermelon Experiences — authentic experiences in Portugal";
+export const alt = "Watermelon Experiences — private experiences in Portugal";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 export default function Image() {
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", position: "relative", background: "#f6f4eb", fontFamily: "Arial, sans-serif", overflow: "hidden" }}>
-        <div style={{ position: "absolute", right: -100, top: -180, width: 560, height: 560, borderRadius: 999, background: "#e8f5ee" }} />
-        <div style={{ position: "absolute", right: 105, bottom: -150, width: 390, height: 390, borderRadius: 999, background: "#f8d8d8" }} />
-        <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "70px 78px", width: "100%", zIndex: 2 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 96, height: 96, borderRadius: 999, background: "#fff", border: "5px solid #0b6248", fontSize: 54 }}>🍉</div>
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <div style={{ fontSize: 42, fontWeight: 800, color: "#10281f" }}>Watermelon</div>
-              <div style={{ fontSize: 21, letterSpacing: 8, textTransform: "uppercase", color: "#65776e" }}>Experiences</div>
-            </div>
+      <div style={{ width: "100%", height: "100%", display: "flex", position: "relative", overflow: "hidden", background: "#071f19", fontFamily: "Arial, sans-serif" }}>
+        <div style={{ position: "absolute", right: -90, top: -130, width: 600, height: 600, borderRadius: 999, background: "#0d382c" }} />
+        <div style={{ position: "absolute", right: 135, top: 110, width: 330, height: 330, borderRadius: 999, background: "#ed1d4f", border: "20px solid #ffffff", boxShadow: "0 0 0 34px #45b649", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ fontSize: 180, lineHeight: 1 }}>🍉</div>
+        </div>
+        <div style={{ position: "absolute", left: 0, bottom: 0, width: "100%", height: 12, background: "#45b649" }} />
+        <div style={{ display: "flex", flexDirection: "column", padding: "70px 76px", width: "760px", zIndex: 2 }}>
+          <div style={{ display: "flex", flexDirection: "column", marginBottom: 72 }}>
+            <div style={{ fontSize: 49, fontWeight: 800, color: "#ffffff", letterSpacing: -1 }}>Watermelon</div>
+            <div style={{ fontSize: 19, letterSpacing: 10, color: "#a9c5ba", textTransform: "uppercase" }}>Experiences</div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", maxWidth: 850 }}>
-            <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: 4, textTransform: "uppercase", color: "#0b6248", marginBottom: 18 }}>Portugal · Local experiences</div>
-            <div style={{ fontSize: 67, lineHeight: 1.03, letterSpacing: -2.5, fontWeight: 800, color: "#10281f" }}>Discover Portugal from a different perspective.</div>
-            <div style={{ fontSize: 27, lineHeight: 1.4, color: "#53675e", marginTop: 24 }}>Private tours · Food · Beaches · Nature · Culture</div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "2px solid #cad9d1", paddingTop: 24, color: "#0b6248", fontSize: 22, fontWeight: 700 }}>
-            <div>Watermelon Experiences</div>
-            <div>Personalized proposals available</div>
-          </div>
+          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: 4, textTransform: "uppercase", color: "#6fd080", marginBottom: 18 }}>Portugal</div>
+          <div style={{ fontSize: 61, lineHeight: 1.04, fontWeight: 800, color: "#ffffff", letterSpacing: -2 }}>Private experiences, made personal.</div>
+          <div style={{ fontSize: 25, lineHeight: 1.4, color: "#c8d9d2", marginTop: 24 }}>Tours · Food · Sea · Beaches · Nature</div>
         </div>
       </div>
     ),
