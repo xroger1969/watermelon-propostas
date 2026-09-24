@@ -53,6 +53,7 @@ export default function AdminBookings() {
   const [filter, setFilter] = useState<Filter>("pending");
   const [loading, setLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
+  const [loginCooldown, setLoginCooldown] = useState(0);
   const [message, setMessage] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
 
@@ -88,6 +89,14 @@ export default function AdminBookings() {
   }, [supabase]);
 
   useEffect(() => {
+    if (loginCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setLoginCooldown((value) => Math.max(0, value - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [loginCooldown]);
+
+  useEffect(() => {
     if (!supabase) {
       setAuthReady(true);
       return;
@@ -118,13 +127,22 @@ export default function AdminBookings() {
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
-        shouldCreateUser: true,
+        shouldCreateUser: false,
         emailRedirectTo: window.location.origin + "/admin",
       },
     });
 
-    if (error) setMessage(error.message);
-    else setMessage("Check your email for the secure sign-in link.");
+    if (error) {
+      const normalized = error.message.toLowerCase();
+      setMessage(
+        normalized.includes("rate limit")
+          ? "Too many access emails were requested. Please use the most recent email already received, or wait before requesting another link."
+          : error.message
+      );
+    } else {
+      setMessage("Secure sign-in link sent. Please check your email.");
+      setLoginCooldown(60);
+    }
     setLoginLoading(false);
   }
 
@@ -256,8 +274,16 @@ export default function AdminBookings() {
 
           {message && <p className="admin-error">{message}</p>}
 
-          <button className="button button-primary wide" type="submit" disabled={loginLoading}>
-            {loginLoading ? "Sending link…" : "Send secure sign-in link"}
+          <button
+            className="button button-primary wide"
+            type="submit"
+            disabled={loginLoading || loginCooldown > 0}
+          >
+            {loginLoading
+              ? "Sending link…"
+              : loginCooldown > 0
+                ? "Try again in " + loginCooldown + "s"
+                : "Send secure sign-in link"}
           </button>
         </form>
       </section>
