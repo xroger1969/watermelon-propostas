@@ -123,7 +123,7 @@ export default function ProposalBuilder() {
             <span>2</span>
             <div>
               <h2>Experiências</h2>
-              <p>Ajuste o preço e acrescente uma nota, se necessário.</p>
+              <p>Confirme os programas escolhidos e acrescente alguma indicação, se necessário.</p>
             </div>
           </div>
 
@@ -146,21 +146,16 @@ export default function ProposalBuilder() {
                     <button className="remove-button" onClick={() => removeItem(index)} type="button">Remover</button>
                   </div>
                   <div className="proposal-item-fields">
-                    <label>
-                      <span>Preço (€)</span>
-                      <input
-                        inputMode="decimal"
-                        value={item.price}
-                        onChange={(e) => updateItem(index, { price: e.target.value })}
-                        placeholder="0,00"
-                      />
-                    </label>
+                    <div className="proposal-price-display">
+                      <span>Valor de referência</span>
+                      <strong>{item.price ? money(Number.parseFloat(item.price.replace(",", ".")) || 0) : "Sob consulta"}</strong>
+                    </div>
                     <label className="grow">
-                      <span>Nota</span>
+                      <span>Pedido especial</span>
                       <input
                         value={item.notes}
                         onChange={(e) => updateItem(index, { notes: e.target.value })}
-                        placeholder="Ex.: inclui recolha no hotel"
+                        placeholder="Ex.: recolha no hotel, horário preferido…"
                       />
                     </label>
                   </div>
@@ -175,7 +170,7 @@ export default function ProposalBuilder() {
             <span>3</span>
             <div>
               <h2>Observações</h2>
-              <p>Informação adicional para o cliente.</p>
+              <p>Diga-nos o que podemos ter em conta ao preparar a sua proposta.</p>
             </div>
           </div>
           <label className="full-field">
@@ -183,7 +178,7 @@ export default function ProposalBuilder() {
               rows={4}
               value={client.notes}
               onChange={(e) => setClient({ ...client, notes: e.target.value })}
-              placeholder="Condições, ponto de encontro, notas especiais…"
+              placeholder="Ex.: crianças no grupo, mobilidade reduzida, horário preferido, celebração especial…"
             />
           </label>
         </div>
@@ -211,7 +206,7 @@ export default function ProposalBuilder() {
             Imprimir / Guardar PDF
           </button>
           <a className="button button-ghost wide" href="/#experiencias">Adicionar mais programas</a>
-          {items.length > 0 && <button className="clear-link" type="button" onClick={clearProposal}>Limpar proposta</button>}
+          {items.length > 0 && <button className="clear-link" type="button" onClick={clearProposal}>Começar de novo</button>}
         </div>
       </aside>
 
