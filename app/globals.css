@@ -829,3 +829,18 @@ button { cursor: pointer; }
 @media (max-width: 650px) {
   .proposal-price-display { width: 100%; }
 }
+
+.proposal-contact-cta {
+  display: grid;
+  gap: 5px;
+  margin: 16px 0 12px;
+}
+.proposal-contact-cta strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+.proposal-contact-cta span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
