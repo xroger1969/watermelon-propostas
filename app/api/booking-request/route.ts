@@ -9,12 +9,18 @@ import {
 export const runtime = "nodejs";
 
 function referenceCode() {
-  const date = new Date();
-  const stamp = [
-    String(date.getUTCFullYear()).slice(-2),
-    String(date.getUTCMonth() + 1).padStart(2, "0"),
-    String(date.getUTCDate()).padStart(2, "0"),
-  ].join("");
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Lisbon",
+      year: "2-digit",
+      month: "2-digit",
+      day: "2-digit",
+    })
+      .formatToParts(new Date())
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+  const stamp = [parts.year, parts.month, parts.day].join("");
   const random = crypto.randomUUID().replace(/-/g, "").slice(0, 7).toUpperCase();
   return `WM-${stamp}-${random}`;
 }
