@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("watermelon_booking_requests")
     .insert({
       reference,
@@ -79,11 +79,9 @@ export async function POST(request: Request) {
       pickup_location: clean(input.pickupLocation, 500) || null,
       language: clean(input.language, 80) || null,
       customer_notes: clean(input.customerNotes, 2000) || null,
-    })
-    .select("id, reference")
-    .single();
+    });
 
-  if (error || !data) {
+  if (error) {
     console.error("Unable to store booking request", error);
     return NextResponse.json(
       { error: "We could not save your booking request. Please try again." },
@@ -92,8 +90,7 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({
-    id: data.id,
-    reference: data.reference,
+    reference,
     status: "pending",
   });
 }
