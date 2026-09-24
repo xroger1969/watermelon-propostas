@@ -406,12 +406,11 @@ export default function Catalog() {
 
           return (
             <article className="product-card catalog-card" key={product.code}>
-              <a
+              <button
                 className="product-photo-link"
-                href={affiliateUrl(product.viator.url)}
-                target="_blank"
-                rel="sponsored noreferrer"
-                aria-label={"View " + product.viator.title + " on Viator"}
+                type="button"
+                onClick={() => setDetailCode(product.code)}
+                aria-label={"View details for " + product.viator.title}
               >
                 <img
                   className="product-photo"
@@ -420,7 +419,7 @@ export default function Catalog() {
                   loading="lazy"
                 />
                 <span className="photo-badge">{product.category}</span>
-              </a>
+              </button>
 
               <div className="product-body">
                 <div className="product-meta">
@@ -428,7 +427,13 @@ export default function Catalog() {
                   <span>{product.viator.duration}</span>
                 </div>
 
-                <h3>{product.viator.title}</h3>
+                <button
+                  className="product-title-button"
+                  type="button"
+                  onClick={() => setDetailCode(product.code)}
+                >
+                  {product.viator.title}
+                </button>
 
                 {product.description && (
                   <div className="product-description-wrap">
