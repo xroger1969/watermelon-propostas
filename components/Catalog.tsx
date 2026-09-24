@@ -193,7 +193,9 @@ export default function Catalog() {
     }
 
     setAddedCode(product.code);
-    window.setTimeout(() => setAddedCode(null), 1400);
+    window.setTimeout(() => {
+      window.location.href = "/proposta";
+    }, 450);
   }
 
   return (
