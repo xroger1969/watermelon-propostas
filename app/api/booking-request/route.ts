@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { CreateBookingRequestInput } from "@/types/booking";
+import {
+  SUPABASE_BOOKING_PUBLISHABLE_KEY,
+  SUPABASE_BOOKING_URL,
+} from "@/lib/supabase/config";
 
 export const runtime = "nodejs";
 
@@ -20,16 +24,6 @@ function clean(value: unknown, max = 500) {
 }
 
 export async function POST(request: Request) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!url || !publishableKey) {
-    return NextResponse.json(
-      { error: "Booking storage is not configured yet." },
-      { status: 503 }
-    );
-  }
-
   let input: CreateBookingRequestInput;
   try {
     input = (await request.json()) as CreateBookingRequestInput;
@@ -59,7 +53,7 @@ export async function POST(request: Request) {
   const estimatedTotal = unitPrice === null ? null : Number((unitPrice * guests).toFixed(2));
   const reference = referenceCode();
 
-  const supabase = createClient(url, publishableKey, {
+  const supabase = createClient(SUPABASE_BOOKING_URL, SUPABASE_BOOKING_PUBLISHABLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
