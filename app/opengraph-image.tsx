@@ -10,9 +10,9 @@ export default function Image() {
     (
       <div style={{ width: "100%", height: "100%", display: "flex", position: "relative", overflow: "hidden", background: "#071f19", fontFamily: "Arial, sans-serif" }}>
         <div style={{ position: "absolute", right: -90, top: -130, width: 600, height: 600, borderRadius: 999, background: "#0d382c" }} />
-        <div style={{ position: "absolute", right: 135, top: 110, width: 330, height: 330, borderRadius: 999, background: "#ed1d4f", border: "20px solid #ffffff", boxShadow: "0 0 0 34px #45b649", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ fontSize: 180, lineHeight: 1 }}>🍉</div>
-        </div>
+        <div style={{ position: "absolute", right: -70, top: -90, width: 560, height: 560, borderRadius: 999, border: "2px solid #1d4d3f", background: "#0d382c" }} />
+        <div style={{ position: "absolute", right: 100, top: 105, width: 250, height: 250, borderRadius: 999, border: "2px solid #3f735f", background: "#123f32" }} />
+        <div style={{ position: "absolute", right: 185, top: 190, width: 80, height: 80, borderRadius: 999, background: "#ed1d4f" }} />
         <div style={{ position: "absolute", left: 0, bottom: 0, width: "100%", height: 12, background: "#45b649" }} />
         <div style={{ display: "flex", flexDirection: "column", padding: "70px 76px", width: "760px", zIndex: 2 }}>
           <div style={{ display: "flex", flexDirection: "column", marginBottom: 72 }}>
