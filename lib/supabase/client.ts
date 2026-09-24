@@ -1,12 +1,12 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import {
+  SUPABASE_BOOKING_PUBLISHABLE_KEY,
+  SUPABASE_BOOKING_URL,
+} from "@/lib/supabase/config";
 
 export function createClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!url || !publishableKey) {
-    throw new Error("Supabase booking configuration is missing.");
-  }
-
-  return createSupabaseClient(url, publishableKey);
+  return createSupabaseClient(
+    SUPABASE_BOOKING_URL,
+    SUPABASE_BOOKING_PUBLISHABLE_KEY
+  );
 }
