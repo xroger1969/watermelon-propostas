@@ -45,7 +45,7 @@ function readProposal(): ProposalItem[] {
 }
 
 function money(value: number, currency = "EUR") {
-  return new Intl.NumberFormat("pt-PT", {
+  return new Intl.NumberFormat("en-GB", {
     style: "currency",
     currency,
     maximumFractionDigits: value % 1 === 0 ? 0 : 2,
@@ -75,12 +75,12 @@ export default function Catalog() {
   );
 
   const categories = useMemo(
-    () => ["Todas", ...Array.from(new Set(products.map((p) => p.category)))],
+    () => ["All", ...Array.from(new Set(products.map((p) => p.category)))],
     [products]
   );
 
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("Todas");
+  const [category, setCategory] = useState("All");
   const [addedCode, setAddedCode] = useState<string | null>(null);
   const [detailCode, setDetailCode] = useState<string | null>(null);
   const [galleryImages, setGalleryImages] = useState<Record<string, string[]>>({});
@@ -153,7 +153,7 @@ export default function Catalog() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return products.filter((product) => {
-      const categoryMatch = category === "Todas" || product.category === category;
+      const categoryMatch = category === "All" || product.category === category;
       const queryMatch =
         !q ||
         product.viator.title.toLowerCase().includes(q) ||
@@ -185,7 +185,7 @@ export default function Catalog() {
         code: product.code,
         title: product.viator.title,
         optionCode: option?.optionCode || "DEFAULT",
-        optionName: option?.optionName || "Opção standard",
+        optionName: option?.optionName || "Standard option",
         price: String(currentPrice.price),
         notes: "",
       });
@@ -202,24 +202,24 @@ export default function Catalog() {
     <section className="catalog-section" id="experiencias">
       <div className="section-heading">
         <div>
-          <p className="eyebrow dark">EXPERIÊNCIAS</p>
+          <p className="eyebrow dark">EXPERIENCES</p>
           <h2>Watermelon Experiences</h2>
         </div>
         <span className="price-check">
-          {livePricingActive ? "Preços atualizados automaticamente" : "Preços Viator"}
+          {livePricingActive ? "Prices updated automatically" : "Viator prices"}
         </span>
       </div>
 
       <div className="filters">
         <label className="search-box">
-          <span>Pesquisar</span>
+          <span>Search</span>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Lisboa, praia, cavalos, Arrábida…"
+            placeholder="Lisbon, beach, horses, Arrábida…"
           />
         </label>
-        <div className="category-row" aria-label="Categorias">
+        <div className="category-row" aria-label="Categories">
           {categories.map((item) => (
             <button
               type="button"
@@ -234,7 +234,7 @@ export default function Catalog() {
       </div>
 
       <div className="catalog-count">
-        {filtered.length} {filtered.length === 1 ? "experiência" : "experiências"}
+        {filtered.length} {filtered.length === 1 ? "experience" : "experiences"}
       </div>
 
       <div className="product-grid">
@@ -248,7 +248,7 @@ export default function Catalog() {
                 href={affiliateUrl(product.viator.url)}
                 target="_blank"
                 rel="sponsored noreferrer"
-                aria-label={"Ver " + product.viator.title + " na Viator"}
+                aria-label={"View " + product.viator.title + " on Viator"}
               >
                 <img
                   className="product-photo"
@@ -275,22 +275,22 @@ export default function Catalog() {
                       type="button"
                       onClick={() => setDetailCode(product.code)}
                     >
-                      Ver detalhes →
+                      View details →
                     </button>
                   </div>
                 )}
 
                 <div className="catalog-bottom">
                   <div className="price-block">
-                    <span>Desde</span>
+                    <span>From</span>
                     <strong>{money(currentPrice.price, currentPrice.currency)}</strong>
-                    <small>{currentPrice.isLive ? "preço atualizado automaticamente" : "preço Viator"}</small>
+                    <small>{currentPrice.isLive ? "price updated automatically" : "Viator price"}</small>
                   </div>
 
                   {product.viator.rating && (
                     <div className="rating-block">
                       <strong>★ {product.viator.rating.toFixed(1)}</strong>
-                      <span>{product.viator.reviews || 0} avaliações</span>
+                      <span>{product.viator.reviews || 0} reviews</span>
                     </div>
                   )}
                 </div>
@@ -301,7 +301,7 @@ export default function Catalog() {
                   target="_blank"
                   rel="sponsored noreferrer"
                 >
-                  Ver disponibilidade na Viator
+                  Check availability on Viator
                 </a>
 
                 <button
@@ -309,7 +309,7 @@ export default function Catalog() {
                   type="button"
                   onClick={() => addToProposal(product)}
                 >
-                  {addedCode === product.code ? "Adicionado à proposta ✓" : "Adicionar a uma proposta personalizada"}
+                  {addedCode === product.code ? "Added to proposal ✓" : "Add to my personalized proposal"}
                 </button>
               </div>
             </article>
@@ -318,14 +318,14 @@ export default function Catalog() {
       </div>
 
       <p className="catalog-note">
-        Os valores apresentados são preços “desde”. O preço final pode variar conforme a data,
-        o número de participantes, a opção escolhida e a disponibilidade.
+        Prices shown are “from” prices. The final price may vary depending on the date,
+        number of guests, selected option and availability.
       </p>
 
       {filtered.length === 0 && (
         <div className="empty-state">
-          <h3>Nenhuma experiência encontrada</h3>
-          <p>Tente outro termo ou selecione outra categoria.</p>
+          <h3>No experiences found</h3>
+          <p>Try another search or choose a different category.</p>
         </div>
       )}
 
@@ -342,7 +342,7 @@ export default function Catalog() {
               aria-label={product.viator.title}
               onClick={(event) => event.stopPropagation()}
             >
-              <button className="experience-modal-close" type="button" aria-label="Fechar" onClick={() => setDetailCode(null)}>×</button>
+              <button className="experience-modal-close" type="button" aria-label="Close" onClick={() => setDetailCode(null)}>×</button>
               <div
                 className="experience-modal-gallery"
                 onTouchStart={(event) => setTouchStartX(event.touches[0]?.clientX ?? null)}
@@ -364,11 +364,11 @@ export default function Catalog() {
                 />
                 {(galleryImages[product.code]?.length || 1) > 1 && (
                   <>
-                    <button className="gallery-nav gallery-prev" type="button" aria-label="Fotografia anterior" onClick={() => {
+                    <button className="gallery-nav gallery-prev" type="button" aria-label="Previous photo" onClick={() => {
                       const total = galleryImages[product.code].length;
                       setGalleryIndex((index) => (index - 1 + total) % total);
                     }}>‹</button>
-                    <button className="gallery-nav gallery-next" type="button" aria-label="Fotografia seguinte" onClick={() => {
+                    <button className="gallery-nav gallery-next" type="button" aria-label="Next photo" onClick={() => {
                       const total = galleryImages[product.code].length;
                       setGalleryIndex((index) => (index + 1) % total);
                     }}>›</button>
@@ -387,7 +387,7 @@ export default function Catalog() {
                   <div className="experience-modal-facts">
                     {productDetails[product.code].inclusions?.length ? (
                       <div>
-                        <h3>Incluído</h3>
+                        <h3>Included</h3>
                         <ul>
                           {productDetails[product.code].inclusions!.slice(0, 6).map((item, index) => <li key={index}>{item}</li>)}
                         </ul>
@@ -395,7 +395,7 @@ export default function Catalog() {
                     ) : null}
                     {productDetails[product.code].exclusions?.length ? (
                       <div>
-                        <h3>Não incluído</h3>
+                        <h3>Not included</h3>
                         <ul>
                           {productDetails[product.code].exclusions!.slice(0, 4).map((item, index) => <li key={index}>{item}</li>)}
                         </ul>
@@ -403,13 +403,13 @@ export default function Catalog() {
                     ) : null}
                     {productDetails[product.code].meetingPoint ? (
                       <div>
-                        <h3>Ponto de encontro</h3>
+                        <h3>Meeting point</h3>
                         <p>{productDetails[product.code].meetingPoint}</p>
                       </div>
                     ) : null}
                     {productDetails[product.code].pickup ? (
                       <div>
-                        <h3>Recolha</h3>
+                        <h3>Pickup</h3>
                         <p>{productDetails[product.code].pickup}</p>
                       </div>
                     ) : null}
@@ -417,22 +417,22 @@ export default function Catalog() {
                 )}
                 <div className="experience-modal-summary">
                   <div className="price-block">
-                    <span>Desde</span>
+                    <span>From</span>
                     <strong>{money(currentPrice.price, currentPrice.currency)}</strong>
-                    <small>{currentPrice.isLive ? "preço atualizado automaticamente" : "preço Viator"}</small>
+                    <small>{currentPrice.isLive ? "price updated automatically" : "Viator price"}</small>
                   </div>
                   {product.viator.rating && (
                     <div className="rating-block">
                       <strong>★ {product.viator.rating.toFixed(1)}</strong>
-                      <span>{product.viator.reviews || 0} avaliações</span>
+                      <span>{product.viator.reviews || 0} reviews</span>
                     </div>
                   )}
                 </div>
                 <a className="button button-card viator-button" href={affiliateUrl(product.viator.url)} target="_blank" rel="sponsored noreferrer">
-                  Ver disponibilidade na Viator
+                  Check availability on Viator
                 </a>
                 <button className="proposal-secondary" type="button" onClick={() => addToProposal(product)}>
-                  {addedCode === product.code ? "Adicionado à proposta ✓" : "Adicionar a uma proposta personalizada"}
+                  {addedCode === product.code ? "Added to proposal ✓" : "Add to my personalized proposal"}
                 </button>
               </div>
             </section>
