@@ -12,6 +12,22 @@ export type PaymentStatus =
   | "paid"
   | "refunded";
 
+export type PaymentMethod =
+  | "paypal"
+  | "revolut"
+  | "bank_transfer";
+
+export type PaymentSettings = {
+  id: 1;
+  paypal_link: string | null;
+  revolut_link: string | null;
+  bank_name: string | null;
+  bank_account_name: string | null;
+  bank_iban: string | null;
+  bank_bic: string | null;
+  updated_at: string;
+};
+
 export type BookingRequestRecord = {
   id: string;
   reference: string;
@@ -19,6 +35,8 @@ export type BookingRequestRecord = {
   updated_at: string;
   status: BookingStatus;
   payment_status: PaymentStatus;
+  payment_method: PaymentMethod | null;
+  payment_requested_at: string | null;
   product_code: string;
   experience_title: string;
   option_code: string | null;

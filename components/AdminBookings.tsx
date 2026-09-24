@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 import type {
   BookingRequestRecord,
   BookingStatus,
+  PaymentMethod,
+  PaymentSettings,
   PaymentStatus,
 } from "@/types/booking";
 
@@ -26,6 +28,23 @@ const PAYMENT_LABELS: Record<PaymentStatus, string> = {
   refunded: "Refunded",
 };
 
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  paypal: "PayPal",
+  revolut: "Revolut",
+  bank_transfer: "Bank transfer",
+};
+
+const EMPTY_PAYMENT_SETTINGS: PaymentSettings = {
+  id: 1,
+  paypal_link: null,
+  revolut_link: null,
+  bank_name: null,
+  bank_account_name: null,
+  bank_iban: null,
+  bank_bic: null,
+  updated_at: "",
+};
+
 function money(value: number | null, currency = "EUR") {
   if (value === null) return "On request";
   return new Intl.NumberFormat("en-GB", {
@@ -45,15 +64,21 @@ function displayDate(value: string | null) {
   }).format(date);
 }
 
+function cleanSetting(value: string | null) {
+  return value?.trim() || null;
+}
+
 export default function AdminBookings() {
   const [email, setEmail] = useState("");
   const [authReady, setAuthReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [bookings, setBookings] = useState<BookingRequestRecord[]>([]);
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>(EMPTY_PAYMENT_SETTINGS);
   const [filter, setFilter] = useState<Filter>("pending");
   const [loading, setLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginCooldown, setLoginCooldown] = useState(0);
+  const [savingPaymentSettings, setSavingPaymentSettings] = useState(false);
   const [message, setMessage] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
 
@@ -88,6 +113,23 @@ export default function AdminBookings() {
     setLoading(false);
   }, [supabase]);
 
+  const loadPaymentSettings = useCallback(async () => {
+    if (!supabase) return;
+
+    const { data, error } = await supabase
+      .from("watermelon_payment_settings")
+      .select("*")
+      .eq("id", 1)
+      .single();
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    if (data) setPaymentSettings(data as PaymentSettings);
+  }, [supabase]);
+
   useEffect(() => {
     if (loginCooldown <= 0) return;
     const timer = window.setInterval(() => {
@@ -106,17 +148,25 @@ export default function AdminBookings() {
       const active = Boolean(data.session);
       setSignedIn(active);
       setAuthReady(true);
-      if (active) void loadBookings();
+      if (active) {
+        void loadBookings();
+        void loadPaymentSettings();
+      }
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setSignedIn(Boolean(session));
-      if (session) void loadBookings();
-      else setBookings([]);
+      if (session) {
+        void loadBookings();
+        void loadPaymentSettings();
+      } else {
+        setBookings([]);
+        setPaymentSettings(EMPTY_PAYMENT_SETTINGS);
+      }
     });
 
     return () => listener.subscription.unsubscribe();
-  }, [supabase, loadBookings]);
+  }, [supabase, loadBookings, loadPaymentSettings]);
 
   async function signIn(event: React.FormEvent) {
     event.preventDefault();
@@ -153,7 +203,132 @@ export default function AdminBookings() {
     setBookings([]);
   }
 
+  async function savePaymentSettings() {
+    if (!supabase) return;
+    setSavingPaymentSettings(true);
+    setMessage("");
+
+    const patch = {
+      paypal_link: cleanSetting(paymentSettings.paypal_link),
+      revolut_link: cleanSetting(paymentSettings.revolut_link),
+      bank_name: cleanSetting(paymentSettings.bank_name),
+      bank_account_name: cleanSetting(paymentSettings.bank_account_name),
+      bank_iban: cleanSetting(paymentSettings.bank_iban),
+      bank_bic: cleanSetting(paymentSettings.bank_bic),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("watermelon_payment_settings")
+      .update(patch)
+      .eq("id", 1);
+
+    if (error) {
+      setMessage(error.message);
+    } else {
+      setPaymentSettings((current) => ({ ...current, ...patch }));
+      setMessage("Payment options saved.");
+    }
+    setSavingPaymentSettings(false);
+  }
+
+  function paymentOptionsAvailable() {
+    return Boolean(
+      paymentSettings.paypal_link ||
+      paymentSettings.revolut_link ||
+      paymentSettings.bank_iban
+    );
+  }
+
+  function paymentMessage(booking: BookingRequestRecord) {
+    const lines = [
+      "Hello " + booking.customer_name + ",",
+      "",
+      "Your Watermelon booking request " + booking.reference + " has been approved after checking availability.",
+      booking.estimated_total !== null
+        ? "Amount to pay: " + money(booking.estimated_total, booking.currency)
+        : "Amount: as agreed",
+      "",
+      "Please choose the payment method you prefer:",
+      "",
+    ];
+
+    if (paymentSettings.paypal_link) {
+      lines.push("PayPal");
+      lines.push(paymentSettings.paypal_link);
+      lines.push("");
+    }
+
+    if (paymentSettings.revolut_link) {
+      lines.push("Revolut");
+      lines.push(paymentSettings.revolut_link);
+      lines.push("");
+    }
+
+    if (paymentSettings.bank_iban) {
+      lines.push("Bank transfer");
+      if (paymentSettings.bank_account_name) {
+        lines.push("Account holder: " + paymentSettings.bank_account_name);
+      }
+      if (paymentSettings.bank_name) {
+        lines.push("Bank: " + paymentSettings.bank_name);
+      }
+      lines.push("IBAN: " + paymentSettings.bank_iban);
+      if (paymentSettings.bank_bic) {
+        lines.push("BIC/SWIFT: " + paymentSettings.bank_bic);
+      }
+      lines.push("");
+    }
+
+    lines.push("Please use " + booking.reference + " as the payment reference whenever possible.");
+    lines.push("The booking becomes confirmed once the payment is received.");
+
+    return lines.join("\n");
+  }
+
+  async function sendPaymentOptions(booking: BookingRequestRecord) {
+    if (!paymentOptionsAvailable()) {
+      setMessage("Configure at least one payment option first.");
+      return;
+    }
+
+    await updateBooking(booking.id, {
+      payment_status: "awaiting",
+      payment_method: null,
+      payment_requested_at: new Date().toISOString(),
+    }, false);
+
+    const phone = booking.customer_phone.replace(/[^0-9]/g, "");
+    const url =
+      "https://wa.me/" +
+      phone +
+      "?text=" +
+      encodeURIComponent(paymentMessage(booking));
+
+    window.location.href = url;
+  }
+
   async function markPaid(booking: BookingRequestRecord) {
+    const currentMethod = booking.payment_method || "";
+    const methodInput = window.prompt(
+      "Payment method: paypal, revolut or bank_transfer",
+      currentMethod
+    );
+    if (methodInput === null) return;
+
+    const normalized = methodInput.trim().toLowerCase().replace(/[ -]+/g, "_");
+    const method =
+      normalized === "paypal" ||
+      normalized === "revolut" ||
+      normalized === "bank_transfer"
+        ? (normalized as PaymentMethod)
+        : null;
+
+    if (!method) {
+      setMessage("Use paypal, revolut or bank_transfer as the payment method.");
+      return;
+    }
+
     const paymentReference = window.prompt(
       "Payment reference (optional)",
       booking.payment_reference || ""
@@ -162,6 +337,7 @@ export default function AdminBookings() {
 
     await updateBooking(booking.id, {
       payment_status: "paid",
+      payment_method: method,
       payment_reference: paymentReference.trim() || null,
       paid_at: new Date().toISOString(),
     });
@@ -193,13 +369,16 @@ export default function AdminBookings() {
       BookingRequestRecord,
       | "status"
       | "payment_status"
+      | "payment_method"
+      | "payment_requested_at"
       | "admin_notes"
       | "alternative_date"
       | "alternative_time"
       | "payment_reference"
       | "paid_at"
       | "confirmed_at"
-    >>
+    >>,
+    reload = true
   ) {
     if (!supabase) return;
     setEditing(id);
@@ -211,7 +390,7 @@ export default function AdminBookings() {
       .eq("id", id);
 
     if (error) setMessage(error.message);
-    else await loadBookings();
+    else if (reload) await loadBookings();
     setEditing(null);
   }
 
@@ -298,7 +477,14 @@ export default function AdminBookings() {
           <h1>Bookings</h1>
         </div>
         <div className="admin-topbar-actions">
-          <button className="button button-ghost" type="button" onClick={() => void loadBookings()}>
+          <button
+            className="button button-ghost"
+            type="button"
+            onClick={() => {
+              void loadBookings();
+              void loadPaymentSettings();
+            }}
+          >
             Refresh
           </button>
           <button className="button button-ghost" type="button" onClick={() => void signOut()}>
@@ -306,6 +492,88 @@ export default function AdminBookings() {
           </button>
         </div>
       </div>
+
+      <details className="admin-payment-settings">
+        <summary>
+          <div>
+            <strong>Payment options</strong>
+            <span>PayPal, Revolut and bank transfer can all be offered. The customer chooses.</span>
+          </div>
+          <span>Configure</span>
+        </summary>
+        <div className="admin-payment-settings-body">
+          <div className="admin-payment-settings-grid">
+            <label>
+              <span>PayPal payment link</span>
+              <input
+                value={paymentSettings.paypal_link || ""}
+                onChange={(event) =>
+                  setPaymentSettings({ ...paymentSettings, paypal_link: event.target.value })
+                }
+                placeholder="https://paypal.me/..."
+              />
+            </label>
+            <label>
+              <span>Revolut payment link</span>
+              <input
+                value={paymentSettings.revolut_link || ""}
+                onChange={(event) =>
+                  setPaymentSettings({ ...paymentSettings, revolut_link: event.target.value })
+                }
+                placeholder="https://revolut.me/..."
+              />
+            </label>
+            <label>
+              <span>Bank / institution</span>
+              <input
+                value={paymentSettings.bank_name || ""}
+                onChange={(event) =>
+                  setPaymentSettings({ ...paymentSettings, bank_name: event.target.value })
+                }
+                placeholder="Bank name"
+              />
+            </label>
+            <label>
+              <span>Account holder</span>
+              <input
+                value={paymentSettings.bank_account_name || ""}
+                onChange={(event) =>
+                  setPaymentSettings({ ...paymentSettings, bank_account_name: event.target.value })
+                }
+                placeholder="Watermelon / account holder"
+              />
+            </label>
+            <label>
+              <span>IBAN</span>
+              <input
+                value={paymentSettings.bank_iban || ""}
+                onChange={(event) =>
+                  setPaymentSettings({ ...paymentSettings, bank_iban: event.target.value })
+                }
+                placeholder="PT50..."
+              />
+            </label>
+            <label>
+              <span>BIC / SWIFT</span>
+              <input
+                value={paymentSettings.bank_bic || ""}
+                onChange={(event) =>
+                  setPaymentSettings({ ...paymentSettings, bank_bic: event.target.value })
+                }
+                placeholder="Optional"
+              />
+            </label>
+          </div>
+          <button
+            className="button button-primary"
+            type="button"
+            disabled={savingPaymentSettings}
+            onClick={() => void savePaymentSettings()}
+          >
+            {savingPaymentSettings ? "Saving…" : "Save payment options"}
+          </button>
+        </div>
+      </details>
 
       <div className="admin-stats">
         <button type="button" onClick={() => setFilter("pending")}><span>Pending</span><strong>{counts.pending}</strong></button>
@@ -375,11 +643,16 @@ export default function AdminBookings() {
                 <div><span>Total</span><strong>{money(booking.estimated_total, booking.currency)}</strong></div>
               </div>
 
-              {(booking.pickup_location || booking.customer_notes || booking.alternative_date || booking.payment_reference) && (
+              {(booking.pickup_location ||
+                booking.customer_notes ||
+                booking.alternative_date ||
+                booking.payment_reference ||
+                booking.payment_method) && (
                 <div className="admin-notes">
                   {booking.pickup_location && <p><strong>Pickup:</strong> {booking.pickup_location}</p>}
                   {booking.customer_notes && <p><strong>Customer notes:</strong> {booking.customer_notes}</p>}
                   {booking.alternative_date && <p><strong>Alternative:</strong> {displayDate(booking.alternative_date)}{booking.alternative_time ? " · " + booking.alternative_time : ""}</p>}
+                  {booking.payment_method && <p><strong>Payment method:</strong> {PAYMENT_METHOD_LABELS[booking.payment_method]}</p>}
                   {booking.payment_reference && <p><strong>Payment reference:</strong> {booking.payment_reference}</p>}
                 </div>
               )}
@@ -394,9 +667,11 @@ export default function AdminBookings() {
                       onClick={() => void updateBooking(booking.id, {
                         status: "approved",
                         payment_status: "awaiting",
+                        payment_method: null,
+                        payment_requested_at: null,
                       })}
                     >
-                      Approve
+                      Approve availability
                     </button>
                     <button
                       type="button"
@@ -418,14 +693,24 @@ export default function AdminBookings() {
                 )}
 
                 {booking.status === "approved" && booking.payment_status !== "paid" && (
-                  <button
-                    type="button"
-                    className="button button-primary"
-                    disabled={busy}
-                    onClick={() => void markPaid(booking)}
-                  >
-                    Mark as paid
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      disabled={busy || !paymentOptionsAvailable()}
+                      onClick={() => void sendPaymentOptions(booking)}
+                    >
+                      Send payment options
+                    </button>
+                    <button
+                      type="button"
+                      className="button button-ghost"
+                      disabled={busy}
+                      onClick={() => void markPaid(booking)}
+                    >
+                      Mark as paid
+                    </button>
+                  </>
                 )}
 
                 {booking.payment_status === "paid" && booking.status !== "confirmed" && (
