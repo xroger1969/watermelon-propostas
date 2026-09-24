@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import ProposalView from "@/components/ProposalView";
 
 export const metadata: Metadata = {
-  title: "Your proposal | Watermelon Experiences",
+  title: "Your proposal",
   description: "Review and respond to your personalized Watermelon Experiences proposal.",
   robots: { index: false, follow: false },
 };
