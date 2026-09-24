@@ -79,6 +79,7 @@ export default function AdminBookings() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginCooldown, setLoginCooldown] = useState(0);
   const [savingPaymentSettings, setSavingPaymentSettings] = useState(false);
+  const [paymentSaved, setPaymentSaved] = useState(false);
   const [message, setMessage] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
 
@@ -206,6 +207,7 @@ export default function AdminBookings() {
   async function savePaymentSettings() {
     if (!supabase) return;
     setSavingPaymentSettings(true);
+    setPaymentSaved(false);
     setMessage("");
 
     const patch = {
@@ -227,7 +229,8 @@ export default function AdminBookings() {
       setMessage(error.message);
     } else {
       setPaymentSettings((current) => ({ ...current, ...patch }));
-      setMessage("Payment options saved.");
+      setPaymentSaved(true);
+      window.setTimeout(() => setPaymentSaved(false), 3000);
     }
     setSavingPaymentSettings(false);
   }
@@ -564,14 +567,17 @@ export default function AdminBookings() {
               />
             </label>
           </div>
-          <button
-            className="button button-primary"
-            type="button"
-            disabled={savingPaymentSettings}
-            onClick={() => void savePaymentSettings()}
-          >
-            {savingPaymentSettings ? "Saving…" : "Save payment options"}
-          </button>
+          <div className="admin-payment-save-row">
+            <button
+              className="button button-primary"
+              type="button"
+              disabled={savingPaymentSettings}
+              onClick={() => void savePaymentSettings()}
+            >
+              {savingPaymentSettings ? "Saving…" : paymentSaved ? "Saved ✓" : "Save payment options"}
+            </button>
+            {paymentSaved && <span className="admin-payment-saved">Payment details saved successfully.</span>}
+          </div>
         </div>
       </details>
 
