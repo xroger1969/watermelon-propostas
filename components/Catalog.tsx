@@ -33,6 +33,30 @@ type PriceResponse = {
   updatedAt?: string;
 };
 
+type LiveCatalogProduct = {
+  code: string;
+  title: string;
+  description: string;
+  image: string;
+  url: string;
+  duration: string;
+  category: string;
+  location: string;
+  rating?: number;
+  reviews?: number;
+  options?: Array<{
+    optionCode: string;
+    optionName: string;
+    optionDescription: string;
+  }>;
+};
+
+type CatalogResponse = {
+  products?: LiveCatalogProduct[];
+  source?: string;
+  updatedAt?: string;
+};
+
 const STORAGE_KEY = "watermelon-proposal";
 
 function readProposal(): ProposalItem[] {
@@ -66,13 +90,83 @@ function affiliateUrl(url: string) {
 }
 
 export default function Catalog() {
-  const products = useMemo(
+  const staticProducts = useMemo(
     () =>
       experiences
         .filter((product) => Boolean(viatorListings[product.code]))
         .map((product) => ({ ...product, viator: viatorListings[product.code] })),
     []
   );
+
+  const [liveCatalogProducts, setLiveCatalogProducts] = useState<LiveCatalogProduct[] | null>(null);
+  const [catalogSyncActive, setCatalogSyncActive] = useState(false);
+
+  const products = useMemo(() => {
+    if (liveCatalogProducts === null) return staticProducts;
+
+    const liveByCode = new Map(liveCatalogProducts.map((product) => [product.code, product]));
+    const activeCodes = new Set(liveCatalogProducts.map((product) => product.code));
+
+    const known = staticProducts
+      .filter((product) => activeCodes.has(product.code))
+      .map((product) => {
+        const live = liveByCode.get(product.code);
+        if (!live) return product;
+
+        return {
+          ...product,
+          description: live.description || product.description,
+          options: live.options?.length
+            ? live.options.map((option) => ({
+                ...option,
+                startTimes: "",
+                pickup: false,
+              }))
+            : product.options,
+          viator: {
+            ...product.viator,
+            title: live.title || product.viator.title,
+            image: live.image || product.viator.image,
+            url: live.url || product.viator.url,
+            duration: live.duration || product.viator.duration,
+            rating: live.rating ?? product.viator.rating,
+            reviews: live.reviews ?? product.viator.reviews,
+          },
+        };
+      });
+
+    const knownCodes = new Set(known.map((product) => product.code));
+    const newcomers = liveCatalogProducts
+      .filter((product) => !knownCodes.has(product.code))
+      .map((product) => ({
+        code: product.code,
+        category: product.category || "Private Tours",
+        location: product.location || "Portugal",
+        description: product.description,
+        apiEnabled: true,
+        options: (product.options?.length
+          ? product.options
+          : [{ optionCode: "DEFAULT", optionName: "Standard option", optionDescription: "" }]
+        ).map((option) => ({
+          ...option,
+          startTimes: "",
+          pickup: false,
+        })),
+        viator: {
+          code: product.code,
+          title: product.title,
+          price: 0,
+          currency: "EUR" as const,
+          image: product.image || "/logo-full.jpg",
+          url: product.url || "#",
+          duration: product.duration || "Duration on request",
+          rating: product.rating,
+          reviews: product.reviews,
+        },
+      }));
+
+    return [...known, ...newcomers];
+  }, [liveCatalogProducts, staticProducts]);
 
   const categories = useMemo(
     () => ["All", ...Array.from(new Set(products.map((p) => p.category)))],
@@ -89,6 +183,33 @@ export default function Catalog() {
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [livePrices, setLivePrices] = useState<Record<string, LivePrice>>({});
   const [livePricingActive, setLivePricingActive] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshCatalog() {
+      try {
+        const response = await fetch("/api/viator-catalog", { cache: "no-store" });
+        if (!response.ok) return;
+
+        const data = (await response.json()) as CatalogResponse;
+        if (cancelled || !Array.isArray(data.products)) return;
+
+        setLiveCatalogProducts(data.products);
+        setCatalogSyncActive(data.source === "viator-partner-api");
+      } catch {
+        // Keep the confirmed local catalogue if the live API is temporarily unavailable.
+      }
+    }
+
+    refreshCatalog();
+    const timer = window.setInterval(refreshCatalog, 15 * 60_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     if (!detailCode) return;
@@ -131,7 +252,7 @@ export default function Catalog() {
         if (!response.ok) return;
 
         const data = (await response.json()) as PriceResponse;
-        if (cancelled || !Array.isArray(data.prices) || data.prices.length === 0) return;
+        if (cancelled || !Array.isArray(data.prices)) return;
 
         const map = Object.fromEntries(data.prices.map((item) => [item.code, item]));
         setLivePrices(map);
@@ -168,8 +289,8 @@ export default function Catalog() {
     const fallback = viatorListings[code];
 
     return {
-      price: live?.price ?? fallback.price,
-      currency: live?.currency ?? fallback.currency,
+      price: live?.price ?? fallback?.price ?? null,
+      currency: live?.currency ?? fallback?.currency ?? "EUR",
       isLive: Boolean(live),
     };
   }
@@ -186,7 +307,7 @@ export default function Catalog() {
         title: product.viator.title,
         optionCode: option?.optionCode || "DEFAULT",
         optionName: option?.optionName || "Standard option",
-        price: String(currentPrice.price),
+        price: currentPrice.price === null ? "" : String(currentPrice.price),
         notes: "",
       });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
@@ -206,7 +327,7 @@ export default function Catalog() {
           <h2>Watermelon Experiences</h2>
         </div>
         <span className="price-check">
-          {livePricingActive ? "Prices updated automatically" : "Viator prices"}
+          {catalogSyncActive && livePricingActive ? "Catalogue & prices updated automatically" : livePricingActive ? "Prices updated automatically" : "Viator catalogue"}
         </span>
       </div>
 
@@ -283,8 +404,8 @@ export default function Catalog() {
                 <div className="catalog-bottom">
                   <div className="price-block">
                     <span>From</span>
-                    <strong>{money(currentPrice.price, currentPrice.currency)}</strong>
-                    <small>{currentPrice.isLive ? "price updated automatically" : "Viator price"}</small>
+                    <strong>{currentPrice.price === null ? "On request" : money(currentPrice.price, currentPrice.currency)}</strong>
+                    <small>{currentPrice.price === null ? "price confirmed on request" : currentPrice.isLive ? "price updated automatically" : "Viator price"}</small>
                   </div>
 
                   {product.viator.rating && (
@@ -418,8 +539,8 @@ export default function Catalog() {
                 <div className="experience-modal-summary">
                   <div className="price-block">
                     <span>From</span>
-                    <strong>{money(currentPrice.price, currentPrice.currency)}</strong>
-                    <small>{currentPrice.isLive ? "price updated automatically" : "Viator price"}</small>
+                    <strong>{currentPrice.price === null ? "On request" : money(currentPrice.price, currentPrice.currency)}</strong>
+                    <small>{currentPrice.price === null ? "price confirmed on request" : currentPrice.isLive ? "price updated automatically" : "Viator price"}</small>
                   </div>
                   {product.viator.rating && (
                     <div className="rating-block">
