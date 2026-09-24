@@ -844,3 +844,159 @@ button { cursor: pointer; }
   font-size: 13px;
   line-height: 1.5;
 }
+
+
+/* Per-experience proposal planning */
+.proposal-planning-grid,
+.proposal-extra-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.proposal-planning-grid label,
+.proposal-extra-grid label {
+  display: grid;
+  gap: 6px;
+}
+.proposal-planning-grid label > span,
+.proposal-extra-grid label > span {
+  font-size: 12px;
+  font-weight: 850;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.proposal-planning-grid input,
+.proposal-planning-grid select,
+.proposal-extra-grid input {
+  width: 100%;
+  min-height: 46px;
+  background: white;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 12px 14px;
+  border-radius: 11px;
+  outline: none;
+}
+.proposal-planning-grid input:focus,
+.proposal-planning-grid select:focus,
+.proposal-extra-grid input:focus {
+  border-color: var(--green-2);
+  box-shadow: 0 0 0 3px rgba(23,122,85,.1);
+}
+.proposal-financial-row {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 14px;
+  align-items: stretch;
+}
+.proposal-price-breakdown {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f7faf8;
+  border: 1px solid var(--line);
+}
+.proposal-price-breakdown > span {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  font-weight: 800;
+}
+.proposal-price-breakdown > strong {
+  color: var(--green);
+  font-size: 20px;
+}
+.proposal-price-breakdown > small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.proposal-financial-row label {
+  display: grid;
+  gap: 6px;
+}
+.proposal-financial-row label > span {
+  font-size: 12px;
+  font-weight: 850;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.proposal-financial-row input {
+  width: 100%;
+  min-height: 46px;
+  background: white;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 12px 14px;
+  border-radius: 11px;
+  outline: none;
+}
+.proposal-financial-row input:focus {
+  border-color: var(--green-2);
+  box-shadow: 0 0 0 3px rgba(23,122,85,.1);
+}
+.proposal-more {
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.proposal-more summary {
+  cursor: pointer;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 800;
+}
+.proposal-more .proposal-extra-grid {
+  margin-top: 12px;
+}
+.summary-experiences {
+  display: grid;
+  gap: 9px;
+  margin: 14px 0 6px;
+}
+.summary-experience {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.summary-experience:last-child {
+  border-bottom: 0;
+}
+.summary-experience strong {
+  font-size: 12px;
+  line-height: 1.3;
+}
+.summary-experience span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.summary-experience > b {
+  color: var(--green);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.summary-trip {
+  max-width: 155px;
+  text-align: right;
+  font-size: 12px;
+}
+@media (max-width: 650px) {
+  .proposal-planning-grid,
+  .proposal-extra-grid,
+  .proposal-financial-row {
+    grid-template-columns: 1fr;
+  }
+  .summary-trip {
+    max-width: 180px;
+  }
+}
