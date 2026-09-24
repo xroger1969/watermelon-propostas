@@ -98,7 +98,7 @@ export default function ProposalBuilder() {
 
   useEffect(() => {
     try {
-      const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+      const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]") as Partial<ProposalItem>[];
       setItems(Array.isArray(parsed) ? parsed.map((item) => normalizeItem(item)) : []);
     } catch {
       setItems([]);
