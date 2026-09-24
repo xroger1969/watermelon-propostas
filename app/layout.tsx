@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
   icons: {
     icon: "/watermelon-mark.svg",
+    apple: "/logo-icon.png",
   },
   openGraph: {
     title: "Watermelon Experiences",
