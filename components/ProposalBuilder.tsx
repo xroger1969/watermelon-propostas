@@ -66,9 +66,11 @@ export default function ProposalBuilder() {
   function proposalText() {
     const lines = [
       "WATERMELON EXPERIENCES",
-      "Personalized proposal",
+      "PERSONALIZED PROPOSAL REQUEST",
       "",
-      client.name ? "Guest: " + client.name : "",
+      client.name ? "Name: " + client.name : "",
+      client.email ? "Email: " + client.email : "",
+      client.phone ? "Phone: " + client.phone : "",
       client.date ? "Date: " + client.date : "",
       client.people ? "Guests: " + client.people : "",
       "",
@@ -89,7 +91,7 @@ export default function ProposalBuilder() {
   }
 
   function shareWhatsApp() {
-    const url = "https://wa.me/?text=" + encodeURIComponent(proposalText());
+    const url = "https://wa.me/?text=" + encodeURIComponent("Hello Watermelon Experiences,\n\nI would like to request a personalized proposal.\n\n" + proposalText());
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
@@ -110,8 +112,8 @@ export default function ProposalBuilder() {
             </div>
           </div>
           <div className="form-grid">
-            <label><span>Nome</span><input value={client.name} onChange={(e) => setClient({ ...client, name: e.target.value })} placeholder="Your name" /></label>
-            <label><span>Email</span><input type="email" value={client.email} onChange={(e) => setClient({ ...client, email: e.target.value })} placeholder="cliente@email.com" /></label>
+            <label><span>Name</span><input value={client.name} onChange={(e) => setClient({ ...client, name: e.target.value })} placeholder="Your name" /></label>
+            <label><span>Email</span><input type="email" value={client.email} onChange={(e) => setClient({ ...client, email: e.target.value })} placeholder="you@email.com" /></label>
             <label><span>Phone</span><input value={client.phone} onChange={(e) => setClient({ ...client, phone: e.target.value })} placeholder="+351 …" /></label>
             <label><span>Preferred date</span><input type="date" value={client.date} onChange={(e) => setClient({ ...client, date: e.target.value })} /></label>
             <label><span>Number of guests</span><input inputMode="numeric" value={client.people} onChange={(e) => setClient({ ...client, people: e.target.value })} placeholder="E.g. 4" /></label>
@@ -191,7 +193,7 @@ export default function ProposalBuilder() {
           <div className="summary-list">
             <div><span>Experiences</span><strong>{items.length}</strong></div>
             <div><span>Guests</span><strong>{client.people || "—"}</strong></div>
-            <div><span>Data</span><strong>{client.date || "—"}</strong></div>
+            <div><span>Date</span><strong>{client.date || "—"}</strong></div>
           </div>
           <div className="summary-total">
             <span>Total</span>
@@ -199,8 +201,9 @@ export default function ProposalBuilder() {
           </div>
           <div className="direct-proposal-note"><strong>Request your proposal directly from Watermelon.</strong><span>We can tailor the experience to your group, preferred date and selected activities, subject to availability.</span></div>
           <p className="summary-hint">Prices shown are a guide. Your final proposal will be confirmed by Watermelon Experiences.</p>
+          <div className="proposal-contact-cta"><strong>Ready to plan your experience?</strong><span>Send us your request on WhatsApp. Our team will review it personally and get back to you.</span></div>
           <button className="button button-primary wide" type="button" onClick={shareWhatsApp} disabled={!items.length}>
-            Share via WhatsApp
+            Send my request to Watermelon
           </button>
           <button className="button button-outline wide" type="button" onClick={() => window.print()} disabled={!items.length}>
             Print / Save PDF
