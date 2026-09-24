@@ -814,3 +814,18 @@ button { cursor: pointer; }
 }
 .direct-proposal-note strong { font-size: 14px; }
 .direct-proposal-note span { font-size: 12px; line-height: 1.45; color: var(--muted); }
+
+.proposal-price-display {
+  display: grid;
+  gap: 4px;
+  min-width: 150px;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: #f7faf8;
+  border: 1px solid var(--line);
+}
+.proposal-price-display span { font-size: 12px; color: var(--muted); }
+.proposal-price-display strong { font-size: 17px; color: var(--green); }
+@media (max-width: 650px) {
+  .proposal-price-display { width: 100%; }
+}
