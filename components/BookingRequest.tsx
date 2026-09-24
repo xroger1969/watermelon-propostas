@@ -125,7 +125,8 @@ export default function BookingRequest() {
     const lines = [
       "WATERMELON EXPERIENCES",
       "DIRECT BOOKING REQUEST — PENDING",
-      "Reference: " + reference,\n      "Status: PENDING — awaiting Watermelon confirmation",
+      "Reference: " + reference,
+      "Status: PENDING — awaiting Watermelon confirmation",
       "",
       "IMPORTANT: This is a booking request, not a confirmed reservation.",
       "",
