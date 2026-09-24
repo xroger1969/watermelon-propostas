@@ -135,6 +135,40 @@ export default function AdminBookings() {
     setBookings([]);
   }
 
+  async function markPaid(booking: BookingRequestRecord) {
+    const paymentReference = window.prompt(
+      "Payment reference (optional)",
+      booking.payment_reference || ""
+    );
+    if (paymentReference === null) return;
+
+    await updateBooking(booking.id, {
+      payment_status: "paid",
+      payment_reference: paymentReference.trim() || null,
+      paid_at: new Date().toISOString(),
+    });
+  }
+
+  async function proposeAlternative(booking: BookingRequestRecord) {
+    const alternativeDate = window.prompt(
+      "Alternative date (YYYY-MM-DD)",
+      booking.alternative_date || booking.requested_date
+    );
+    if (!alternativeDate) return;
+
+    const alternativeTime = window.prompt(
+      "Alternative time (optional)",
+      booking.alternative_time || ""
+    );
+    if (alternativeTime === null) return;
+
+    await updateBooking(booking.id, {
+      status: "alternative_proposed",
+      alternative_date: alternativeDate,
+      alternative_time: alternativeTime.trim() || null,
+    });
+  }
+
   async function updateBooking(
     id: string,
     patch: Partial<Pick<
@@ -315,10 +349,12 @@ export default function AdminBookings() {
                 <div><span>Total</span><strong>{money(booking.estimated_total, booking.currency)}</strong></div>
               </div>
 
-              {(booking.pickup_location || booking.customer_notes) && (
+              {(booking.pickup_location || booking.customer_notes || booking.alternative_date || booking.payment_reference) && (
                 <div className="admin-notes">
                   {booking.pickup_location && <p><strong>Pickup:</strong> {booking.pickup_location}</p>}
                   {booking.customer_notes && <p><strong>Customer notes:</strong> {booking.customer_notes}</p>}
+                  {booking.alternative_date && <p><strong>Alternative:</strong> {displayDate(booking.alternative_date)}{booking.alternative_time ? " · " + booking.alternative_time : ""}</p>}
+                  {booking.payment_reference && <p><strong>Payment reference:</strong> {booking.payment_reference}</p>}
                 </div>
               )}
 
@@ -340,7 +376,7 @@ export default function AdminBookings() {
                       type="button"
                       className="button button-ghost"
                       disabled={busy}
-                      onClick={() => void updateBooking(booking.id, { status: "alternative_proposed" })}
+                      onClick={() => void proposeAlternative(booking)}
                     >
                       Propose alternative
                     </button>
@@ -360,10 +396,7 @@ export default function AdminBookings() {
                     type="button"
                     className="button button-primary"
                     disabled={busy}
-                    onClick={() => void updateBooking(booking.id, {
-                      payment_status: "paid",
-                      paid_at: new Date().toISOString(),
-                    })}
+                    onClick={() => void markPaid(booking)}
                   >
                     Mark as paid
                   </button>
@@ -382,6 +415,15 @@ export default function AdminBookings() {
                     Confirm booking
                   </button>
                 )}
+
+                <a
+                  className="button button-ghost"
+                  href="https://supplier.viator.com/login?to=%2Fbookings%2Fsearch"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Check Viator bookings
+                </a>
 
                 <a
                   className="button button-ghost"
