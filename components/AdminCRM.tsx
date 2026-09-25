@@ -82,6 +82,11 @@ type CRMProposal = {
   sent_at: string | null;
   accepted_at: string | null;
   customer_response: string | null;
+  payment_status: "not_requested" | "awaiting" | "paid" | "refunded";
+  payment_method: string | null;
+  payment_token: string | null;
+  payment_reference: string | null;
+  paid_at: string | null;
   items: CRMProposalItem[];
 };
 
