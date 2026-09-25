@@ -743,16 +743,6 @@ export default function AdminCRM() {
                     Start review
                   </button>
                 )}
-                {["proposal_sent", "customer_replied", "in_review"].includes(request.status) && (
-                  <button
-                    className="button button-outline"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void changeStatus(request, "accepted")}
-                  >
-                    Mark accepted
-                  </button>
-                )}
                 {!["confirmed", "declined", "cancelled"].includes(request.status) && (
                   <button
                     className="button button-ghost"
