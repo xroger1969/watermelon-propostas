@@ -45,6 +45,11 @@ type ProposalRecord = {
   sent_at: string | null;
   accepted_at: string | null;
   customer_response: string | null;
+  payment_status: "not_requested" | "awaiting" | "paid" | "refunded";
+  payment_method: string | null;
+  payment_token: string | null;
+  payment_reference: string | null;
+  paid_at: string | null;
   items: ProposalItemRecord[];
 };
 
@@ -362,6 +367,7 @@ export default function ProposalEditor({
   const latestStatus = latest
     ? "v" + latest.version + " · " + latest.status.replaceAll("_", " ")
     : "No proposal yet";
+  const proposalLocked = latest?.status === "accepted";
 
   function proposalLink(token: string) {
     return (
@@ -419,6 +425,47 @@ export default function ProposalEditor({
     }
   }
 
+  async function markLatestPaid() {
+    if (!latest || latest.status !== "accepted" || latest.payment_status === "paid") return;
+
+    const methodInput = window.prompt(
+      "Payment method: paypal, revolut or bank_transfer",
+      latest.payment_method || ""
+    );
+    if (methodInput === null) return;
+
+    const normalized = methodInput.trim().toLowerCase().replace(/[ -]+/g, "_");
+    if (!["paypal", "revolut", "bank_transfer"].includes(normalized)) {
+      setFeedback("Use paypal, revolut or bank_transfer as the payment method.");
+      return;
+    }
+
+    const paymentReference = window.prompt(
+      "Payment reference (optional)",
+      latest.payment_reference || ""
+    );
+    if (paymentReference === null) return;
+
+    setSending(true);
+    setFeedback("");
+
+    const { error } = await supabase.rpc("watermelon_mark_proposal_paid", {
+      p_proposal_id: latest.id,
+      p_method: normalized,
+      p_reference: paymentReference.trim() || null,
+    });
+
+    if (error) {
+      setFeedback(error.message);
+      setSending(false);
+      return;
+    }
+
+    await onChanged();
+    setFeedback("Payment recorded and request confirmed.");
+    setSending(false);
+  }
+
   return (
     <section className="crm-proposal-editor">
       <button
@@ -459,6 +506,50 @@ export default function ProposalEditor({
                   Resend current proposal
                 </button>
               )}
+              {latest.status === "accepted" &&
+                latest.payment_status === "awaiting" &&
+                latest.payment_token && (
+                  <a
+                    className="button button-outline"
+                    href={
+                      "/payment/" +
+                      encodeURIComponent(request.reference) +
+                      "?token=" +
+                      encodeURIComponent(latest.payment_token)
+                    }
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open payment page
+                  </a>
+                )}
+            </div>
+          )}
+
+          {latest?.status === "accepted" && (
+            <div className={"crm-proposal-payment-panel " + latest.payment_status}>
+              <div>
+                <strong>
+                  {latest.payment_status === "paid"
+                    ? "Payment received"
+                    : "Proposal accepted — awaiting payment"}
+                </strong>
+                <span>
+                  {latest.payment_status === "paid"
+                    ? "The CRM request is confirmed."
+                    : "The customer can now choose PayPal, Revolut or bank transfer from the secure payment page."}
+                </span>
+              </div>
+              {latest.payment_status !== "paid" && (
+                <button
+                  className="button button-primary"
+                  type="button"
+                  disabled={sending}
+                  onClick={() => void markLatestPaid()}
+                >
+                  Mark payment received
+                </button>
+              )}
             </div>
           )}
 
@@ -469,6 +560,8 @@ export default function ProposalEditor({
             </div>
           )}
 
+          {!proposalLocked && (
+            <>
           <div className="crm-proposal-head-fields">
             <label>
               <span>Valid until</span>
@@ -627,12 +720,6 @@ export default function ProposalEditor({
             </div>
           </div>
 
-          {feedback && (
-            <p className={feedback.toLowerCase().includes("could not") || feedback.toLowerCase().includes("not authorized") ? "admin-error" : "crm-proposal-feedback"}>
-              {feedback}
-            </p>
-          )}
-
           <div className="crm-proposal-actions">
             <button
               className="button button-outline"
@@ -651,6 +738,14 @@ export default function ProposalEditor({
               {sending ? "Preparing proposal…" : "Send proposal on WhatsApp"}
             </button>
           </div>
+            </>
+          )}
+
+          {feedback && (
+            <p className={feedback.toLowerCase().includes("could not") || feedback.toLowerCase().includes("not authorized") ? "admin-error" : "crm-proposal-feedback"}>
+              {feedback}
+            </p>
+          )}
         </div>
       )}
     </section>

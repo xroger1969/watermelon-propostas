@@ -82,6 +82,11 @@ type CRMProposal = {
   sent_at: string | null;
   accepted_at: string | null;
   customer_response: string | null;
+  payment_status: "not_requested" | "awaiting" | "paid" | "refunded";
+  payment_method: string | null;
+  payment_token: string | null;
+  payment_reference: string | null;
+  paid_at: string | null;
   items: CRMProposalItem[];
 };
 
@@ -736,16 +741,6 @@ export default function AdminCRM() {
                     onClick={() => void changeStatus(request, "in_review")}
                   >
                     Start review
-                  </button>
-                )}
-                {["proposal_sent", "customer_replied", "in_review"].includes(request.status) && (
-                  <button
-                    className="button button-outline"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void changeStatus(request, "accepted")}
-                  >
-                    Mark accepted
                   </button>
                 )}
                 {!["confirmed", "declined", "cancelled"].includes(request.status) && (

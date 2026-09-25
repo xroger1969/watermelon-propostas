@@ -2,12 +2,21 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+type PaymentItem = {
+  title: string;
+  date: string | null;
+  time: string | null;
+  guests: number;
+  unit_price: number | null;
+  line_total: number | null;
+};
+
 type PaymentDetails = {
+  source_type: "direct_booking" | "proposal";
   reference: string;
   customer_name: string;
-  experience_title: string;
-  requested_date: string;
-  guests: number;
+  title: string;
+  items: PaymentItem[];
   estimated_total: number | null;
   currency: string;
   payment_status: string;
@@ -33,7 +42,8 @@ function money(value: number | null, currency: string) {
   }).format(Number(value));
 }
 
-function dateLabel(value: string) {
+function dateLabel(value: string | null) {
+  if (!value) return "To be agreed";
   const date = new Date(value + "T00:00:00");
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("en-GB", {
@@ -95,6 +105,28 @@ export default function PaymentChoice({
     };
   }, [endpoint]);
 
+  async function recordMethod(method: "paypal" | "revolut" | "bank_transfer") {
+    if (!payment || payment.payment_status === "paid") return;
+
+    setPayment((current) =>
+      current ? { ...current, payment_method: method } : current
+    );
+
+    try {
+      await fetch("/api/payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reference,
+          token,
+          method,
+        }),
+      });
+    } catch {
+      // Do not block the customer from continuing to the chosen payment provider.
+    }
+  }
+
   async function copy(value: string, label: string) {
     try {
       await navigator.clipboard.writeText(value);
@@ -150,13 +182,27 @@ export default function PaymentChoice({
 
         <div className="payment-booking-summary">
           <div className="payment-experience">
-            <span>Experience</span>
-            <strong>{payment.experience_title}</strong>
+            <span>{payment.source_type === "proposal" ? "Proposal" : "Experience"}</span>
+            <strong>{payment.title}</strong>
           </div>
-          <div><span>Date</span><strong>{dateLabel(payment.requested_date)}</strong></div>
-          <div><span>Guests</span><strong>{payment.guests}</strong></div>
           <div><span>Reference</span><strong>{payment.reference}</strong></div>
           <div className="payment-total"><span>Total</span><strong>{money(payment.estimated_total, payment.currency)}</strong></div>
+        </div>
+
+        <div className="payment-item-list">
+          {payment.items.map((item, index) => (
+            <div className="payment-item-row" key={index}>
+              <div>
+                <strong>{item.title}</strong>
+                <span>
+                  {dateLabel(item.date)}
+                  {item.time ? " · " + item.time : ""}
+                  {" · "}{item.guests} guest{item.guests === 1 ? "" : "s"}
+                </span>
+              </div>
+              <b>{money(item.line_total, payment.currency)}</b>
+            </div>
+          ))}
         </div>
 
         {!alreadyPaid && (
@@ -175,6 +221,7 @@ export default function PaymentChoice({
                   href={payment.paypal_link}
                   target="_blank"
                   rel="noreferrer"
+                  onClick={() => void recordMethod("paypal")}
                 >
                   Pay with PayPal
                 </a>
@@ -195,6 +242,7 @@ export default function PaymentChoice({
                   href={payment.revolut_link}
                   target="_blank"
                   rel="noreferrer"
+                  onClick={() => void recordMethod("revolut")}
                 >
                   Pay with Revolut
                 </a>
@@ -234,6 +282,15 @@ export default function PaymentChoice({
                     </button>
                   </div>
                 </div>
+                <button
+                  className="button button-outline wide"
+                  type="button"
+                  onClick={() => void recordMethod("bank_transfer")}
+                >
+                  {payment.payment_method === "bank_transfer"
+                    ? "Bank transfer selected ✓"
+                    : "Choose bank transfer"}
+                </button>
               </article>
             )}
           </div>

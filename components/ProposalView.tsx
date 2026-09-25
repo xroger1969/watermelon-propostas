@@ -35,6 +35,11 @@ type ProposalData = {
   total: number;
   customer_response: string | null;
   customer_name: string;
+  payment_status: "not_requested" | "awaiting" | "paid" | "refunded";
+  payment_method: string | null;
+  payment_token: string | null;
+  payment_requested_at: string | null;
+  paid_at: string | null;
   items: ProposalItem[];
 };
 
@@ -251,10 +256,29 @@ export default function ProposalView({
 
         {accepted ? (
           <section className="customer-proposal-result accepted">
-            <strong>Thank you — proposal accepted.</strong>
+            <strong>
+              {proposal.payment_status === "paid"
+                ? "Thank you — payment received."
+                : "Thank you — proposal accepted."}
+            </strong>
             <span>
-              Watermelon has been notified. We will confirm the remaining booking details and payment instructions with you.
+              {proposal.payment_status === "paid"
+                ? "Watermelon has recorded your payment. Your booking is being finalized."
+                : "The next step is payment. Choose PayPal, Revolut or bank transfer securely."}
             </span>
+            {proposal.payment_status !== "paid" && proposal.payment_token && (
+              <a
+                className="button button-primary"
+                href={
+                  "/payment/" +
+                  encodeURIComponent(proposal.reference) +
+                  "?token=" +
+                  encodeURIComponent(proposal.payment_token)
+                }
+              >
+                Continue to payment
+              </a>
+            )}
           </section>
         ) : expired ? (
           <section className="customer-proposal-result changes">
