@@ -247,7 +247,7 @@ export default function AdminBookings() {
     const lines = [
       "Hello " + booking.customer_name + ",",
       "",
-      "Your Watermelon booking request " + booking.reference + " has been approved after checking availability.",
+      "We have now accepted your Watermelon booking request " + booking.reference + " after reviewing the details and availability.",
       booking.estimated_total !== null
         ? "Amount to pay: " + money(booking.estimated_total, booking.currency)
         : "Amount: as agreed",
@@ -655,14 +655,20 @@ export default function AdminBookings() {
                       type="button"
                       className="button button-primary"
                       disabled={busy}
-                      onClick={() => void updateBooking(booking.id, {
-                        status: "approved",
-                        payment_status: "awaiting",
-                        payment_method: null,
-                        payment_requested_at: null,
-                      })}
+                      onClick={() => {
+                        const confirmed = window.confirm(
+                          "Accept this booking request? This only accepts the request. Payment will be requested separately."
+                        );
+                        if (!confirmed) return;
+                        void updateBooking(booking.id, {
+                          status: "approved",
+                          payment_status: "not_requested",
+                          payment_method: null,
+                          payment_requested_at: null,
+                        });
+                      }}
                     >
-                      Approve availability
+                      Accept request
                     </button>
                     <button
                       type="button"
@@ -717,6 +723,13 @@ export default function AdminBookings() {
                     Confirm booking
                   </button>
                 )}
+
+                <a
+                  className="button button-outline"
+                  href={"/admin?search=" + encodeURIComponent(booking.reference)}
+                >
+                  Open in CRM
+                </a>
 
                 <a
                   className="button button-ghost"
