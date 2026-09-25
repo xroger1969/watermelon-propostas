@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import ProposalEditor from "@/components/ProposalEditor";
+import WhatsAppConversation from "@/components/WhatsAppConversation";
 
 type CRMStatus =
   | "new"
@@ -52,6 +53,17 @@ type CRMActivity = {
   created_at: string;
   activity_type: string;
   summary: string;
+};
+
+type CRMMessage = {
+  id: string;
+  created_at: string;
+  direction: "inbound" | "outbound";
+  text_body: string | null;
+  message_type: string;
+  status: "received" | "sent" | "delivered" | "read" | "failed" | "deleted";
+  source: string;
+  whatsapp_timestamp: string | null;
 };
 
 type CRMProposalItem = {
@@ -109,6 +121,7 @@ type CRMRequest = {
   items: CRMItem[];
   activities: CRMActivity[];
   proposals: CRMProposal[];
+  messages: CRMMessage[];
 };
 
 type Filter = "all" | CRMStatus;
@@ -177,7 +190,6 @@ export default function AdminCRM() {
   const [filter, setFilter] = useState<Filter>("new");
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
-  const [whatsappDrafts, setWhatsappDrafts] = useState<Record<string, string>>({});
 
   const supabase = useMemo(() => {
     try {
@@ -200,7 +212,8 @@ export default function AdminCRM() {
           contact:watermelon_contacts(*),
           items:watermelon_request_items(*),
           activities:watermelon_activities(*),
-          proposals:watermelon_proposals(*, items:watermelon_proposal_items(*))
+          proposals:watermelon_proposals(*, items:watermelon_proposal_items(*)),
+          messages:watermelon_messages(*)
         `)
         .order("created_at", { ascending: false }),
       supabase
@@ -228,6 +241,11 @@ export default function AdminCRM() {
             ...proposal,
             items: [...(proposal.items || [])].sort((a, b) => a.position - b.position),
           })),
+        messages: [...(request.messages || [])].sort(
+          (a, b) =>
+            new Date(a.whatsapp_timestamp || a.created_at).getTime() -
+            new Date(b.whatsapp_timestamp || b.created_at).getTime()
+        ),
       }));
       setRequests(normalized);
     }
@@ -262,6 +280,23 @@ export default function AdminCRM() {
 
     return () => listener.subscription.unsubscribe();
   }, [supabase, loadCRM]);
+
+  useEffect(() => {
+    if (!supabase || !signedIn) return;
+
+    const channel = supabase
+      .channel("watermelon-whatsapp-crm")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "watermelon_messages" },
+        () => void loadCRM()
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [supabase, signedIn, loadCRM]);
 
   useEffect(() => {
     if (loginCooldown <= 0) return;
@@ -348,87 +383,6 @@ export default function AdminCRM() {
 
     await loadCRM();
     setEditing(null);
-  }
-
-  function buildWhatsAppMessage(request: CRMRequest) {
-    const customMessage = (whatsappDrafts[request.id] || "").trim();
-    const lines: string[] = [
-      "Hello " + (request.contact?.name || "") + ",",
-      "",
-      "This is Watermelon Experiences regarding your request " + request.reference + ".",
-    ];
-
-    if (customMessage) {
-      lines.push("", customMessage);
-    }
-
-    lines.push("", "Request summary:");
-
-    request.items.forEach((item, index) => {
-      lines.push(
-        (index + 1) + ". " + item.experience_title,
-        "   Date: " + shortDate(item.requested_date),
-        "   Guests: " + item.guests,
-        "   Preferred time: " + (item.preferred_time || "Flexible")
-      );
-      if (item.option_name) lines.push("   Option: " + item.option_name);
-    });
-
-    if (request.estimated_total !== null) {
-      lines.push("", "Estimated total: " + money(request.estimated_total, request.currency));
-    }
-
-    lines.push("", "Reference: " + request.reference, "", "Watermelon Experiences");
-    return lines.join("\n");
-  }
-
-  async function openWhatsApp(request: CRMRequest) {
-    if (!supabase) return;
-
-    const phone = (request.contact?.phone || "").replace(/[^0-9]/g, "");
-    if (!phone) {
-      setMessage("This contact does not have a phone / WhatsApp number.");
-      return;
-    }
-
-    const preparedMessage = buildWhatsAppMessage(request);
-    const now = new Date().toISOString();
-    const preAcceptance = ["new", "in_review", "customer_replied"].includes(request.status);
-    const nextStatus = preAcceptance ? "awaiting_customer" : request.status;
-
-    setEditing(request.id);
-    setMessage("");
-
-    const { error: updateError } = await supabase
-      .from("watermelon_requests")
-      .update({
-        status: nextStatus,
-        last_contact_at: now,
-        first_response_at: request.first_response_at || now,
-      })
-      .eq("id", request.id);
-
-    if (updateError) {
-      setMessage(updateError.message);
-      setEditing(null);
-      return;
-    }
-
-    await supabase.from("watermelon_activities").insert({
-      request_id: request.id,
-      contact_id: request.contact?.id || null,
-      activity_type: "whatsapp_prepared",
-      summary: preAcceptance
-        ? "WhatsApp opened — waiting for customer reply"
-        : "WhatsApp opened with a prepared customer message",
-      actor_email: actorEmail || null,
-      metadata: {
-        message: preparedMessage,
-      },
-    });
-
-    window.location.href =
-      "https://wa.me/" + phone + "?text=" + encodeURIComponent(preparedMessage);
   }
 
   async function acceptDirectBooking(request: CRMRequest) {
@@ -684,6 +638,9 @@ export default function AdminCRM() {
           </p>
         </div>
         <div className="admin-topbar-actions">
+          <a className="button button-ghost" href="/admin/whatsapp">
+            WhatsApp CRM
+          </a>
           <a className="button button-ghost" href="/admin/bookings">
             Bookings & payments
           </a>
@@ -849,42 +806,10 @@ export default function AdminCRM() {
                   )}
 
                 {request.contact?.phone && (
-                  <section className="crm-message-composer">
-                    <div className="crm-message-heading">
-                      <div>
-                        <strong>WhatsApp message</strong>
-                        <span>
-                          Write only the question or observation you want to add. Watermelon automatically adds the customer, request reference and experience details. Before acceptance, sending a message keeps the request open and marks it as waiting for the customer.
-                        </span>
-                      </div>
-                    </div>
-
-                    <textarea
-                      rows={3}
-                      value={whatsappDrafts[request.id] || ""}
-                      onChange={(event) =>
-                        setWhatsappDrafts((current) => ({
-                          ...current,
-                          [request.id]: event.target.value,
-                        }))
-                      }
-                      placeholder="Example: Could you please confirm your preferred date and pickup hotel?"
-                    />
-
-                    <details className="crm-message-preview">
-                      <summary>Preview full WhatsApp message</summary>
-                      <pre>{buildWhatsAppMessage(request)}</pre>
-                    </details>
-
-                    <button
-                      className="button button-primary"
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void openWhatsApp(request)}
-                    >
-                      {busy ? "Preparing…" : "Prepare and open WhatsApp"}
-                    </button>
-                  </section>
+                  <WhatsAppConversation
+                    request={request}
+                    onChanged={() => void loadCRM()}
+                  />
                 )}
 
                 {request.activities.length > 0 && (
@@ -911,17 +836,6 @@ export default function AdminCRM() {
                     onClick={() => void changeStatus(request, "in_review")}
                   >
                     Start review
-                  </button>
-                )}
-
-                {request.status === "awaiting_customer" && (
-                  <button
-                    className="button button-outline"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void changeStatus(request, "customer_replied")}
-                  >
-                    Customer replied
                   </button>
                 )}
 
