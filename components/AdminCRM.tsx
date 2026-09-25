@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import ProposalEditor from "@/components/ProposalEditor";
 
 type CRMStatus =
   | "new"
@@ -52,6 +53,38 @@ type CRMActivity = {
   summary: string;
 };
 
+type CRMProposalItem = {
+  id: string;
+  position: number;
+  experience_title: string;
+  option_name: string | null;
+  proposed_date: string | null;
+  proposed_time: string | null;
+  guests: number;
+  unit_price: number;
+  line_total: number;
+  pickup_location: string | null;
+  notes: string | null;
+};
+
+type CRMProposal = {
+  id: string;
+  version: number;
+  public_token: string;
+  status: "draft" | "sent" | "accepted" | "changes_requested" | "expired" | "cancelled";
+  valid_until: string | null;
+  intro_text: string | null;
+  conditions_text: string | null;
+  subtotal: number;
+  discount_amount: number;
+  extras_amount: number;
+  total: number;
+  sent_at: string | null;
+  accepted_at: string | null;
+  customer_response: string | null;
+  items: CRMProposalItem[];
+};
+
 type CRMRequest = {
   id: string;
   reference: string;
@@ -69,6 +102,7 @@ type CRMRequest = {
   contact: CRMContact | null;
   items: CRMItem[];
   activities: CRMActivity[];
+  proposals: CRMProposal[];
 };
 
 type Filter = "all" | CRMStatus;
@@ -158,7 +192,8 @@ export default function AdminCRM() {
           *,
           contact:watermelon_contacts(*),
           items:watermelon_request_items(*),
-          activities:watermelon_activities(*)
+          activities:watermelon_activities(*),
+          proposals:watermelon_proposals(*, items:watermelon_proposal_items(*))
         `)
         .order("created_at", { ascending: false }),
       supabase
@@ -180,6 +215,12 @@ export default function AdminCRM() {
         activities: [...(request.activities || [])].sort(
           (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         ),
+        proposals: [...(request.proposals || [])]
+          .sort((a, b) => b.version - a.version)
+          .map((proposal) => ({
+            ...proposal,
+            items: [...(proposal.items || [])].sort((a, b) => a.position - b.position),
+          })),
       }));
       setRequests(normalized);
     }
@@ -627,6 +668,11 @@ export default function AdminCRM() {
                   </section>
                 )}
 
+                <ProposalEditor
+                  request={request}
+                  onChanged={() => void loadCRM()}
+                />
+
                 {request.contact?.phone && (
                   <section className="crm-message-composer">
                     <div className="crm-message-heading">
@@ -690,16 +736,6 @@ export default function AdminCRM() {
                     onClick={() => void changeStatus(request, "in_review")}
                   >
                     Start review
-                  </button>
-                )}
-                {["new", "in_review", "proposal_drafting", "customer_replied"].includes(request.status) && (
-                  <button
-                    className="button button-outline"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void changeStatus(request, "proposal_sent")}
-                  >
-                    Mark proposal sent
                   </button>
                 )}
                 {["proposal_sent", "customer_replied", "in_review"].includes(request.status) && (

@@ -2244,3 +2244,512 @@ button { cursor: pointer; }
     width: 100%;
   }
 }
+
+
+/* CRM proposal editor */
+.crm-proposal-editor {
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: #fff;
+  overflow: hidden;
+}
+.crm-proposal-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 0;
+  padding: 15px 16px;
+  background: #f8fbf9;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.crm-proposal-toggle > span {
+  display: grid;
+  gap: 3px;
+}
+.crm-proposal-toggle strong {
+  font-size: 14px;
+}
+.crm-proposal-toggle small {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: capitalize;
+}
+.crm-proposal-toggle b {
+  color: var(--green);
+  font-size: 12px;
+}
+.crm-proposal-body {
+  display: grid;
+  gap: 15px;
+  padding: 16px;
+  border-top: 1px solid var(--line);
+}
+.crm-proposal-customer-response {
+  display: grid;
+  gap: 5px;
+  padding: 12px 13px;
+  border-radius: 11px;
+  background: #fff3cf;
+  color: #6d570b;
+}
+.crm-proposal-customer-response span {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.crm-proposal-head-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.crm-proposal-head-fields label,
+.crm-proposal-long-field,
+.crm-proposal-item-grid label {
+  display: grid;
+  gap: 6px;
+}
+.crm-proposal-head-fields label > span,
+.crm-proposal-long-field > span,
+.crm-proposal-item-grid label > span,
+.crm-proposal-line-total > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.crm-proposal-head-fields input,
+.crm-proposal-long-field textarea,
+.crm-proposal-item-grid input,
+.crm-proposal-item-title input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  padding: 10px 11px;
+  font: inherit;
+  outline: none;
+}
+.crm-proposal-head-fields input:focus,
+.crm-proposal-long-field textarea:focus,
+.crm-proposal-item-grid input:focus,
+.crm-proposal-item-title input:focus {
+  border-color: var(--green-2);
+  box-shadow: 0 0 0 3px rgba(23,122,85,.1);
+}
+.crm-proposal-items {
+  display: grid;
+  gap: 11px;
+}
+.crm-proposal-item {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fbfcfb;
+}
+.crm-proposal-item-title {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+}
+.crm-proposal-item-title > span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--mint);
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 900;
+}
+.crm-proposal-item-title input {
+  font-weight: 800;
+}
+.crm-proposal-item-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.crm-proposal-line-total {
+  display: grid;
+  gap: 6px;
+  align-content: center;
+  min-height: 62px;
+  padding: 10px 11px;
+  border-radius: 10px;
+  background: var(--mint);
+}
+.crm-proposal-line-total strong {
+  color: var(--green);
+  font-size: 16px;
+}
+.crm-proposal-totals {
+  justify-self: end;
+  width: min(100%, 410px);
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #f8fbf9;
+}
+.crm-proposal-totals > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  font-size: 13px;
+}
+.crm-proposal-totals span {
+  color: var(--muted);
+}
+.crm-proposal-grand-total {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.crm-proposal-grand-total strong {
+  color: var(--green);
+  font-size: 20px;
+}
+.crm-proposal-feedback {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--mint);
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 800;
+}
+.crm-proposal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+/* Public customer proposal */
+.customer-proposal-shell {
+  width: min(980px, calc(100% - 28px));
+  margin: 0 auto;
+  padding: 46px 0 82px;
+}
+.customer-proposal-card {
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 22px 70px rgba(8, 42, 29, .08);
+}
+.customer-proposal-state {
+  min-height: 330px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  text-align: center;
+}
+.customer-proposal-state h1,
+.customer-proposal-state p {
+  margin: 0;
+}
+.customer-proposal-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 22px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--line);
+}
+.customer-proposal-header h1 {
+  margin: 7px 0 8px;
+  font-size: clamp(32px, 5vw, 48px);
+  line-height: 1;
+  letter-spacing: -.04em;
+}
+.customer-proposal-header > div > p:last-child {
+  max-width: 660px;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.customer-proposal-status {
+  align-self: flex-start;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #e8f1ff;
+  color: #28558d;
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+.customer-proposal-status.accepted {
+  background: #dff3e8;
+  color: #0e5b3e;
+}
+.customer-proposal-status.changes_requested {
+  background: #fff3cf;
+  color: #795e08;
+}
+.customer-proposal-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 20px 0;
+}
+.customer-proposal-meta > div,
+.customer-proposal-item-grid > div {
+  display: grid;
+  gap: 4px;
+}
+.customer-proposal-meta span,
+.customer-proposal-item-grid span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.customer-proposal-meta strong,
+.customer-proposal-item-grid strong {
+  font-size: 13px;
+}
+.customer-proposal-items {
+  display: grid;
+  gap: 14px;
+}
+.customer-proposal-item {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: #fbfcfb;
+}
+.customer-proposal-item-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  margin-bottom: 15px;
+}
+.customer-proposal-item-head > div {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.customer-proposal-item-head > div > span {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--mint);
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 900;
+}
+.customer-proposal-item-head h2 {
+  margin: 2px 0 0;
+  font-size: 20px;
+  line-height: 1.2;
+}
+.customer-proposal-item-head > strong {
+  color: var(--green);
+  font-size: 18px;
+  white-space: nowrap;
+}
+.customer-proposal-item-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.customer-proposal-item > p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.customer-proposal-total {
+  width: min(100%, 430px);
+  margin: 20px 0 0 auto;
+  padding: 16px;
+  border-radius: 15px;
+  background: var(--mint);
+}
+.customer-proposal-total > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 5px 0;
+  font-size: 13px;
+}
+.customer-proposal-total span {
+  color: var(--muted);
+}
+.customer-proposal-grand-total {
+  margin-top: 5px;
+  padding-top: 12px !important;
+  border-top: 1px solid var(--line);
+}
+.customer-proposal-grand-total strong {
+  color: var(--green);
+  font-size: 24px;
+}
+.customer-proposal-conditions {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.customer-proposal-conditions h2 {
+  margin: 0 0 7px;
+  font-size: 16px;
+}
+.customer-proposal-conditions p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.customer-proposal-response {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.customer-proposal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.customer-proposal-change-form {
+  display: grid;
+  gap: 12px;
+}
+.customer-proposal-change-form label {
+  display: grid;
+  gap: 6px;
+}
+.customer-proposal-change-form label > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+.customer-proposal-change-form textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 13px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  resize: vertical;
+  outline: none;
+}
+.customer-proposal-change-form textarea:focus {
+  border-color: var(--green-2);
+  box-shadow: 0 0 0 3px rgba(23,122,85,.1);
+}
+.customer-proposal-change-form > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+.customer-proposal-result {
+  display: grid;
+  gap: 6px;
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: 14px;
+}
+.customer-proposal-result.accepted {
+  background: #dff3e8;
+  color: #0e5b3e;
+}
+.customer-proposal-result.changes {
+  background: #fff3cf;
+  color: #6d570b;
+}
+.customer-proposal-result span {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.customer-proposal-footer {
+  display: grid;
+  gap: 3px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.customer-proposal-footer strong {
+  color: var(--green);
+}
+.customer-proposal-footer span {
+  color: var(--muted);
+  font-size: 12px;
+}
+@media (max-width: 780px) {
+  .crm-proposal-head-fields,
+  .crm-proposal-item-grid,
+  .customer-proposal-item-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 650px) {
+  .crm-proposal-head-fields,
+  .crm-proposal-item-grid,
+  .customer-proposal-meta,
+  .customer-proposal-item-grid {
+    grid-template-columns: 1fr;
+  }
+  .crm-proposal-actions,
+  .customer-proposal-actions,
+  .customer-proposal-change-form > div {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .crm-proposal-actions .button,
+  .customer-proposal-actions .button,
+  .customer-proposal-change-form .button {
+    width: 100%;
+  }
+  .customer-proposal-shell {
+    width: min(100% - 18px, 980px);
+    padding: 22px 0 52px;
+  }
+  .customer-proposal-card {
+    padding: 18px;
+    border-radius: 20px;
+  }
+  .customer-proposal-header {
+    flex-direction: column;
+  }
+  .customer-proposal-item-head {
+    flex-direction: column;
+  }
+  .customer-proposal-total {
+    width: 100%;
+  }
+}
+
+
+.crm-proposal-current-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+@media (max-width: 650px) {
+  .crm-proposal-current-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .crm-proposal-current-actions .button {
+    width: 100%;
+  }
+}
