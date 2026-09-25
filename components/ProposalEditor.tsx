@@ -720,12 +720,6 @@ export default function ProposalEditor({
             </div>
           </div>
 
-          {feedback && (
-            <p className={feedback.toLowerCase().includes("could not") || feedback.toLowerCase().includes("not authorized") ? "admin-error" : "crm-proposal-feedback"}>
-              {feedback}
-            </p>
-          )}
-
           <div className="crm-proposal-actions">
             <button
               className="button button-outline"
@@ -743,10 +737,15 @@ export default function ProposalEditor({
             >
               {sending ? "Preparing proposal…" : "Send proposal on WhatsApp"}
             </button>
-
+          </div>
             </>
           )}
-          </div>
+
+          {feedback && (
+            <p className={feedback.toLowerCase().includes("could not") || feedback.toLowerCase().includes("not authorized") ? "admin-error" : "crm-proposal-feedback"}>
+              {feedback}
+            </p>
+          )}
         </div>
       )}
     </section>
