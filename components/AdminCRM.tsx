@@ -7,6 +7,7 @@ import ProposalEditor from "@/components/ProposalEditor";
 type CRMStatus =
   | "new"
   | "in_review"
+  | "awaiting_customer"
   | "proposal_drafting"
   | "proposal_sent"
   | "customer_replied"
@@ -115,6 +116,7 @@ type Filter = "all" | CRMStatus;
 const STATUS_LABELS: Record<CRMStatus, string> = {
   new: "New",
   in_review: "In review",
+  awaiting_customer: "Waiting for customer",
   proposal_drafting: "Drafting proposal",
   proposal_sent: "Proposal sent",
   customer_replied: "Customer replied",
@@ -391,7 +393,8 @@ export default function AdminCRM() {
 
     const preparedMessage = buildWhatsAppMessage(request);
     const now = new Date().toISOString();
-    const nextStatus = request.status === "new" ? "in_review" : request.status;
+    const preAcceptance = ["new", "in_review", "customer_replied"].includes(request.status);
+    const nextStatus = preAcceptance ? "awaiting_customer" : request.status;
 
     setEditing(request.id);
     setMessage("");
@@ -415,7 +418,9 @@ export default function AdminCRM() {
       request_id: request.id,
       contact_id: request.contact?.id || null,
       activity_type: "whatsapp_prepared",
-      summary: "WhatsApp opened with a prepared customer message",
+      summary: preAcceptance
+        ? "WhatsApp opened — waiting for customer reply"
+        : "WhatsApp opened with a prepared customer message",
       actor_email: actorEmail || null,
       metadata: {
         message: preparedMessage,
@@ -426,11 +431,163 @@ export default function AdminCRM() {
       "https://wa.me/" + phone + "?text=" + encodeURIComponent(preparedMessage);
   }
 
+  async function acceptDirectBooking(request: CRMRequest) {
+    if (!supabase || request.kind !== "direct_booking") return;
+
+    const confirmed = window.confirm(
+      "Accept this booking request after your review? No payment will be requested until you choose to send the payment options."
+    );
+    if (!confirmed) return;
+
+    setEditing(request.id);
+    setMessage("");
+
+    const { error } = await supabase.rpc("watermelon_accept_direct_booking", {
+      p_request_id: request.id,
+    });
+
+    if (error) {
+      setMessage(error.message);
+      setEditing(null);
+      return;
+    }
+
+    await loadCRM();
+    setEditing(null);
+  }
+
+  async function prepareDirectBookingPayment(request: CRMRequest) {
+    if (!supabase || request.kind !== "direct_booking") return;
+
+    setEditing(request.id);
+    setMessage("");
+
+    const { data, error } = await supabase.rpc(
+      "watermelon_prepare_direct_booking_payment",
+      { p_request_id: request.id }
+    );
+
+    if (error || !data) {
+      setMessage(error?.message || "Could not prepare the payment request.");
+      setEditing(null);
+      return;
+    }
+
+    const payload = data as {
+      reference: string;
+      payment_token: string;
+      customer_name: string;
+      customer_phone: string;
+      amount: number | null;
+      currency: string;
+      experience_title: string;
+    };
+
+    const paymentUrl =
+      window.location.origin +
+      "/payment/" +
+      encodeURIComponent(payload.reference) +
+      "?token=" +
+      encodeURIComponent(payload.payment_token);
+
+    const phone = (payload.customer_phone || "").replace(/[^0-9]/g, "");
+    const lines = [
+      "Hello " + payload.customer_name + ",",
+      "",
+      "We have now accepted your Watermelon booking request " + payload.reference + " after reviewing the details and availability.",
+      "Experience: " + payload.experience_title,
+      payload.amount !== null
+        ? "Amount to pay: " + money(payload.amount, payload.currency)
+        : "Amount: as agreed",
+      "",
+      "Choose your preferred payment method securely here:",
+      paymentUrl,
+      "",
+      "You can choose PayPal, Revolut or bank transfer.",
+      "The booking becomes confirmed once the payment is received and validated by Watermelon.",
+    ].filter(Boolean);
+
+    await loadCRM();
+    setEditing(null);
+
+    if (phone) {
+      window.location.href =
+        "https://wa.me/" + phone + "?text=" + encodeURIComponent(lines.join("\n"));
+    } else {
+      try {
+        await navigator.clipboard.writeText(paymentUrl);
+        setMessage("Payment link copied. This contact has no phone number.");
+      } catch {
+        setMessage("Payment request prepared. This contact has no phone number.");
+      }
+    }
+  }
+
+  async function markDirectBookingPaid(request: CRMRequest) {
+    if (!supabase || request.kind !== "direct_booking") return;
+
+    const methodInput = window.prompt(
+      "Payment method: paypal, revolut or bank_transfer",
+      ""
+    );
+    if (methodInput === null) return;
+
+    const method = methodInput.trim().toLowerCase().replace(/[ -]+/g, "_");
+    if (!["paypal", "revolut", "bank_transfer"].includes(method)) {
+      setMessage("Use paypal, revolut or bank_transfer as the payment method.");
+      return;
+    }
+
+    const paymentReference = window.prompt("Payment reference (optional)", "");
+    if (paymentReference === null) return;
+
+    setEditing(request.id);
+    setMessage("");
+
+    const { error } = await supabase.rpc("watermelon_mark_direct_booking_paid", {
+      p_request_id: request.id,
+      p_method: method,
+      p_reference: paymentReference.trim() || null,
+    });
+
+    if (error) {
+      setMessage(error.message);
+      setEditing(null);
+      return;
+    }
+
+    await loadCRM();
+    setEditing(null);
+  }
+
+  async function declineDirectBooking(request: CRMRequest) {
+    if (!supabase || request.kind !== "direct_booking") return;
+
+    const confirmed = window.confirm("Decline this booking request?");
+    if (!confirmed) return;
+
+    setEditing(request.id);
+    setMessage("");
+
+    const { error } = await supabase.rpc("watermelon_decline_direct_booking", {
+      p_request_id: request.id,
+    });
+
+    if (error) {
+      setMessage(error.message);
+      setEditing(null);
+      return;
+    }
+
+    await loadCRM();
+    setEditing(null);
+  }
+
   const counts = useMemo(
     () => ({
       new: requests.filter((item) => item.status === "new").length,
       inReview: requests.filter((item) =>
-        ["in_review", "proposal_drafting", "customer_replied"].includes(item.status)
+        ["in_review", "awaiting_customer", "proposal_drafting", "customer_replied"].includes(item.status)
       ).length,
       proposalSent: requests.filter((item) => item.status === "proposal_sent").length,
       awaitingPayment: requests.filter((item) => item.status === "awaiting_payment").length,
@@ -566,6 +723,7 @@ export default function AdminCRM() {
             ["all", "All"],
             ["new", "New"],
             ["in_review", "In review"],
+            ["awaiting_customer", "Waiting for customer"],
             ["proposal_drafting", "Drafting"],
             ["proposal_sent", "Proposal sent"],
             ["customer_replied", "Customer replied"],
@@ -673,10 +831,22 @@ export default function AdminCRM() {
                   </section>
                 )}
 
-                <ProposalEditor
-                  request={request}
-                  onChanged={() => void loadCRM()}
-                />
+                {request.kind === "personalized_proposal" && (
+                  <ProposalEditor
+                    request={request}
+                    onChanged={() => void loadCRM()}
+                  />
+                )}
+
+                {request.kind === "direct_booking" &&
+                  !["accepted", "awaiting_payment", "confirmed", "declined", "cancelled"].includes(request.status) && (
+                    <section className="crm-review-note">
+                      <strong>Request still under review</strong>
+                      <span>
+                        You can ask the customer questions and continue the WhatsApp conversation as long as needed. Nothing is accepted and no payment is requested until you choose <b>Accept booking request</b>.
+                      </span>
+                    </section>
+                  )}
 
                 {request.contact?.phone && (
                   <section className="crm-message-composer">
@@ -684,7 +854,7 @@ export default function AdminCRM() {
                       <div>
                         <strong>WhatsApp message</strong>
                         <span>
-                          Write only the question or observation you want to add. Watermelon automatically adds the customer, request reference and experience details.
+                          Write only the question or observation you want to add. Watermelon automatically adds the customer, request reference and experience details. Before acceptance, sending a message keeps the request open and marks it as waiting for the customer.
                         </span>
                       </div>
                     </div>
@@ -743,12 +913,62 @@ export default function AdminCRM() {
                     Start review
                   </button>
                 )}
+
+                {request.status === "awaiting_customer" && (
+                  <button
+                    className="button button-outline"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void changeStatus(request, "customer_replied")}
+                  >
+                    Customer replied
+                  </button>
+                )}
+
+                {request.kind === "direct_booking" &&
+                  ["new", "in_review", "awaiting_customer", "customer_replied"].includes(request.status) && (
+                    <button
+                      className="button button-primary"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void acceptDirectBooking(request)}
+                    >
+                      Accept booking request
+                    </button>
+                  )}
+
+                {request.kind === "direct_booking" && request.status === "accepted" && (
+                  <button
+                    className="button button-primary"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void prepareDirectBookingPayment(request)}
+                  >
+                    Send payment options
+                  </button>
+                )}
+
+                {request.kind === "direct_booking" && request.status === "awaiting_payment" && (
+                  <button
+                    className="button button-primary"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void markDirectBookingPaid(request)}
+                  >
+                    Mark payment received
+                  </button>
+                )}
+
                 {!["confirmed", "declined", "cancelled"].includes(request.status) && (
                   <button
                     className="button button-ghost"
                     type="button"
                     disabled={busy}
-                    onClick={() => void changeStatus(request, "declined")}
+                    onClick={() =>
+                      request.kind === "direct_booking"
+                        ? void declineDirectBooking(request)
+                        : void changeStatus(request, "declined")
+                    }
                   >
                     Decline
                   </button>
