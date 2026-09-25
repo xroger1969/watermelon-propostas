@@ -105,6 +105,28 @@ export default function PaymentChoice({
     };
   }, [endpoint]);
 
+  async function recordMethod(method: "paypal" | "revolut" | "bank_transfer") {
+    if (!payment || payment.payment_status === "paid") return;
+
+    setPayment((current) =>
+      current ? { ...current, payment_method: method } : current
+    );
+
+    try {
+      await fetch("/api/payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reference,
+          token,
+          method,
+        }),
+      });
+    } catch {
+      // Do not block the customer from continuing to the chosen payment provider.
+    }
+  }
+
   async function copy(value: string, label: string) {
     try {
       await navigator.clipboard.writeText(value);
@@ -199,6 +221,7 @@ export default function PaymentChoice({
                   href={payment.paypal_link}
                   target="_blank"
                   rel="noreferrer"
+                  onClick={() => void recordMethod("paypal")}
                 >
                   Pay with PayPal
                 </a>
@@ -219,6 +242,7 @@ export default function PaymentChoice({
                   href={payment.revolut_link}
                   target="_blank"
                   rel="noreferrer"
+                  onClick={() => void recordMethod("revolut")}
                 >
                   Pay with Revolut
                 </a>
@@ -258,6 +282,15 @@ export default function PaymentChoice({
                     </button>
                   </div>
                 </div>
+                <button
+                  className="button button-outline wide"
+                  type="button"
+                  onClick={() => void recordMethod("bank_transfer")}
+                >
+                  {payment.payment_method === "bank_transfer"
+                    ? "Bank transfer selected ✓"
+                    : "Choose bank transfer"}
+                </button>
               </article>
             )}
           </div>
