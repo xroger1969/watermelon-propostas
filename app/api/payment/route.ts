@@ -57,3 +57,52 @@ export async function GET(request: Request) {
     }
   );
 }
+
+
+export async function POST(request: Request) {
+  let input: {
+    reference?: string;
+    token?: string;
+    method?: string;
+  };
+
+  try {
+    input = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  }
+
+  const reference = (input.reference || "").trim().slice(0, 80);
+  const token = (input.token || "").trim();
+  const method = (input.method || "").trim().toLowerCase();
+
+  if (!reference || !UUID_RE.test(token)) {
+    return NextResponse.json({ error: "Invalid payment link." }, { status: 400 });
+  }
+
+  if (!["paypal", "revolut", "bank_transfer"].includes(method)) {
+    return NextResponse.json({ error: "Invalid payment method." }, { status: 400 });
+  }
+
+  const supabase = createClient(
+    SUPABASE_BOOKING_URL,
+    SUPABASE_BOOKING_PUBLISHABLE_KEY,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  );
+
+  const { data, error } = await supabase.rpc("watermelon_select_payment_method_v2", {
+    p_reference: reference,
+    p_token: token,
+    p_method: method,
+  });
+
+  if (error) {
+    console.error("Unable to record payment method", error);
+    return NextResponse.json(
+      { error: "We could not record the payment method." },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ method: data });
+}
