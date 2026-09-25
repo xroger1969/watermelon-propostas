@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     { auth: { persistSession: false, autoRefreshToken: false } }
   );
 
-  const { data, error } = await supabase.rpc("watermelon_payment_page", {
+  const { data, error } = await supabase.rpc("watermelon_payment_page_v2", {
     p_reference: reference,
     p_token: token,
   });
@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const payment = Array.isArray(data) ? data[0] : null;
+  const payment = data || null;
 
   if (!payment) {
     return NextResponse.json(
