@@ -367,6 +367,7 @@ export default function ProposalEditor({
   const latestStatus = latest
     ? "v" + latest.version + " · " + latest.status.replaceAll("_", " ")
     : "No proposal yet";
+  const proposalLocked = latest?.status === "accepted";
 
   function proposalLink(token: string) {
     return (
@@ -559,6 +560,8 @@ export default function ProposalEditor({
             </div>
           )}
 
+          {!proposalLocked && (
+            <>
           <div className="crm-proposal-head-fields">
             <label>
               <span>Valid until</span>
@@ -740,6 +743,9 @@ export default function ProposalEditor({
             >
               {sending ? "Preparing proposal…" : "Send proposal on WhatsApp"}
             </button>
+
+            </>
+          )}
           </div>
         </div>
       )}
