@@ -147,7 +147,7 @@ export default function WhatsAppConversation({
 
     try {
       const response = await fetch(
-        SUPABASE_BOOKING_URL + "/functions/v1/watermelon-whatsapp-send",
+        SUPABASE_BOOKING_URL + "/functions/v1/watermelon-whatsapp-send-v2",
         {
           method: "POST",
           headers: {
