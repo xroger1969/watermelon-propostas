@@ -2753,3 +2753,74 @@ button { cursor: pointer; }
     width: 100%;
   }
 }
+
+
+/* Proposal payment flow */
+.payment-item-list {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 18px;
+}
+.payment-item-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fbfcfb;
+}
+.payment-item-row > div {
+  display: grid;
+  gap: 3px;
+}
+.payment-item-row strong {
+  font-size: 13px;
+}
+.payment-item-row span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.payment-item-row b {
+  color: var(--green);
+  white-space: nowrap;
+}
+.customer-proposal-result.accepted .button {
+  justify-self: start;
+  margin-top: 6px;
+}
+.crm-proposal-payment-panel {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 13px;
+  background: #fff3cf;
+  color: #6d570b;
+}
+.crm-proposal-payment-panel.paid {
+  background: #dff3e8;
+  color: #0e5b3e;
+}
+.crm-proposal-payment-panel > div {
+  display: grid;
+  gap: 4px;
+}
+.crm-proposal-payment-panel span {
+  font-size: 12px;
+  line-height: 1.45;
+}
+@media (max-width: 650px) {
+  .payment-item-row,
+  .crm-proposal-payment-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .crm-proposal-payment-panel .button,
+  .customer-proposal-result.accepted .button {
+    width: 100%;
+    justify-self: stretch;
+  }
+}
