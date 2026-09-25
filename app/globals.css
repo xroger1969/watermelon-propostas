@@ -2824,3 +2824,29 @@ button { cursor: pointer; }
     justify-self: stretch;
   }
 }
+
+
+/* Pre-acceptance review workflow */
+.crm-status-awaiting_customer {
+  background: #fff3cf;
+  color: #795e08;
+}
+.crm-review-note {
+  display: grid;
+  gap: 5px;
+  padding: 13px 14px;
+  border: 1px solid #eadca9;
+  border-radius: 13px;
+  background: #fffaf0;
+  color: #6d570b;
+}
+.crm-review-note strong {
+  font-size: 13px;
+}
+.crm-review-note span {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.crm-review-note b {
+  color: inherit;
+}
