@@ -142,6 +142,39 @@ export default function AdminBookings() {
   }, [loginCooldown]);
 
   useEffect(() => {
+    if (!supabase || !signedIn) return;
+
+    let refreshTimer: number | null = null;
+    const scheduleRefresh = () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = null;
+        void loadBookings();
+        void loadPaymentSettings();
+      }, 180);
+    };
+
+    const channel = supabase
+      .channel("watermelon-bookings-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "watermelon_booking_requests" },
+        scheduleRefresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "watermelon_payment_settings" },
+        scheduleRefresh
+      )
+      .subscribe();
+
+    return () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      void supabase.removeChannel(channel);
+    };
+  }, [supabase, signedIn, loadBookings, loadPaymentSettings]);
+
+  useEffect(() => {
     if (!supabase) {
       setAuthReady(true);
       return;
