@@ -254,21 +254,19 @@ button { cursor: pointer; }
 @media (max-width: 650px) {
   .site-header { padding: 12px 18px; }
   .main-nav > a:first-child { display: none; }
-  .main-nav { gap: 9px; }
+  .main-nav { gap: 7px; }
   .nav-admin-link {
-    position: fixed;
-    right: 14px;
-    bottom: 86px;
-    z-index: 60;
-    width: 52px;
-    height: 52px;
+    position: static;
+    flex: 0 0 42px;
+    width: 42px;
+    height: 42px;
     padding: 0;
     border-radius: 50%;
     justify-content: center;
-    box-shadow: 0 8px 24px rgba(16,61,46,.24);
+    box-shadow: 0 4px 14px rgba(16,61,46,.16);
   }
   .nav-admin-text { display: none; }
-  .nav-admin-lock { font-size: 20px; }
+  .nav-admin-lock { font-size: 18px; }
   .brand small { display: none; }
   .hero-inner, .intro, .catalog-section, .proposal-shell, .proposal-hero, .site-footer { width: min(100% - 30px, 1180px); }
   .hero { min-height: 540px; }
