@@ -896,7 +896,7 @@ export default function AdminBookings() {
 
                 <a
                   className="button button-outline"
-                  href={"/admin?search=" + encodeURIComponent(booking.reference)}
+                  href={"/admin?ref=" + encodeURIComponent(booking.reference)}
                 >
                   Open in CRM
                 </a>
