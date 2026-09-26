@@ -71,8 +71,9 @@ function cleanSetting(value: string | null) {
 }
 
 export default function AdminBookings() {
-  const [email, setEmail] = useState("");
   const [authReady, setAuthReady] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
   const [signedIn, setSignedIn] = useState(false);
   const [bookings, setBookings] = useState<BookingRequestRecord[]>([]);
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>(EMPTY_PAYMENT_SETTINGS);
@@ -96,7 +97,6 @@ export default function AdminBookings() {
   const loadBookings = useCallback(async () => {
     if (!supabase) return;
     setLoading(true);
-    setMessage("");
 
     const { data, error } = await supabase
       .from("watermelon_booking_requests")
@@ -204,9 +204,10 @@ export default function AdminBookings() {
     return () => listener.subscription.unsubscribe();
   }, [supabase, loadBookings, loadPaymentSettings]);
 
-  async function signIn(event: React.FormEvent) {
+  async function requestOtp(event: React.FormEvent) {
     event.preventDefault();
     if (!supabase) return;
+
     setLoginLoading(true);
     setMessage("");
 
@@ -214,7 +215,6 @@ export default function AdminBookings() {
       email: OWNER_EMAIL,
       options: {
         shouldCreateUser: false,
-        emailRedirectTo: window.location.origin + "/admin",
       },
     });
 
@@ -222,14 +222,49 @@ export default function AdminBookings() {
       const normalized = error.message.toLowerCase();
       setMessage(
         normalized.includes("rate limit")
-          ? "Too many access emails were requested. Please use the most recent email already received, or wait before requesting another link."
+          ? "Too many access codes were requested. Use the most recent code received or wait before requesting another."
           : error.message
       );
     } else {
-      setMessage("Secure sign-in link sent. Please check your email.");
+      setOtpSent(true);
+      setOtpCode("");
+      setMessage("A 6-digit access code was sent to your authorized email.");
       setLoginCooldown(60);
     }
+
     setLoginLoading(false);
+  }
+
+  async function verifyOtp(event: React.FormEvent) {
+    event.preventDefault();
+    if (!supabase) return;
+
+    const token = otpCode.replace(/\D/g, "").slice(0, 6);
+    if (token.length !== 6) {
+      setMessage("Enter the 6-digit code from the email.");
+      return;
+    }
+
+    setLoginLoading(true);
+    setMessage("");
+
+    const { error } = await supabase.auth.verifyOtp({
+      email: OWNER_EMAIL,
+      token,
+      type: "email",
+    });
+
+    if (error) {
+      setMessage("That code is invalid or has expired. Request a new code and try again.");
+      setLoginLoading(false);
+      return;
+    }
+
+    setOtpCode("");
+    setOtpSent(false);
+    setLoginLoading(false);
+    void loadBookings();
+    void loadPaymentSettings();
   }
 
   async function signOut() {
@@ -457,29 +492,78 @@ export default function AdminBookings() {
   if (!signedIn) {
     return (
       <section className="admin-shell">
-        <form className="admin-login-card" onSubmit={signIn}>
+        <form
+          className="admin-login-card"
+          onSubmit={otpSent ? verifyOtp : requestOtp}
+        >
           <p className="eyebrow dark">PRIVATE AREA</p>
-          <h1>Watermelon Booking Admin</h1>
-          <p>This private area is restricted to the Watermelon owner account.</p>
+          <h1>{otpSent ? "Enter access code" : "Watermelon Booking Admin"}</h1>
+          <p>
+            {otpSent
+              ? "Enter the 6-digit code sent to your authorized email."
+              : "This private area uses the same secure owner access as the CRM."}
+          </p>
 
           <div className="admin-owner-account">
             <span>Authorized account</span>
             <strong>c.v******1969@gmail.com</strong>
           </div>
 
+          {otpSent && (
+            <label>
+              <span>6-digit code</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]*"
+                maxLength={6}
+                required
+                value={otpCode}
+                onChange={(event) =>
+                  setOtpCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                placeholder="000000"
+                autoFocus
+              />
+            </label>
+          )}
+
           {message && <p className="admin-error">{message}</p>}
 
           <button
             className="button button-primary wide"
             type="submit"
-            disabled={loginLoading || loginCooldown > 0}
+            disabled={
+              loginLoading ||
+              (!otpSent && loginCooldown > 0) ||
+              (otpSent && otpCode.length !== 6)
+            }
           >
             {loginLoading
-              ? "Sending link…"
-              : loginCooldown > 0
-                ? "Try again in " + loginCooldown + "s"
-                : "Send secure sign-in link"}
+              ? otpSent
+                ? "Checking code…"
+                : "Sending code…"
+              : otpSent
+                ? "Enter bookings"
+                : loginCooldown > 0
+                  ? "New code available in " + loginCooldown + "s"
+                  : "Send access code"}
           </button>
+
+          {otpSent && (
+            <button
+              className="button button-ghost wide"
+              type="button"
+              onClick={() => {
+                setOtpSent(false);
+                setOtpCode("");
+                setMessage("");
+              }}
+            >
+              Use a new code
+            </button>
+          )}
         </form>
       </section>
     );
