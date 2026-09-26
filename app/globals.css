@@ -47,6 +47,19 @@ button { cursor: pointer; }
 .brand strong { font-size: 17px; line-height: 1.05; letter-spacing: -.02em; }
 .brand small { font-size: 11px; margin-top: 3px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
 .main-nav { display: flex; align-items: center; gap: 24px; font-size: 14px; font-weight: 700; }
+.nav-admin-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 13px;
+  border-radius: 999px;
+  background: #103d2e;
+  color: #fff;
+  border: 1px solid #103d2e;
+  font-size: 12px;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+.nav-admin-link:hover { background: #0a2f23; border-color: #0a2f23; }
 .nav-cta { border: 1px solid var(--green); padding: 10px 15px; border-radius: 999px; color: var(--green); }
 
 .hero {
@@ -239,6 +252,8 @@ button { cursor: pointer; }
 @media (max-width: 650px) {
   .site-header { padding: 12px 18px; }
   .main-nav > a:first-child { display: none; }
+  .main-nav { gap: 9px; }
+  .nav-admin-link { padding: 8px 10px; font-size: 11px; }
   .brand small { display: none; }
   .hero-inner, .intro, .catalog-section, .proposal-shell, .proposal-hero, .site-footer { width: min(100% - 30px, 1180px); }
   .hero { min-height: 540px; }
