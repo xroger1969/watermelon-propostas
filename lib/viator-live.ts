@@ -121,13 +121,22 @@ export async function getLiveViatorPrices(productCodes: string[]): Promise<LiveV
     throw new Error("VIATOR_PARTNER_API_KEY is not configured");
   }
 
-  const results = await Promise.allSettled(
-    productCodes.map((productCode) => getSchedule(productCode, apiKey))
-  );
+  const prices: LiveViatorPrice[] = [];
+  const concurrency = 16;
 
-  return results.flatMap((result) =>
-    result.status === "fulfilled" && result.value ? [result.value] : []
-  );
+  for (let index = 0; index < productCodes.length; index += concurrency) {
+    const batch = productCodes.slice(index, index + concurrency);
+    const results = await Promise.allSettled(
+      batch.map((productCode) => getSchedule(productCode, apiKey))
+    );
+    prices.push(
+      ...results.flatMap((result) =>
+        result.status === "fulfilled" && result.value ? [result.value] : []
+      )
+    );
+  }
+
+  return prices;
 }
 
 
@@ -328,28 +337,34 @@ export async function getLiveViatorCatalog(): Promise<LiveViatorCatalogProduct[]
   if (!apiKey) throw new Error("VIATOR_PARTNER_API_KEY is not configured");
 
   const productCodes = candidateProductCodes();
-  const bulkResponse = await fetch(
-    VIATOR_BASE_URL + "/products/bulk?campaign-value=watermelon-site",
-    {
-      method: "POST",
-      headers: {
-        "exp-api-key": apiKey,
-        "Accept-Language": "en-GB",
-        Accept: "application/json;version=2.0",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ productCodes }),
-      cache: "no-store",
-      signal: requestSignal(VIATOR_BULK_TIMEOUT_MS),
-    }
-  );
+  let bulkResponse: Response | null = null;
 
-  if (bulkResponse.ok) {
+  try {
+    bulkResponse = await fetch(
+      VIATOR_BASE_URL + "/products/bulk?campaign-value=watermelon-site",
+      {
+        method: "POST",
+        headers: {
+          "exp-api-key": apiKey,
+          "Accept-Language": "en-GB",
+          Accept: "application/json;version=2.0",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ productCodes }),
+        cache: "no-store",
+        signal: requestSignal(VIATOR_BULK_TIMEOUT_MS),
+      }
+    );
+  } catch {
+    // Fall back to bounded individual product calls when the bulk endpoint stalls.
+  }
+
+  if (bulkResponse?.ok) {
     const products = (await bulkResponse.json()) as ViatorCatalogResponseProduct[];
     return normaliseCatalogProducts(products);
   }
 
-  if (bulkResponse.status === 429) {
+  if (bulkResponse?.status === 429) {
     throw new Error("Viator catalogue rate limit reached");
   }
 
