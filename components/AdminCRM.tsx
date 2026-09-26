@@ -176,6 +176,13 @@ function dateTime(value: string) {
   }).format(date);
 }
 
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+}
+
 export default function AdminCRM() {
   const [email, setEmail] = useState("");
   const [actorEmail, setActorEmail] = useState("");
@@ -190,6 +197,9 @@ export default function AdminCRM() {
   const [filter, setFilter] = useState<Filter>("new");
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
 
   const supabase = useMemo(() => {
     try {
@@ -299,6 +309,23 @@ export default function AdminCRM() {
   }, [supabase, signedIn, loadCRM]);
 
   useEffect(() => {
+    const supported =
+      typeof window !== "undefined" &&
+      "serviceWorker" in navigator &&
+      "PushManager" in window &&
+      "Notification" in window;
+
+    setPushSupported(supported);
+    if (!supported) return;
+
+    navigator.serviceWorker
+      .register("/watermelon-crm-sw.js")
+      .then((registration) => registration.pushManager.getSubscription())
+      .then((subscription) => setPushEnabled(Boolean(subscription)))
+      .catch(() => setPushEnabled(false));
+  }, []);
+
+  useEffect(() => {
     if (loginCooldown <= 0) return;
     const timer = window.setInterval(() => {
       setLoginCooldown((value) => Math.max(0, value - 1));
@@ -340,6 +367,135 @@ export default function AdminCRM() {
     await supabase.auth.signOut();
     setSignedIn(false);
     setRequests([]);
+  }
+
+  async function enablePushNotifications() {
+    if (!supabase || !pushSupported) return;
+
+    setPushBusy(true);
+    setMessage("");
+
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setMessage("Notifications were not allowed in this browser.");
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.register("/watermelon-crm-sw.js");
+      await navigator.serviceWorker.ready;
+
+      const { data: publicKey, error: keyError } = await supabase.rpc(
+        "watermelon_push_public_key"
+      );
+
+      if (keyError || !publicKey) {
+        throw new Error(keyError?.message || "Push public key is unavailable.");
+      }
+
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(String(publicKey)),
+        });
+      }
+
+      const json = subscription.toJSON();
+      const endpoint = subscription.endpoint;
+      const p256dh = json.keys?.p256dh;
+      const auth = json.keys?.auth;
+
+      if (!endpoint || !p256dh || !auth) {
+        throw new Error("Browser push subscription is incomplete.");
+      }
+
+      const { error: saveError } = await supabase.rpc(
+        "watermelon_upsert_push_subscription",
+        {
+          p_endpoint: endpoint,
+          p_p256dh: p256dh,
+          p_auth: auth,
+          p_user_agent: navigator.userAgent,
+        }
+      );
+
+      if (saveError) throw saveError;
+
+      setPushEnabled(true);
+      setMessage("Notifications enabled on this device.");
+      await supabase.rpc("watermelon_send_test_push");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not enable notifications.");
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
+  async function disablePushNotifications() {
+    if (!supabase || !pushSupported) return;
+
+    setPushBusy(true);
+    setMessage("");
+
+    try {
+      const registration = await navigator.serviceWorker.getRegistration(
+        "/watermelon-crm-sw.js"
+      );
+      const subscription = await registration?.pushManager.getSubscription();
+
+      if (subscription) {
+        const endpoint = subscription.endpoint;
+        await supabase.rpc("watermelon_remove_push_subscription", {
+          p_endpoint: endpoint,
+        });
+        await subscription.unsubscribe();
+      }
+
+      setPushEnabled(false);
+      setMessage("Notifications disabled on this device.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not disable notifications.");
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
+  async function deleteRequestPermanently(request: CRMRequest) {
+    if (!supabase) return;
+
+    const firstCheck = window.confirm(
+      "Permanently delete request " +
+        request.reference +
+        "? This removes the request, its messages, activity, proposals and linked booking data. This cannot be undone."
+    );
+    if (!firstCheck) return;
+
+    const typed = window.prompt(
+      "For safety, type DELETE to permanently remove " + request.reference + ".",
+      ""
+    );
+    if (typed !== "DELETE") {
+      setMessage("Deletion cancelled.");
+      return;
+    }
+
+    setEditing(request.id);
+    setMessage("");
+
+    const { error } = await supabase.rpc("watermelon_delete_request", {
+      p_request_id: request.id,
+    });
+
+    if (error) {
+      setMessage(error.message);
+      setEditing(null);
+      return;
+    }
+
+    setMessage("Request " + request.reference + " was permanently deleted.");
+    await loadCRM();
+    setEditing(null);
   }
 
   async function changeStatus(request: CRMRequest, status: CRMStatus) {
@@ -644,6 +800,24 @@ export default function AdminCRM() {
           <a className="button button-ghost" href="/admin/bookings">
             Bookings & payments
           </a>
+          {pushSupported && (
+            <button
+              className={pushEnabled ? "button button-outline" : "button button-primary"}
+              type="button"
+              disabled={pushBusy}
+              onClick={() =>
+                pushEnabled
+                  ? void disablePushNotifications()
+                  : void enablePushNotifications()
+              }
+            >
+              {pushBusy
+                ? "Notifications…"
+                : pushEnabled
+                  ? "Notifications on"
+                  : "Enable alerts"}
+            </button>
+          )}
           <button className="button button-ghost" type="button" onClick={() => void loadCRM()}>
             Refresh
           </button>
@@ -887,6 +1061,21 @@ export default function AdminCRM() {
                     Decline
                   </button>
                 )}
+
+                <button
+                  className="button"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void deleteRequestPermanently(request)}
+                  style={{
+                    marginLeft: "auto",
+                    border: "1px solid #b42318",
+                    color: "#b42318",
+                    background: "#fff",
+                  }}
+                >
+                  Delete permanently
+                </button>
               </footer>
             </article>
           );
