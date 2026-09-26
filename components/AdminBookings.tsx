@@ -10,7 +10,9 @@ import type {
   PaymentStatus,
 } from "@/types/booking";
 
-type Filter = "all" | BookingStatus | "awaiting_payment" | "paid";\n\nconst OWNER_EMAIL = "c.vasconcelos1969@gmail.com";
+type Filter = "all" | BookingStatus | "awaiting_payment" | "paid";
+
+const OWNER_EMAIL = "c.vasconcelos1969@gmail.com";
 
 const STATUS_LABELS: Record<BookingStatus, string> = {
   pending: "Pending",
