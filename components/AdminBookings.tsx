@@ -332,27 +332,96 @@ export default function AdminBookings() {
     return lines.join("\n");
   }
 
+  async function crmRequestIdForBooking(bookingId: string) {
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+      .from("watermelon_requests")
+      .select("id")
+      .eq("linked_booking_id", bookingId)
+      .maybeSingle();
+
+    if (error || !data?.id) {
+      setMessage(error?.message || "The linked CRM request could not be found.");
+      return null;
+    }
+
+    return String(data.id);
+  }
+
+  async function acceptBooking(booking: BookingRequestRecord) {
+    if (!supabase) return;
+    const confirmed = window.confirm(
+      "Accept this booking request after your review? Payment will still be requested separately."
+    );
+    if (!confirmed) return;
+
+    const requestId = await crmRequestIdForBooking(booking.id);
+    if (!requestId) return;
+
+    setEditing(booking.id);
+    setMessage("");
+    const { error } = await supabase.rpc("watermelon_accept_direct_booking", {
+      p_request_id: requestId,
+    });
+
+    if (error) setMessage(error.message);
+    else await loadBookings();
+    setEditing(null);
+  }
+
+  async function declineBooking(booking: BookingRequestRecord) {
+    if (!supabase) return;
+    if (!window.confirm("Decline this booking request?")) return;
+
+    const requestId = await crmRequestIdForBooking(booking.id);
+    if (!requestId) return;
+
+    setEditing(booking.id);
+    setMessage("");
+    const { error } = await supabase.rpc("watermelon_decline_direct_booking", {
+      p_request_id: requestId,
+    });
+
+    if (error) setMessage(error.message);
+    else await loadBookings();
+    setEditing(null);
+  }
+
   async function sendPaymentOptions(booking: BookingRequestRecord) {
+    if (!supabase) return;
     if (!paymentOptionsAvailable()) {
       setMessage("Configure at least one payment option first.");
       return;
     }
 
-    const paymentToken = booking.payment_token || crypto.randomUUID();
+    const requestId = await crmRequestIdForBooking(booking.id);
+    if (!requestId) return;
 
-    await updateBooking(booking.id, {
-      payment_status: "awaiting",
-      payment_method: null,
-      payment_requested_at: new Date().toISOString(),
-      payment_token: paymentToken,
-    }, false);
+    setEditing(booking.id);
+    setMessage("");
 
+    const { data, error } = await supabase.rpc(
+      "watermelon_prepare_direct_booking_payment",
+      { p_request_id: requestId }
+    );
+
+    if (error || !data) {
+      setMessage(error?.message || "Could not prepare the payment request.");
+      setEditing(null);
+      return;
+    }
+
+    const payload = data as { payment_token: string };
     const paymentUrl =
       window.location.origin +
       "/payment/" +
       encodeURIComponent(booking.reference) +
       "?token=" +
-      encodeURIComponent(paymentToken);
+      encodeURIComponent(payload.payment_token);
+
+    await loadBookings();
+    setEditing(null);
 
     const phone = booking.customer_phone.replace(/[^0-9]/g, "");
     const url =
@@ -391,12 +460,21 @@ export default function AdminBookings() {
     );
     if (paymentReference === null) return;
 
-    await updateBooking(booking.id, {
-      payment_status: "paid",
-      payment_method: method,
-      payment_reference: paymentReference.trim() || null,
-      paid_at: new Date().toISOString(),
+    const requestId = await crmRequestIdForBooking(booking.id);
+    if (!requestId || !supabase) return;
+
+    setEditing(booking.id);
+    setMessage("");
+
+    const { error } = await supabase.rpc("watermelon_mark_direct_booking_paid", {
+      p_request_id: requestId,
+      p_method: method,
+      p_reference: paymentReference.trim() || null,
     });
+
+    if (error) setMessage(error.message);
+    else await loadBookings();
+    setEditing(null);
   }
 
   async function proposeAlternative(booking: BookingRequestRecord) {
@@ -762,26 +840,17 @@ export default function AdminBookings() {
               )}
 
               <div className="admin-actions">
-                {booking.status === "pending" && (
+                {["pending", "alternative_proposed"].includes(booking.status) && (
                   <>
                     <button
                       type="button"
                       className="button button-primary"
                       disabled={busy}
-                      onClick={() => {
-                        const confirmed = window.confirm(
-                          "Accept this booking request? This only accepts the request. Payment will be requested separately."
-                        );
-                        if (!confirmed) return;
-                        void updateBooking(booking.id, {
-                          status: "approved",
-                          payment_status: "not_requested",
-                          payment_method: null,
-                          payment_requested_at: null,
-                        });
-                      }}
+                      onClick={() => void acceptBooking(booking)}
                     >
-                      Accept request
+                      {booking.status === "alternative_proposed"
+                        ? "Accept alternative"
+                        : "Accept request"}
                     </button>
                     <button
                       type="button"
@@ -789,13 +858,15 @@ export default function AdminBookings() {
                       disabled={busy}
                       onClick={() => void proposeAlternative(booking)}
                     >
-                      Propose alternative
+                      {booking.status === "alternative_proposed"
+                        ? "Change alternative"
+                        : "Propose alternative"}
                     </button>
                     <button
                       type="button"
                       className="button button-ghost"
                       disabled={busy}
-                      onClick={() => void updateBooking(booking.id, { status: "declined" })}
+                      onClick={() => void declineBooking(booking)}
                     >
                       Decline
                     </button>
@@ -821,20 +892,6 @@ export default function AdminBookings() {
                       Mark as paid
                     </button>
                   </>
-                )}
-
-                {booking.payment_status === "paid" && booking.status !== "confirmed" && (
-                  <button
-                    type="button"
-                    className="button button-primary"
-                    disabled={busy}
-                    onClick={() => void updateBooking(booking.id, {
-                      status: "confirmed",
-                      confirmed_at: new Date().toISOString(),
-                    })}
-                  >
-                    Confirm booking
-                  </button>
                 )}
 
                 <a
