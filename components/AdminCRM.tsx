@@ -467,6 +467,10 @@ export default function AdminCRM() {
       email: OWNER_EMAIL,
       options: {
         shouldCreateUser: false,
+        emailRedirectTo:
+          typeof window !== "undefined"
+            ? `${window.location.origin}/admin`
+            : undefined,
       },
     });
 
@@ -479,7 +483,9 @@ export default function AdminCRM() {
     } else {
       setOtpSent(true);
       setOtpCode("");
-      setMessage("A 6-digit access code was sent to your authorized email.");
+      setMessage(
+        "A secure sign-in email was sent. Open the latest email and tap Sign in. You will return directly to the CRM. If the email contains a 6-digit code instead, enter it below."
+      );
       setLoginCooldown(60);
     }
 
@@ -921,10 +927,10 @@ export default function AdminCRM() {
           onSubmit={otpSent ? verifyOtp : requestOtp}
         >
           <p className="eyebrow dark">PRIVATE CRM</p>
-          <h1>{otpSent ? "Enter access code" : "Owner login"}</h1>
+          <h1>{otpSent ? "Check your email" : "Owner login"}</h1>
           <p>
             {otpSent
-              ? "Enter the 6-digit code sent to your authorized email. You stay on this page."
+              ? "Open the latest Watermelon CRM email and tap Sign in. You will return directly here. If the email shows a 6-digit code instead, enter it below."
               : "Access is restricted to the Watermelon owner account. No email address needs to be entered."}
           </p>
 
@@ -935,7 +941,7 @@ export default function AdminCRM() {
 
           {otpSent && (
             <label>
-              <span>6-digit code</span>
+              <span>6-digit code (if shown in the email)</span>
               <input
                 type="text"
                 inputMode="numeric"
