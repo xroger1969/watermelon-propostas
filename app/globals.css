@@ -1884,6 +1884,30 @@ button { cursor: pointer; }
   color: var(--muted);
   font-size: 14px;
 }
+.crm-alert-setup {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 0 18px;
+  padding: 16px 18px;
+  border: 1px solid #e7c95d;
+  border-radius: 16px;
+  background: #fff8d9;
+}
+.crm-alert-setup > div {
+  display: grid;
+  gap: 4px;
+}
+.crm-alert-setup strong {
+  color: #5d4a00;
+  font-size: 14px;
+}
+.crm-alert-setup span {
+  color: #746629;
+  font-size: 12px;
+  line-height: 1.5;
+}
 .crm-stats {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -2159,6 +2183,13 @@ button { cursor: pointer; }
   }
 }
 @media (max-width: 650px) {
+  .crm-alert-setup {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .crm-alert-setup .button {
+    width: 100%;
+  }
   .crm-stats {
     grid-template-columns: 1fr 1fr;
   }
