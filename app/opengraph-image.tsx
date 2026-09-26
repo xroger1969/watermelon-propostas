@@ -14,7 +14,10 @@ export default function Image() {
         <div style={{ display:"flex", flexDirection:"column", width:"100%", padding:"52px 48px", zIndex:2 }}>
           <img src="https://www.watermelonexperiences.pt/watermelon-mark.svg" width="235" height="235" style={{ objectFit:"contain", alignSelf:"flex-start", marginBottom:32 }} />
           <div style={{ color:"#f2f4ef", fontSize:31, fontWeight:700, letterSpacing:8, marginBottom:54 }}>WATERMELON EXPERIENCES · PORTUGAL</div>
-          <div style={{ color:"#ffffff", fontSize:82, lineHeight:1.03, letterSpacing:-4, fontWeight:800, maxWidth:1120 }}>Discover Portugal from<br/>a different perspective.</div>
+          <div style={{ display:"flex", flexDirection:"column", color:"#ffffff", fontSize:82, lineHeight:1.03, letterSpacing:-4, fontWeight:800, maxWidth:1120 }}>
+            <span>Discover Portugal from</span>
+            <span>a different perspective.</span>
+          </div>
         </div>
       </div>
     ),
