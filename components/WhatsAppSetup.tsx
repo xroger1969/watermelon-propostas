@@ -3,6 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
+type WhatsAppTemplate = {
+  id: string | null;
+  name: string;
+  status: string;
+  category: string;
+  language: string;
+};
+
 type SetupStatus = {
   verify_token: string;
   phone_number_id: string | null;
@@ -45,6 +53,13 @@ export default function WhatsAppSetup() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [copied, setCopied] = useState("");
+  const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [templateBusy, setTemplateBusy] = useState(false);
+  const [templateName, setTemplateName] = useState("watermelon_app_review_test");
+  const [templateBody, setTemplateBody] = useState(
+    "We received your request and will contact you shortly. Thank you for choosing Watermelon Experiences."
+  );
 
   async function load() {
     setLoading(true);
@@ -67,6 +82,7 @@ export default function WhatsAppSetup() {
 
   useEffect(() => {
     void load();
+    void loadTemplates();
   }, []);
 
   async function save() {
@@ -93,6 +109,67 @@ export default function WhatsAppSetup() {
     setAccessToken("");
     setMessage("WhatsApp settings saved.");
     setSaving(false);
+  }
+
+  async function loadTemplates() {
+    setTemplatesLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "watermelon-whatsapp-templates",
+        { method: "GET" }
+      );
+
+      if (error) throw error;
+      if (data?.error) throw new Error(String(data.error));
+      setTemplates(Array.isArray(data?.templates) ? data.templates : []);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to load WhatsApp templates.");
+    } finally {
+      setTemplatesLoading(false);
+    }
+  }
+
+  async function createTemplate() {
+    const name = templateName
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+
+    if (name.length < 3 || templateBody.trim().length < 10) {
+      setMessage("Add a valid template name and message.");
+      return;
+    }
+
+    setTemplateBusy(true);
+    setMessage("");
+
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "watermelon-whatsapp-templates",
+        {
+          body: {
+            name,
+            language: "en_US",
+            category: "UTILITY",
+            body: templateBody.trim(),
+          },
+        }
+      );
+
+      if (error) throw error;
+      if (data?.error) throw new Error(String(data.error));
+
+      setMessage(
+        "Template " + name + " created in Meta. Status: " +
+          String(data?.template?.status || "PENDING") + "."
+      );
+      await loadTemplates();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to create WhatsApp template.");
+    } finally {
+      setTemplateBusy(false);
+    }
   }
 
   async function copy(value: string, label: string) {
@@ -288,8 +365,74 @@ export default function WhatsAppSetup() {
           <article className="whatsapp-setup-card">
             <div className="whatsapp-setup-heading">
               <div>
+                <p className="eyebrow dark">META APP REVIEW</p>
+                <h2>3. Message templates</h2>
+                <p>
+                  Manage a WhatsApp message template directly from Watermelon CRM. This demonstrates the
+                  <strong> whatsapp_business_management</strong> permission during Meta App Review.
+                </p>
+              </div>
+              <button
+                className="button button-ghost"
+                type="button"
+                disabled={templatesLoading}
+                onClick={() => void loadTemplates()}
+              >
+                {templatesLoading ? "Loading…" : "Refresh templates"}
+              </button>
+            </div>
+
+            <div className="whatsapp-setup-grid">
+              <label>
+                <span>Template name</span>
+                <input
+                  value={templateName}
+                  onChange={(event) => setTemplateName(event.target.value)}
+                  placeholder="watermelon_app_review_test"
+                />
+              </label>
+
+              <label className="whatsapp-secret-field">
+                <span>Template message</span>
+                <textarea
+                  rows={3}
+                  value={templateBody}
+                  onChange={(event) => setTemplateBody(event.target.value)}
+                />
+              </label>
+            </div>
+
+            <div className="whatsapp-setup-actions">
+              <button
+                className="button button-primary"
+                type="button"
+                disabled={templateBusy}
+                onClick={() => void createTemplate()}
+              >
+                {templateBusy ? "Creating…" : "Create template in Meta"}
+              </button>
+            </div>
+
+            <div className="whatsapp-flow-list">
+              {templates.length === 0 && !templatesLoading && (
+                <span>No templates returned yet.</span>
+              )}
+              {templates.slice(0, 8).map((template) => (
+                <span key={template.id || template.name}>
+                  <strong>{template.name}</strong>
+                  {" · "}{template.status || "UNKNOWN"}
+                  {" · "}{template.category || "—"}
+                  {" · "}{template.language || "—"}
+                </span>
+              ))}
+            </div>
+          </article>
+
+          <article className="whatsapp-setup-card">
+            <div className="whatsapp-setup-heading">
+              <div>
                 <p className="eyebrow dark">WHAT HAPPENS NEXT</p>
-                <h2>3. CRM conversation sync</h2>
+                <h2>4. CRM conversation sync</h2>
               </div>
             </div>
             <div className="whatsapp-flow-list">
