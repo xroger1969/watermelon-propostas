@@ -126,6 +126,8 @@ type CRMRequest = {
 
 type Filter = "all" | CRMStatus;
 
+const OWNER_EMAIL = "c.vasconcelos1969@gmail.com";
+
 const STATUS_LABELS: Record<CRMStatus, string> = {
   new: "New",
   in_review: "In review",
@@ -184,8 +186,9 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 export default function AdminCRM() {
-  const [email, setEmail] = useState("");
   const [actorEmail, setActorEmail] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
   const [authReady, setAuthReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
@@ -333,33 +336,65 @@ export default function AdminCRM() {
     return () => window.clearInterval(timer);
   }, [loginCooldown]);
 
-  async function signIn(event: React.FormEvent) {
-    event.preventDefault();
+  async function requestOtp(event?: React.FormEvent) {
+    event?.preventDefault();
     if (!supabase) return;
 
     setLoginLoading(true);
     setMessage("");
 
     const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
+      email: OWNER_EMAIL,
       options: {
         shouldCreateUser: false,
-        emailRedirectTo: window.location.origin + "/admin",
       },
     });
 
     if (error) {
       setMessage(
         error.message.toLowerCase().includes("rate limit")
-          ? "Too many access emails were requested. Use the most recent email already received or wait before trying again."
+          ? "Too many codes were requested. Use the most recent code received or wait before requesting another."
           : error.message
       );
     } else {
-      setMessage("Secure sign-in link sent. Please check your email.");
+      setOtpSent(true);
+      setOtpCode("");
+      setMessage("A 6-digit access code was sent to your authorized email.");
       setLoginCooldown(60);
     }
 
     setLoginLoading(false);
+  }
+
+  async function verifyOtp(event: React.FormEvent) {
+    event.preventDefault();
+    if (!supabase) return;
+
+    const token = otpCode.replace(/\D/g, "").slice(0, 6);
+    if (token.length !== 6) {
+      setMessage("Enter the 6-digit code from the email.");
+      return;
+    }
+
+    setLoginLoading(true);
+    setMessage("");
+
+    const { error } = await supabase.auth.verifyOtp({
+      email: OWNER_EMAIL,
+      token,
+      type: "email",
+    });
+
+    if (error) {
+      setMessage("That code is invalid or has expired. Request a new code and try again.");
+      setLoginLoading(false);
+      return;
+    }
+
+    setOtpCode("");
+    setOtpSent(false);
+    setLoginLoading(false);
+    void loadCRM();
   }
 
   async function signOut() {
@@ -752,32 +787,81 @@ export default function AdminCRM() {
   if (!signedIn) {
     return (
       <section className="admin-shell">
-        <form className="admin-login-card" onSubmit={signIn}>
-          <p className="eyebrow dark">PRIVATE AREA</p>
-          <h1>Watermelon CRM</h1>
-          <p>Enter your administrator email. We will send you a secure sign-in link.</p>
-          <label>
-            <span>Email</span>
-            <input
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </label>
+        <form
+          className="admin-login-card"
+          onSubmit={otpSent ? verifyOtp : requestOtp}
+        >
+          <p className="eyebrow dark">PRIVATE CRM</p>
+          <h1>{otpSent ? "Enter access code" : "Owner login"}</h1>
+          <p>
+            {otpSent
+              ? "Enter the 6-digit code sent to your authorized email. You stay on this page."
+              : "Access is restricted to the Watermelon owner account. No email address needs to be entered."}
+          </p>
+
+          <div className="admin-owner-account">
+            <span>Authorized account</span>
+            <strong>c.v******1969@gmail.com</strong>
+          </div>
+
+          {otpSent && (
+            <label>
+              <span>6-digit code</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]*"
+                maxLength={6}
+                required
+                value={otpCode}
+                onChange={(event) =>
+                  setOtpCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                placeholder="000000"
+                autoFocus
+              />
+            </label>
+          )}
+
           {message && <p className="admin-error">{message}</p>}
+
           <button
             className="button button-primary wide"
             type="submit"
-            disabled={loginLoading || loginCooldown > 0}
+            disabled={
+              loginLoading ||
+              (!otpSent && loginCooldown > 0) ||
+              (otpSent && otpCode.length !== 6)
+            }
           >
             {loginLoading
-              ? "Sending link…"
-              : loginCooldown > 0
-                ? "Try again in " + loginCooldown + "s"
-                : "Send secure sign-in link"}
+              ? otpSent
+                ? "Checking code…"
+                : "Sending code…"
+              : otpSent
+                ? "Enter CRM"
+                : loginCooldown > 0
+                  ? "New code available in " + loginCooldown + "s"
+                  : "Send access code"}
           </button>
+
+          {otpSent && (
+            <button
+              className="button button-ghost wide"
+              type="button"
+              disabled={loginLoading || loginCooldown > 0}
+              onClick={() => void requestOtp()}
+            >
+              {loginCooldown > 0
+                ? "Send another code in " + loginCooldown + "s"
+                : "Send another code"}
+            </button>
+          )}
+
+          <a className="button button-ghost wide" href="/">
+            Back to website
+          </a>
         </form>
       </section>
     );
