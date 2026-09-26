@@ -211,6 +211,9 @@ export default function AdminCRM() {
   const [pushSupported, setPushSupported] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  const [pushPermission, setPushPermission] = useState<
+    NotificationPermission | "unsupported"
+  >("default");
 
   const supabase = useMemo(() => {
     try {
@@ -365,7 +368,12 @@ export default function AdminCRM() {
       "Notification" in window;
 
     setPushSupported(supported);
-    if (!supported) return;
+    if (!supported) {
+      setPushPermission("unsupported");
+      return;
+    }
+
+    setPushPermission(Notification.permission);
 
     navigator.serviceWorker
       .register("/watermelon-crm-sw.js")
@@ -373,6 +381,72 @@ export default function AdminCRM() {
       .then((subscription) => setPushEnabled(Boolean(subscription)))
       .catch(() => setPushEnabled(false));
   }, []);
+
+  useEffect(() => {
+    if (
+      !supabase ||
+      !signedIn ||
+      !pushSupported ||
+      typeof Notification === "undefined" ||
+      Notification.permission !== "granted"
+    ) {
+      return;
+    }
+
+    const client = supabase;
+    let cancelled = false;
+
+    async function syncGrantedPushSubscription() {
+      try {
+        const registration = await navigator.serviceWorker.register(
+          "/watermelon-crm-sw.js"
+        );
+        await navigator.serviceWorker.ready;
+
+        const { data: publicKey, error: keyError } = await client.rpc(
+          "watermelon_push_public_key"
+        );
+        if (keyError || !publicKey) return;
+
+        let subscription = await registration.pushManager.getSubscription();
+        if (!subscription) {
+          subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(String(publicKey)),
+          });
+        }
+
+        const json = subscription.toJSON();
+        const endpoint = subscription.endpoint;
+        const p256dh = json.keys?.p256dh;
+        const auth = json.keys?.auth;
+        if (!endpoint || !p256dh || !auth) return;
+
+        const { error: saveError } = await client.rpc(
+          "watermelon_upsert_push_subscription",
+          {
+            p_endpoint: endpoint,
+            p_p256dh: p256dh,
+            p_auth: auth,
+            p_user_agent: navigator.userAgent,
+          }
+        );
+
+        if (!saveError && !cancelled) {
+          setPushEnabled(true);
+          setPushPermission("granted");
+        }
+      } catch {
+        // Keep the manual activation button available.
+      }
+    }
+
+    void syncGrantedPushSubscription();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, signedIn, pushSupported]);
 
   useEffect(() => {
     if (loginCooldown <= 0) return;
@@ -458,8 +532,13 @@ export default function AdminCRM() {
 
     try {
       const permission = await Notification.requestPermission();
+      setPushPermission(permission);
       if (permission !== "granted") {
-        setMessage("Notifications were not allowed in this browser.");
+        setMessage(
+          permission === "denied"
+            ? "Notifications are blocked in this browser. Allow notifications for this site in the browser settings, then try again."
+            : "Notifications were not enabled on this device."
+        );
         return;
       }
 
@@ -960,6 +1039,32 @@ export default function AdminCRM() {
           </button>
         </div>
       </div>
+
+      {!pushEnabled && (
+        <div className="crm-alert-setup">
+          <div>
+            <strong>CRM alerts are off on this device</strong>
+            <span>
+              {pushPermission === "denied"
+                ? "Browser notifications are blocked. Allow notifications for watermelonexperiences.pt, then activate alerts again."
+                : pushSupported
+                  ? "Activate them once and you will receive new enquiry, WhatsApp reply and customer-update alerts without keeping the CRM open."
+                  : "This browser cannot receive web push alerts. On iPhone, add Watermelon to the Home Screen and open it from there."}
+            </span>
+          </div>
+
+          {pushSupported && pushPermission !== "denied" && (
+            <button
+              className="button button-primary"
+              type="button"
+              disabled={pushBusy}
+              onClick={() => void enablePushNotifications()}
+            >
+              {pushBusy ? "Activating…" : "Activate CRM alerts"}
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="crm-stats">
         <button type="button" onClick={() => setFilter("new")}>
