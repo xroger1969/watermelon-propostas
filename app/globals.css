@@ -50,6 +50,7 @@ button { cursor: pointer; }
 .nav-admin-link {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   padding: 9px 13px;
   border-radius: 999px;
   background: #103d2e;
@@ -60,6 +61,7 @@ button { cursor: pointer; }
   white-space: nowrap;
 }
 .nav-admin-link:hover { background: #0a2f23; border-color: #0a2f23; }
+.nav-admin-lock { line-height: 1; }
 .nav-cta { border: 1px solid var(--green); padding: 10px 15px; border-radius: 999px; color: var(--green); }
 
 .hero {
@@ -253,7 +255,20 @@ button { cursor: pointer; }
   .site-header { padding: 12px 18px; }
   .main-nav > a:first-child { display: none; }
   .main-nav { gap: 9px; }
-  .nav-admin-link { padding: 8px 10px; font-size: 11px; }
+  .nav-admin-link {
+    position: fixed;
+    right: 14px;
+    bottom: 86px;
+    z-index: 60;
+    width: 52px;
+    height: 52px;
+    padding: 0;
+    border-radius: 50%;
+    justify-content: center;
+    box-shadow: 0 8px 24px rgba(16,61,46,.24);
+  }
+  .nav-admin-text { display: none; }
+  .nav-admin-lock { font-size: 20px; }
   .brand small { display: none; }
   .hero-inner, .intro, .catalog-section, .proposal-shell, .proposal-hero, .site-footer { width: min(100% - 30px, 1180px); }
   .hero { min-height: 540px; }
