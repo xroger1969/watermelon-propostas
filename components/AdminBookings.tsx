@@ -10,7 +10,7 @@ import type {
   PaymentStatus,
 } from "@/types/booking";
 
-type Filter = "all" | BookingStatus | "awaiting_payment" | "paid";
+type Filter = "all" | BookingStatus | "awaiting_payment" | "paid";\n\nconst OWNER_EMAIL = "c.vasconcelos1969@gmail.com";
 
 const STATUS_LABELS: Record<BookingStatus, string> = {
   pending: "Pending",
@@ -176,7 +176,7 @@ export default function AdminBookings() {
     setMessage("");
 
     const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
+      email: OWNER_EMAIL,
       options: {
         shouldCreateUser: false,
         emailRedirectTo: window.location.origin + "/admin",
@@ -425,18 +425,12 @@ export default function AdminBookings() {
         <form className="admin-login-card" onSubmit={signIn}>
           <p className="eyebrow dark">PRIVATE AREA</p>
           <h1>Watermelon Booking Admin</h1>
-          <p>Enter your administrator email. We will send you a secure sign-in link.</p>
+          <p>This private area is restricted to the Watermelon owner account.</p>
 
-          <label>
-            <span>Email</span>
-            <input
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </label>
+          <div className="admin-owner-account">
+            <span>Authorized account</span>
+            <strong>c.v******1969@gmail.com</strong>
+          </div>
 
           {message && <p className="admin-error">{message}</p>}
 
