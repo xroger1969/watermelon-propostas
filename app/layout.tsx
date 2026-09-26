@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import AdminAccessButton from "@/components/AdminAccessButton";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
 
           <nav className="main-nav" aria-label="Main navigation">
             <a href="/#experiencias">Experiences</a>
+            <AdminAccessButton />
             <a className="nav-cta" href="/proposta">Request a personalized proposal</a>
           </nav>
         </header>
