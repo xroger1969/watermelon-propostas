@@ -223,7 +223,6 @@ export default function AdminCRM() {
   const loadCRM = useCallback(async () => {
     if (!supabase) return;
     setLoading(true);
-    setMessage("");
 
     const [{ data, error }, contactsResult] = await Promise.all([
       supabase
@@ -1183,20 +1182,29 @@ export default function AdminCRM() {
                   </button>
                 )}
 
-                {!["confirmed", "declined", "cancelled"].includes(request.status) && (
-                  <button
-                    className="button button-ghost"
-                    type="button"
-                    disabled={busy}
-                    onClick={() =>
-                      request.kind === "direct_booking"
-                        ? void declineDirectBooking(request)
-                        : void changeStatus(request, "declined")
-                    }
-                  >
-                    Decline
-                  </button>
-                )}
+                {request.kind !== "direct_booking" &&
+                  !["confirmed", "declined", "cancelled"].includes(request.status) && (
+                    <button
+                      className="button button-ghost"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void changeStatus(request, "declined")}
+                    >
+                      Decline
+                    </button>
+                  )}
+
+                {request.kind === "direct_booking" &&
+                  ["new", "in_review", "awaiting_customer", "customer_replied"].includes(request.status) && (
+                    <button
+                      className="button button-ghost"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void declineDirectBooking(request)}
+                    >
+                      Decline
+                    </button>
+                  )}
 
                 <button
                   className="button"
