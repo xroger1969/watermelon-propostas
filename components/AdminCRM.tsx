@@ -350,7 +350,8 @@ export default function AdminCRM() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const reference = new URLSearchParams(window.location.search).get("ref")?.trim();
+    const params = new URLSearchParams(window.location.search);
+    const reference = (params.get("ref") || params.get("search"))?.trim();
     if (!reference) return;
     setFilter("all");
     setQuery(reference);
