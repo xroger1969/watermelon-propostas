@@ -38,6 +38,12 @@ type ViatorSchedule = {
 };
 
 const VIATOR_BASE_URL = "https://api.viator.com/partner";
+const VIATOR_REQUEST_TIMEOUT_MS = 7000;
+const VIATOR_BULK_TIMEOUT_MS = 10000;
+
+function requestSignal(timeoutMs = VIATOR_REQUEST_TIMEOUT_MS) {
+  return AbortSignal.timeout(timeoutMs);
+}
 
 function findFallbackPrice(schedule: ViatorSchedule): number | null {
   const preferred: number[] = [];
@@ -83,6 +89,7 @@ async function getSchedule(productCode: string, apiKey: string): Promise<LiveVia
         Accept: "application/json;version=2.0",
       },
       cache: "no-store",
+      signal: requestSignal(),
     }
   );
 
@@ -114,13 +121,22 @@ export async function getLiveViatorPrices(productCodes: string[]): Promise<LiveV
     throw new Error("VIATOR_PARTNER_API_KEY is not configured");
   }
 
-  const results = await Promise.allSettled(
-    productCodes.map((productCode) => getSchedule(productCode, apiKey))
-  );
+  const prices: LiveViatorPrice[] = [];
+  const concurrency = 16;
 
-  return results.flatMap((result) =>
-    result.status === "fulfilled" && result.value ? [result.value] : []
-  );
+  for (let index = 0; index < productCodes.length; index += concurrency) {
+    const batch = productCodes.slice(index, index + concurrency);
+    const results = await Promise.allSettled(
+      batch.map((productCode) => getSchedule(productCode, apiKey))
+    );
+    prices.push(
+      ...results.flatMap((result) =>
+        result.status === "fulfilled" && result.value ? [result.value] : []
+      )
+    );
+  }
+
+  return prices;
 }
 
 
@@ -289,6 +305,7 @@ async function fetchCatalogProduct(productCode: string, apiKey: string): Promise
         Accept: "application/json;version=2.0",
       },
       next: { revalidate: 3600 },
+      signal: requestSignal(),
     }
   );
 
@@ -298,14 +315,18 @@ async function fetchCatalogProduct(productCode: string, apiKey: string): Promise
 
 async function fetchCatalogIndividually(productCodes: string[], apiKey: string) {
   const products: ViatorCatalogResponseProduct[] = [];
-  const concurrency = 8;
+  const concurrency = 16;
 
   for (let index = 0; index < productCodes.length; index += concurrency) {
     const batch = productCodes.slice(index, index + concurrency);
-    const results = await Promise.all(
+    const results = await Promise.allSettled(
       batch.map((productCode) => fetchCatalogProduct(productCode, apiKey))
     );
-    products.push(...results.filter((product): product is ViatorCatalogResponseProduct => Boolean(product)));
+    products.push(
+      ...results.flatMap((result) =>
+        result.status === "fulfilled" && result.value ? [result.value] : []
+      )
+    );
   }
 
   return products;
@@ -316,28 +337,35 @@ export async function getLiveViatorCatalog(): Promise<LiveViatorCatalogProduct[]
   if (!apiKey) throw new Error("VIATOR_PARTNER_API_KEY is not configured");
 
   const productCodes = candidateProductCodes();
-  const bulkResponse = await fetch(
-    VIATOR_BASE_URL + "/products/bulk?campaign-value=watermelon-site",
-    {
-      method: "POST",
-      headers: {
-        "exp-api-key": apiKey,
-        "Accept-Language": "en-GB",
-        Accept: "application/json;version=2.0",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ productCodes }),
-      cache: "no-store",
-    }
-  );
+  let bulkResponse: Response | null = null;
 
-  if (bulkResponse.ok) {
+  try {
+    bulkResponse = await fetch(
+      VIATOR_BASE_URL + "/products/bulk?campaign-value=watermelon-site",
+      {
+        method: "POST",
+        headers: {
+          "exp-api-key": apiKey,
+          "Accept-Language": "en-GB",
+          Accept: "application/json;version=2.0",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ productCodes }),
+        cache: "no-store",
+        signal: requestSignal(VIATOR_BULK_TIMEOUT_MS),
+      }
+    );
+  } catch {
+    // Fall back to bounded individual product calls when the bulk endpoint stalls.
+  }
+
+  if (bulkResponse?.ok) {
     const products = (await bulkResponse.json()) as ViatorCatalogResponseProduct[];
     return normaliseCatalogProducts(products);
   }
 
-  if (![401, 403, 405].includes(bulkResponse.status)) {
-    throw new Error("Viator catalogue request failed with status " + bulkResponse.status);
+  if (bulkResponse?.status === 429) {
+    throw new Error("Viator catalogue rate limit reached");
   }
 
   const products = await fetchCatalogIndividually(productCodes, apiKey);
@@ -411,6 +439,7 @@ export async function getLiveViatorProduct(productCode: string): Promise<LiveVia
       Accept: "application/json;version=2.0",
     },
     next: { revalidate: 3600 },
+    signal: requestSignal(),
   });
 
   if (!response.ok) return null;

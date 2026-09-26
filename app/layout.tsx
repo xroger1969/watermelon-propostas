@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import AdminAccessButton from "@/components/AdminAccessButton";
 import "./globals.css";
+import SiteChrome from "@/components/SiteChrome";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.watermelonexperiences.pt"),
@@ -36,39 +36,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
-        <header className="site-header">
-          <a className="brand" href="/" aria-label="Watermelon Experiences">
-            <span className="brand-logo-wrap">
-              <img src="/watermelon-mark.svg" alt="" className="brand-logo" />
-            </span>
-            <span className="brand-copy">
-              <strong>Watermelon</strong>
-              <small>Experiences</small>
-            </span>
-          </a>
-
-          <nav className="main-nav" aria-label="Main navigation">
-            <a href="/#experiencias">Experiences</a>
-            <AdminAccessButton />
-            <a className="nav-cta" href="/proposta">Request a personalized proposal</a>
-          </nav>
-        </header>
-
-        {children}
-
-        <footer className="site-footer">
-          <div className="footer-brand">
-            <div className="footer-brand-line">
-              <img src="/watermelon-mark.svg" alt="" className="footer-mark" />
-              <div>
-                <strong>WATERMELON</strong>
-                <span>EXPERIENCES</span>
-              </div>
-            </div>
-            <p>Private experiences and personalized programs in Portugal.</p>
-          </div>
-          <div className="footer-note">Prices and availability subject to confirmation.</div>
-        </footer>
+        <SiteChrome>{children}</SiteChrome>
       </body>
     </html>
   );

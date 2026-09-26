@@ -71,8 +71,9 @@ function cleanSetting(value: string | null) {
 }
 
 export default function AdminBookings() {
-  const [email, setEmail] = useState("");
   const [authReady, setAuthReady] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
   const [signedIn, setSignedIn] = useState(false);
   const [bookings, setBookings] = useState<BookingRequestRecord[]>([]);
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>(EMPTY_PAYMENT_SETTINGS);
@@ -96,7 +97,6 @@ export default function AdminBookings() {
   const loadBookings = useCallback(async () => {
     if (!supabase) return;
     setLoading(true);
-    setMessage("");
 
     const { data, error } = await supabase
       .from("watermelon_booking_requests")
@@ -142,6 +142,39 @@ export default function AdminBookings() {
   }, [loginCooldown]);
 
   useEffect(() => {
+    if (!supabase || !signedIn) return;
+
+    let refreshTimer: number | null = null;
+    const scheduleRefresh = () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = null;
+        void loadBookings();
+        void loadPaymentSettings();
+      }, 180);
+    };
+
+    const channel = supabase
+      .channel("watermelon-bookings-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "watermelon_booking_requests" },
+        scheduleRefresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "watermelon_payment_settings" },
+        scheduleRefresh
+      )
+      .subscribe();
+
+    return () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      void supabase.removeChannel(channel);
+    };
+  }, [supabase, signedIn, loadBookings, loadPaymentSettings]);
+
+  useEffect(() => {
     if (!supabase) {
       setAuthReady(true);
       return;
@@ -171,9 +204,10 @@ export default function AdminBookings() {
     return () => listener.subscription.unsubscribe();
   }, [supabase, loadBookings, loadPaymentSettings]);
 
-  async function signIn(event: React.FormEvent) {
+  async function requestOtp(event: React.FormEvent) {
     event.preventDefault();
     if (!supabase) return;
+
     setLoginLoading(true);
     setMessage("");
 
@@ -181,7 +215,6 @@ export default function AdminBookings() {
       email: OWNER_EMAIL,
       options: {
         shouldCreateUser: false,
-        emailRedirectTo: window.location.origin + "/admin",
       },
     });
 
@@ -189,14 +222,49 @@ export default function AdminBookings() {
       const normalized = error.message.toLowerCase();
       setMessage(
         normalized.includes("rate limit")
-          ? "Too many access emails were requested. Please use the most recent email already received, or wait before requesting another link."
+          ? "Too many access codes were requested. Use the most recent code received or wait before requesting another."
           : error.message
       );
     } else {
-      setMessage("Secure sign-in link sent. Please check your email.");
+      setOtpSent(true);
+      setOtpCode("");
+      setMessage("A 6-digit access code was sent to your authorized email.");
       setLoginCooldown(60);
     }
+
     setLoginLoading(false);
+  }
+
+  async function verifyOtp(event: React.FormEvent) {
+    event.preventDefault();
+    if (!supabase) return;
+
+    const token = otpCode.replace(/\D/g, "").slice(0, 6);
+    if (token.length !== 6) {
+      setMessage("Enter the 6-digit code from the email.");
+      return;
+    }
+
+    setLoginLoading(true);
+    setMessage("");
+
+    const { error } = await supabase.auth.verifyOtp({
+      email: OWNER_EMAIL,
+      token,
+      type: "email",
+    });
+
+    if (error) {
+      setMessage("That code is invalid or has expired. Request a new code and try again.");
+      setLoginLoading(false);
+      return;
+    }
+
+    setOtpCode("");
+    setOtpSent(false);
+    setLoginLoading(false);
+    void loadBookings();
+    void loadPaymentSettings();
   }
 
   async function signOut() {
@@ -264,27 +332,96 @@ export default function AdminBookings() {
     return lines.join("\n");
   }
 
+  async function crmRequestIdForBooking(bookingId: string) {
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+      .from("watermelon_requests")
+      .select("id")
+      .eq("linked_booking_id", bookingId)
+      .maybeSingle();
+
+    if (error || !data?.id) {
+      setMessage(error?.message || "The linked CRM request could not be found.");
+      return null;
+    }
+
+    return String(data.id);
+  }
+
+  async function acceptBooking(booking: BookingRequestRecord) {
+    if (!supabase) return;
+    const confirmed = window.confirm(
+      "Accept this booking request after your review? Payment will still be requested separately."
+    );
+    if (!confirmed) return;
+
+    const requestId = await crmRequestIdForBooking(booking.id);
+    if (!requestId) return;
+
+    setEditing(booking.id);
+    setMessage("");
+    const { error } = await supabase.rpc("watermelon_accept_direct_booking", {
+      p_request_id: requestId,
+    });
+
+    if (error) setMessage(error.message);
+    else await loadBookings();
+    setEditing(null);
+  }
+
+  async function declineBooking(booking: BookingRequestRecord) {
+    if (!supabase) return;
+    if (!window.confirm("Decline this booking request?")) return;
+
+    const requestId = await crmRequestIdForBooking(booking.id);
+    if (!requestId) return;
+
+    setEditing(booking.id);
+    setMessage("");
+    const { error } = await supabase.rpc("watermelon_decline_direct_booking", {
+      p_request_id: requestId,
+    });
+
+    if (error) setMessage(error.message);
+    else await loadBookings();
+    setEditing(null);
+  }
+
   async function sendPaymentOptions(booking: BookingRequestRecord) {
+    if (!supabase) return;
     if (!paymentOptionsAvailable()) {
       setMessage("Configure at least one payment option first.");
       return;
     }
 
-    const paymentToken = booking.payment_token || crypto.randomUUID();
+    const requestId = await crmRequestIdForBooking(booking.id);
+    if (!requestId) return;
 
-    await updateBooking(booking.id, {
-      payment_status: "awaiting",
-      payment_method: null,
-      payment_requested_at: new Date().toISOString(),
-      payment_token: paymentToken,
-    }, false);
+    setEditing(booking.id);
+    setMessage("");
 
+    const { data, error } = await supabase.rpc(
+      "watermelon_prepare_direct_booking_payment",
+      { p_request_id: requestId }
+    );
+
+    if (error || !data) {
+      setMessage(error?.message || "Could not prepare the payment request.");
+      setEditing(null);
+      return;
+    }
+
+    const payload = data as { payment_token: string };
     const paymentUrl =
       window.location.origin +
       "/payment/" +
       encodeURIComponent(booking.reference) +
       "?token=" +
-      encodeURIComponent(paymentToken);
+      encodeURIComponent(payload.payment_token);
+
+    await loadBookings();
+    setEditing(null);
 
     const phone = booking.customer_phone.replace(/[^0-9]/g, "");
     const url =
@@ -323,12 +460,21 @@ export default function AdminBookings() {
     );
     if (paymentReference === null) return;
 
-    await updateBooking(booking.id, {
-      payment_status: "paid",
-      payment_method: method,
-      payment_reference: paymentReference.trim() || null,
-      paid_at: new Date().toISOString(),
+    const requestId = await crmRequestIdForBooking(booking.id);
+    if (!requestId || !supabase) return;
+
+    setEditing(booking.id);
+    setMessage("");
+
+    const { error } = await supabase.rpc("watermelon_mark_direct_booking_paid", {
+      p_request_id: requestId,
+      p_method: method,
+      p_reference: paymentReference.trim() || null,
     });
+
+    if (error) setMessage(error.message);
+    else await loadBookings();
+    setEditing(null);
   }
 
   async function proposeAlternative(booking: BookingRequestRecord) {
@@ -424,29 +570,78 @@ export default function AdminBookings() {
   if (!signedIn) {
     return (
       <section className="admin-shell">
-        <form className="admin-login-card" onSubmit={signIn}>
+        <form
+          className="admin-login-card"
+          onSubmit={otpSent ? verifyOtp : requestOtp}
+        >
           <p className="eyebrow dark">PRIVATE AREA</p>
-          <h1>Watermelon Booking Admin</h1>
-          <p>This private area is restricted to the Watermelon owner account.</p>
+          <h1>{otpSent ? "Enter access code" : "Watermelon Booking Admin"}</h1>
+          <p>
+            {otpSent
+              ? "Enter the 6-digit code sent to your authorized email."
+              : "This private area uses the same secure owner access as the CRM."}
+          </p>
 
           <div className="admin-owner-account">
             <span>Authorized account</span>
             <strong>c.v******1969@gmail.com</strong>
           </div>
 
+          {otpSent && (
+            <label>
+              <span>6-digit code</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]*"
+                maxLength={6}
+                required
+                value={otpCode}
+                onChange={(event) =>
+                  setOtpCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                placeholder="000000"
+                autoFocus
+              />
+            </label>
+          )}
+
           {message && <p className="admin-error">{message}</p>}
 
           <button
             className="button button-primary wide"
             type="submit"
-            disabled={loginLoading || loginCooldown > 0}
+            disabled={
+              loginLoading ||
+              (!otpSent && loginCooldown > 0) ||
+              (otpSent && otpCode.length !== 6)
+            }
           >
             {loginLoading
-              ? "Sending link…"
-              : loginCooldown > 0
-                ? "Try again in " + loginCooldown + "s"
-                : "Send secure sign-in link"}
+              ? otpSent
+                ? "Checking code…"
+                : "Sending code…"
+              : otpSent
+                ? "Enter bookings"
+                : loginCooldown > 0
+                  ? "New code available in " + loginCooldown + "s"
+                  : "Send access code"}
           </button>
+
+          {otpSent && (
+            <button
+              className="button button-ghost wide"
+              type="button"
+              onClick={() => {
+                setOtpSent(false);
+                setOtpCode("");
+                setMessage("");
+              }}
+            >
+              Use a new code
+            </button>
+          )}
         </form>
       </section>
     );
@@ -645,26 +840,17 @@ export default function AdminBookings() {
               )}
 
               <div className="admin-actions">
-                {booking.status === "pending" && (
+                {["pending", "alternative_proposed"].includes(booking.status) && (
                   <>
                     <button
                       type="button"
                       className="button button-primary"
                       disabled={busy}
-                      onClick={() => {
-                        const confirmed = window.confirm(
-                          "Accept this booking request? This only accepts the request. Payment will be requested separately."
-                        );
-                        if (!confirmed) return;
-                        void updateBooking(booking.id, {
-                          status: "approved",
-                          payment_status: "not_requested",
-                          payment_method: null,
-                          payment_requested_at: null,
-                        });
-                      }}
+                      onClick={() => void acceptBooking(booking)}
                     >
-                      Accept request
+                      {booking.status === "alternative_proposed"
+                        ? "Accept alternative"
+                        : "Accept request"}
                     </button>
                     <button
                       type="button"
@@ -672,13 +858,15 @@ export default function AdminBookings() {
                       disabled={busy}
                       onClick={() => void proposeAlternative(booking)}
                     >
-                      Propose alternative
+                      {booking.status === "alternative_proposed"
+                        ? "Change alternative"
+                        : "Propose alternative"}
                     </button>
                     <button
                       type="button"
                       className="button button-ghost"
                       disabled={busy}
-                      onClick={() => void updateBooking(booking.id, { status: "declined" })}
+                      onClick={() => void declineBooking(booking)}
                     >
                       Decline
                     </button>
@@ -693,7 +881,9 @@ export default function AdminBookings() {
                       disabled={busy || !paymentOptionsAvailable()}
                       onClick={() => void sendPaymentOptions(booking)}
                     >
-                      Send payment options
+                      {booking.payment_status === "awaiting"
+                        ? "Resend payment link"
+                        : "Send payment options"}
                     </button>
                     <button
                       type="button"
@@ -706,23 +896,9 @@ export default function AdminBookings() {
                   </>
                 )}
 
-                {booking.payment_status === "paid" && booking.status !== "confirmed" && (
-                  <button
-                    type="button"
-                    className="button button-primary"
-                    disabled={busy}
-                    onClick={() => void updateBooking(booking.id, {
-                      status: "confirmed",
-                      confirmed_at: new Date().toISOString(),
-                    })}
-                  >
-                    Confirm booking
-                  </button>
-                )}
-
                 <a
                   className="button button-outline"
-                  href={"/admin?search=" + encodeURIComponent(booking.reference)}
+                  href={"/admin?ref=" + encodeURIComponent(booking.reference)}
                 >
                   Open in CRM
                 </a>

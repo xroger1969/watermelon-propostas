@@ -124,7 +124,15 @@ type CRMRequest = {
   messages: CRMMessage[];
 };
 
-type Filter = "all" | CRMStatus;
+type Filter = "all" | "in_progress" | CRMStatus;
+
+const IN_PROGRESS_STATUSES: CRMStatus[] = [
+  "in_review",
+  "awaiting_customer",
+  "proposal_drafting",
+  "customer_replied",
+  "accepted",
+];
 
 const OWNER_EMAIL = "c.vasconcelos1969@gmail.com";
 
@@ -215,7 +223,6 @@ export default function AdminCRM() {
   const loadCRM = useCallback(async () => {
     if (!supabase) return;
     setLoading(true);
-    setMessage("");
 
     const [{ data, error }, contactsResult] = await Promise.all([
       supabase
@@ -297,19 +304,58 @@ export default function AdminCRM() {
   useEffect(() => {
     if (!supabase || !signedIn) return;
 
+    let refreshTimer: number | null = null;
+    const scheduleRefresh = () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = null;
+        void loadCRM();
+      }, 180);
+    };
+
     const channel = supabase
-      .channel("watermelon-whatsapp-crm")
+      .channel("watermelon-crm-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "watermelon_requests" },
+        scheduleRefresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "watermelon_request_items" },
+        scheduleRefresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "watermelon_proposals" },
+        scheduleRefresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "watermelon_activities" },
+        scheduleRefresh
+      )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "watermelon_messages" },
-        () => void loadCRM()
+        scheduleRefresh
       )
       .subscribe();
 
     return () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
       void supabase.removeChannel(channel);
     };
   }, [supabase, signedIn, loadCRM]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const reference = (params.get("ref") || params.get("search"))?.trim();
+    if (!reference) return;
+    setFilter("all");
+    setQuery(reference);
+  }, []);
 
   useEffect(() => {
     const supported =
@@ -732,7 +778,7 @@ export default function AdminCRM() {
     () => ({
       new: requests.filter((item) => item.status === "new").length,
       inReview: requests.filter((item) =>
-        ["in_review", "awaiting_customer", "proposal_drafting", "customer_replied"].includes(item.status)
+        IN_PROGRESS_STATUSES.includes(item.status)
       ).length,
       proposalSent: requests.filter((item) => item.status === "proposal_sent").length,
       awaitingPayment: requests.filter((item) => item.status === "awaiting_payment").length,
@@ -745,7 +791,11 @@ export default function AdminCRM() {
     const q = query.trim().toLowerCase();
 
     return requests.filter((request) => {
-      const filterMatch = filter === "all" || request.status === filter;
+      const filterMatch =
+        filter === "all" ||
+        (filter === "in_progress"
+          ? IN_PROGRESS_STATUSES.includes(request.status)
+          : request.status === filter);
       if (!filterMatch) return false;
       if (!q) return true;
 
@@ -915,7 +965,7 @@ export default function AdminCRM() {
         <button type="button" onClick={() => setFilter("new")}>
           <span>New requests</span><strong>{counts.new}</strong>
         </button>
-        <button type="button" onClick={() => setFilter("in_review")}>
+        <button type="button" onClick={() => setFilter("in_progress")}>
           <span>In progress</span><strong>{counts.inReview}</strong>
         </button>
         <button type="button" onClick={() => setFilter("proposal_sent")}>
@@ -937,6 +987,7 @@ export default function AdminCRM() {
           {([
             ["all", "All"],
             ["new", "New"],
+            ["in_progress", "In progress"],
             ["in_review", "In review"],
             ["awaiting_customer", "Waiting for customer"],
             ["proposal_drafting", "Drafting"],
@@ -946,6 +997,7 @@ export default function AdminCRM() {
             ["awaiting_payment", "Awaiting payment"],
             ["confirmed", "Confirmed"],
             ["declined", "Declined"],
+            ["cancelled", "Cancelled"],
           ] as Array<[Filter, string]>).map(([value, label]) => (
             <button
               key={value}
@@ -1131,20 +1183,29 @@ export default function AdminCRM() {
                   </button>
                 )}
 
-                {!["confirmed", "declined", "cancelled"].includes(request.status) && (
-                  <button
-                    className="button button-ghost"
-                    type="button"
-                    disabled={busy}
-                    onClick={() =>
-                      request.kind === "direct_booking"
-                        ? void declineDirectBooking(request)
-                        : void changeStatus(request, "declined")
-                    }
-                  >
-                    Decline
-                  </button>
-                )}
+                {request.kind !== "direct_booking" &&
+                  !["confirmed", "declined", "cancelled"].includes(request.status) && (
+                    <button
+                      className="button button-ghost"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void changeStatus(request, "declined")}
+                    >
+                      Decline
+                    </button>
+                  )}
+
+                {request.kind === "direct_booking" &&
+                  ["new", "in_review", "awaiting_customer", "customer_replied"].includes(request.status) && (
+                    <button
+                      className="button button-ghost"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void declineDirectBooking(request)}
+                    >
+                      Decline
+                    </button>
+                  )}
 
                 <button
                   className="button"
