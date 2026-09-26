@@ -393,6 +393,7 @@ export default function AdminCRM() {
       return;
     }
 
+    const client = supabase;
     let cancelled = false;
 
     async function syncGrantedPushSubscription() {
@@ -402,7 +403,7 @@ export default function AdminCRM() {
         );
         await navigator.serviceWorker.ready;
 
-        const { data: publicKey, error: keyError } = await supabase.rpc(
+        const { data: publicKey, error: keyError } = await client.rpc(
           "watermelon_push_public_key"
         );
         if (keyError || !publicKey) return;
@@ -421,7 +422,7 @@ export default function AdminCRM() {
         const auth = json.keys?.auth;
         if (!endpoint || !p256dh || !auth) return;
 
-        const { error: saveError } = await supabase.rpc(
+        const { error: saveError } = await client.rpc(
           "watermelon_upsert_push_subscription",
           {
             p_endpoint: endpoint,
