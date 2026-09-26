@@ -881,7 +881,9 @@ export default function AdminBookings() {
                       disabled={busy || !paymentOptionsAvailable()}
                       onClick={() => void sendPaymentOptions(booking)}
                     >
-                      Send payment options
+                      {booking.payment_status === "awaiting"
+                        ? "Resend payment link"
+                        : "Send payment options"}
                     </button>
                     <button
                       type="button"
