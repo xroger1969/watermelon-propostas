@@ -165,9 +165,21 @@ export default function WhatsAppConversation({
         ok?: boolean;
         error?: string;
         hint?: string;
+        code?: number | string | null;
+        subcode?: number | string | null;
       };
 
       if (!response.ok || !data.ok) {
+        if (Number(data.code) === 190) {
+          throw new Error(
+            "Meta access token expired or is no longer valid. Generate a new test token in Meta Developers → WhatsApp → Step 1 · Try it out, save it in WhatsApp CRM settings, then try again."
+          );
+        }
+        if (Number(data.code) === 131030) {
+          throw new Error(
+            "This recipient is not in Meta's allowed test list. Add and verify the phone number in Meta Developers → WhatsApp → Step 1 · Try it out."
+          );
+        }
         throw new Error(
           [data.error, data.hint].filter(Boolean).join(" ") ||
             "WhatsApp could not send the message."
