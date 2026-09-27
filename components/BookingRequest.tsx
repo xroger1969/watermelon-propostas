@@ -1,5 +1,7 @@
 "use client";
 
+import { trackLeadConversion } from "@/lib/marketing";
+
 import { useEffect, useMemo, useState } from "react";
 
 type BookingSelection = {
@@ -143,6 +145,8 @@ export default function BookingRequest() {
       if (!response.ok || !data.reference) {
         throw new Error(data.error || "We could not save your booking request.");
       }
+
+      await trackLeadConversion("booking_request", estimatedTotal || undefined);
 
       const lines = [
         "WATERMELON EXPERIENCES",
