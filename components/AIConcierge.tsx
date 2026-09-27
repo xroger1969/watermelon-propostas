@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -89,6 +89,21 @@ export default function AIConcierge() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [addedCodes, setAddedCodes] = useState<string[]>([]);
+  const chatWindowRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const chatWindow = chatWindowRef.current;
+    if (!chatWindow) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      chatWindow.scrollTo({
+        top: chatWindow.scrollHeight,
+        behavior: messages.length > 1 ? "smooth" : "auto",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [messages, loading, error, crmReference]);
 
   const whatsappText = useMemo(() => {
     if (!recommendations.length) {
@@ -229,7 +244,7 @@ export default function AIConcierge() {
         </div>
 
         <div className="ai-concierge-panel">
-          <div className="ai-chat-window" aria-live="polite">
+          <div className="ai-chat-window" aria-live="polite" ref={chatWindowRef}>
             {messages.length === 0 ? (
               <div className="ai-welcome">
                 <span className="ai-avatar" aria-hidden="true">W</span>
