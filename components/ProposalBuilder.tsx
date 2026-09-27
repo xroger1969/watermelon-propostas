@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { trackLeadConversion } from "@/lib/marketing";
 
 type ProposalItem = {
   code: string;
@@ -220,6 +221,7 @@ export default function ProposalBuilder() {
       }
 
       setSavedReference(data.reference);
+      await trackLeadConversion("proposal_request", total || undefined);
 
       const message =
         "Hello Watermelon Experiences,\n\n" +
