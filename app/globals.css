@@ -4139,3 +4139,36 @@ button { cursor: pointer; }
     grid-template-columns: 1fr;
   }
 }
+
+
+.ai-crm-confirmation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0 18px 18px;
+  padding: 13px 15px;
+  border: 1px solid rgba(18, 104, 72, .18);
+  border-radius: 14px;
+  background: #eef8f2;
+  color: #0f5138;
+}
+
+.ai-crm-confirmation strong {
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.ai-crm-confirmation span {
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .02em;
+}
+
+@media (max-width: 700px) {
+  .ai-crm-confirmation {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+}
