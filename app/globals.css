@@ -3597,6 +3597,9 @@ button { cursor: pointer; }
   min-height: 238px;
   max-height: 430px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
   padding: 28px;
 }
 
