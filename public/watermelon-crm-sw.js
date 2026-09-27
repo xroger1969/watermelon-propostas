@@ -12,7 +12,7 @@ self.addEventListener("push", (event) => {
     icon: data.icon || "/logo-icon.png",
     badge: data.badge || "/logo-icon.png",
     tag: data.tag || "watermelon-crm",
-    data: { url: data.url || "/admin" },
+    data: { url: data.url || "/crm" },
     renotify: true,
   };
 
@@ -21,7 +21,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const target = new URL(event.notification.data?.url || "/admin", self.location.origin).href;
+  const target = new URL(event.notification.data?.url || "/crm", self.location.origin).href;
 
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
