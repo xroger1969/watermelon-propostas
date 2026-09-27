@@ -79,7 +79,12 @@ function readProposal(): ProposalItem[] {
   }
 }
 
-export default function AIConcierge() {
+export default function AIConcierge({
+  variant = "home",
+}: {
+  variant?: "home" | "proposal";
+}) {
+  const proposalMode = variant === "proposal";
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
@@ -216,25 +221,46 @@ export default function AIConcierge() {
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(proposal));
     setAddedCodes((current) => Array.from(new Set([...current, ...newlyAdded])));
+    window.dispatchEvent(new Event("watermelon-proposal-updated"));
   }
 
   function buildProposal() {
     addRecommendations(recommendations);
+
+    if (proposalMode) {
+      window.setTimeout(() => {
+        document.getElementById("proposal-builder")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 80);
+      return;
+    }
+
     window.location.href = "/proposta";
   }
 
   return (
-    <section className="ai-concierge-section" id="ai-concierge" aria-labelledby="ai-concierge-title">
+    <section
+      className={"ai-concierge-section" + (proposalMode ? " ai-concierge-compact" : "")}
+      id={proposalMode ? "proposal-ai-concierge" : "ai-concierge"}
+      aria-labelledby={proposalMode ? "proposal-ai-concierge-title" : "ai-concierge-title"}
+    >
       <div className="ai-concierge-shell">
         <div className="ai-concierge-intro">
           <div className="ai-concierge-kicker">
             <span className="ai-spark">✦</span>
             WATERMELON AI CONCIERGE
           </div>
-          <h2 id="ai-concierge-title">Tell us the trip you imagine. We will turn it into a plan.</h2>
+          <h2 id={proposalMode ? "proposal-ai-concierge-title" : "ai-concierge-title"}>
+            {proposalMode
+              ? "Describe your ideal experience. AI can build the starting point."
+              : "Tell us the trip you imagine. We will turn it into a plan."}
+          </h2>
           <p>
-            Describe your dates, group, interests, pace or budget in normal language.
-            Our AI matches you with current Watermelon experiences and can also suggest tailor-made concepts for our team to review and quote.
+            {proposalMode
+              ? "Tell us what you want in normal language. We can suggest current Watermelon experiences or clearly marked tailor-made concepts, then add the result directly to this proposal."
+              : "Describe your dates, group, interests, pace or budget in normal language. Our AI matches you with current Watermelon experiences and can also suggest tailor-made concepts for our team to review and quote."}
           </p>
           <div className="ai-trust-row">
             <span>Available products clearly identified</span>
@@ -381,10 +407,10 @@ export default function AIConcierge() {
           <div className="ai-recommendations-head">
             <div>
               <p className="eyebrow dark">YOUR AI SHORTLIST</p>
-              <h3>A plan built from Watermelon experiences</h3>
+              <h3>{proposalMode ? "Add these suggestions to your proposal" : "A plan built from Watermelon experiences"}</h3>
             </div>
             <button className="ai-build-proposal" type="button" onClick={buildProposal}>
-              Build this proposal
+              {proposalMode ? "Add all to proposal" : "Build this proposal"}
             </button>
           </div>
 
