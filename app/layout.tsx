@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import SiteChrome from "@/components/SiteChrome";
+import GoogleMarketing from "@/components/GoogleMarketing";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.watermelonexperiences.pt"),
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
+        <GoogleMarketing />
         <SiteChrome>{children}</SiteChrome>
       </body>
     </html>
