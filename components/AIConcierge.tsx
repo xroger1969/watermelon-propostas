@@ -36,6 +36,8 @@ type ConciergeResponse = {
   intentSummary?: string;
   recommendations?: Recommendation[];
   tailorMadeIdeas?: TailorMadeIdea[];
+  crmReference?: string;
+  crmCreated?: boolean;
   error?: string;
   code?: string;
 };
@@ -82,6 +84,8 @@ export default function AIConcierge() {
   const [input, setInput] = useState("");
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [tailorMadeIdeas, setTailorMadeIdeas] = useState<TailorMadeIdea[]>([]);
+  const [conversationId, setConversationId] = useState("");
+  const [crmReference, setCrmReference] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [addedCodes, setAddedCodes] = useState<string[]>([]);
@@ -104,6 +108,13 @@ export default function AIConcierge() {
     if (!message || loading) return;
 
     const history = messages.slice(-8);
+    const activeConversationId =
+      conversationId ||
+      (typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : "wm-" + Date.now() + "-" + Math.random().toString(36).slice(2));
+    if (!conversationId) setConversationId(activeConversationId);
+
     setMessages((current) => [...current, { role: "user", content: message }]);
     setInput("");
     setLoading(true);
@@ -113,7 +124,22 @@ export default function AIConcierge() {
       const response = await fetch("/api/ai-concierge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, history }),
+        body: JSON.stringify({
+          message,
+          history,
+          conversationId: activeConversationId,
+          crmReference,
+          currentRecommendations: recommendations.map((item) => ({
+            code: item.code,
+            title: item.title,
+            reason: item.reason,
+          })),
+          currentTailorMadeIdeas: tailorMadeIdeas.map((item) => ({
+            title: item.title,
+            concept: item.concept,
+            reason: item.reason,
+          })),
+        }),
       });
 
       const data = (await response.json()) as ConciergeResponse;
@@ -136,6 +162,7 @@ export default function AIConcierge() {
       ]);
       setRecommendations(Array.isArray(data.recommendations) ? data.recommendations : []);
       setTailorMadeIdeas(Array.isArray(data.tailorMadeIdeas) ? data.tailorMadeIdeas : []);
+      if (data.crmReference) setCrmReference(data.crmReference);
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -273,6 +300,13 @@ export default function AIConcierge() {
               {loading ? "Planning…" : "Plan with AI"}
             </button>
           </form>
+
+          {crmReference && (
+            <div className="ai-crm-confirmation" role="status">
+              <strong>✓ Request received by Watermelon</strong>
+              <span>CRM reference: {crmReference}</span>
+            </div>
+          )}
 
           {error && <div className="ai-error">{error}</div>}
         </div>
