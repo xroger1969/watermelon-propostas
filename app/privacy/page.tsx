@@ -12,7 +12,7 @@ export default function PrivacyPolicyPage() {
       <article className="legal-card">
         <p className="eyebrow dark">WATERMELON EXPERIENCES</p>
         <h1>Privacy Policy</h1>
-        <p className="legal-updated">Last updated: 25 September 2026</p>
+        <p className="legal-updated">Last updated: 27 September 2026</p>
 
         <section>
           <h2>1. Who we are</h2>
@@ -54,7 +54,21 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2>5. Sharing of information</h2>
+          <h2>5. AI Concierge</h2>
+          <p>
+            If you use the Watermelon AI Concierge, the message you enter and
+            relevant travel-planning context may be securely processed through
+            the OpenAI API to generate suggestions from the Watermelon
+            Experiences catalogue. Please avoid entering unnecessary sensitive
+            personal information in the AI planner. Watermelon configures these
+            requests without response storage in the API workflow, and OpenAI
+            does not use API business inputs or outputs to train its models by
+            default unless the account holder explicitly opts in.
+          </p>
+        </section>
+
+        <section>
+          <h2>6. Sharing of information</h2>
           <p>
             We share information only when necessary to provide the requested
             service, for example with payment providers, technology providers
@@ -64,7 +78,7 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2>6. Data retention and security</h2>
+          <h2>7. Data retention and security</h2>
           <p>
             We retain information only for as long as reasonably necessary for
             the purposes described above, including legal, accounting and
@@ -74,7 +88,7 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2>7. Your rights</h2>
+          <h2>8. Your rights</h2>
           <p>
             Subject to applicable law, you may request access, correction or
             deletion of your personal information, or object to or restrict
@@ -84,7 +98,7 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2>8. Contact</h2>
+          <h2>9. Contact</h2>
           <p>
             For privacy questions or requests, contact Watermelon Experiences
             through the contact details published on our official website.

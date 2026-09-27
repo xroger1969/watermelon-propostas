@@ -1,0 +1,342 @@
+"use client";
+
+import { FormEvent, useMemo, useState } from "react";
+
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+type Recommendation = {
+  code: string;
+  title: string;
+  reason: string;
+  category: string;
+  location: string;
+  duration: string;
+  image: string;
+  url: string;
+  optionCode: string;
+  optionName: string;
+  price: number | null;
+  currency: string;
+  livePrice: boolean;
+};
+
+type ConciergeResponse = {
+  reply?: string;
+  question?: string;
+  intentSummary?: string;
+  recommendations?: Recommendation[];
+  error?: string;
+  code?: string;
+};
+
+type ProposalItem = {
+  code: string;
+  title: string;
+  optionCode: string;
+  optionName: string;
+  price: string;
+  notes: string;
+};
+
+const STORAGE_KEY = "watermelon-proposal";
+
+const QUICK_PROMPTS = [
+  "Plan one perfect day near Lisbon",
+  "We love wine, culture and local food",
+  "Beach, nature and horseback riding",
+  "Family-friendly ideas for our group",
+];
+
+function money(value: number, currency = "EUR") {
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: value % 1 === 0 ? 0 : 2,
+  }).format(value);
+}
+
+function readProposal(): ProposalItem[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export default function AIConcierge() {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [addedCodes, setAddedCodes] = useState<string[]>([]);
+
+  const whatsappText = useMemo(() => {
+    if (!recommendations.length) {
+      return "Hello Watermelon Experiences, I am planning a trip in Portugal and would like some help.";
+    }
+
+    const titles = recommendations.map((item) => "- " + item.title).join("\n");
+    return (
+      "Hello Watermelon Experiences, I used your AI Concierge and I am interested in this plan:\n\n" +
+      titles +
+      "\n\nCould you help me refine it and confirm availability?"
+    );
+  }, [recommendations]);
+
+  async function askConcierge(messageOverride?: string) {
+    const message = (messageOverride ?? input).trim();
+    if (!message || loading) return;
+
+    const history = messages.slice(-8);
+    setMessages((current) => [...current, { role: "user", content: message }]);
+    setInput("");
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/ai-concierge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, history }),
+      });
+
+      const data = (await response.json()) as ConciergeResponse;
+
+      if (!response.ok) {
+        throw new Error(
+          data.code === "OPENAI_NOT_CONFIGURED"
+            ? "The AI Concierge is almost ready. Watermelon is finishing its secure AI connection."
+            : data.error || "I could not complete that request."
+        );
+      }
+
+      const assistantText = [data.reply, data.question].filter(Boolean).join("\n\n");
+      setMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          content: assistantText || "Tell me a little more about the trip you have in mind.",
+        },
+      ]);
+      setRecommendations(Array.isArray(data.recommendations) ? data.recommendations : []);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "The AI Concierge is temporarily unavailable."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    void askConcierge();
+  }
+
+  function addRecommendations(items: Recommendation[]) {
+    const proposal = readProposal();
+    const existingCodes = new Set(proposal.map((item) => item.code));
+    const newlyAdded: string[] = [];
+
+    for (const item of items) {
+      if (existingCodes.has(item.code)) continue;
+
+      proposal.push({
+        code: item.code,
+        title: item.title,
+        optionCode: item.optionCode || "DEFAULT",
+        optionName: item.optionName || "Standard option",
+        price: item.price === null ? "" : String(item.price),
+        notes: "Suggested by Watermelon AI Concierge: " + item.reason,
+      });
+      existingCodes.add(item.code);
+      newlyAdded.push(item.code);
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(proposal));
+    setAddedCodes((current) => Array.from(new Set([...current, ...newlyAdded])));
+  }
+
+  function buildProposal() {
+    addRecommendations(recommendations);
+    window.location.href = "/proposta";
+  }
+
+  return (
+    <section className="ai-concierge-section" id="ai-concierge" aria-labelledby="ai-concierge-title">
+      <div className="ai-concierge-shell">
+        <div className="ai-concierge-intro">
+          <div className="ai-concierge-kicker">
+            <span className="ai-spark">✦</span>
+            WATERMELON AI CONCIERGE
+          </div>
+          <h2 id="ai-concierge-title">Tell us the trip you imagine. We will turn it into a plan.</h2>
+          <p>
+            Describe your dates, group, interests, pace or budget in normal language.
+            Our AI searches only Watermelon experiences and helps you build a proposal.
+          </p>
+          <div className="ai-trust-row">
+            <span>Watermelon catalogue only</span>
+            <span>Live price check when available</span>
+            <span>Human confirmation before booking</span>
+          </div>
+        </div>
+
+        <div className="ai-concierge-panel">
+          <div className="ai-chat-window" aria-live="polite">
+            {messages.length === 0 ? (
+              <div className="ai-welcome">
+                <span className="ai-avatar" aria-hidden="true">W</span>
+                <div>
+                  <strong>What would make this trip unforgettable?</strong>
+                  <p>
+                    Try: “We are 4 adults in Lisbon for two days. We like wine, views and
+                    authentic local places, and we do not want to rush.”
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="ai-message-list">
+                {messages.map((message, index) => (
+                  <div
+                    className={
+                      message.role === "user"
+                        ? "ai-message ai-message-user"
+                        : "ai-message ai-message-assistant"
+                    }
+                    key={message.role + "-" + index}
+                  >
+                    {message.role === "assistant" && (
+                      <span className="ai-avatar ai-avatar-small" aria-hidden="true">W</span>
+                    )}
+                    <p>{message.content}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {loading && (
+              <div className="ai-thinking">
+                <span />
+                <span />
+                <span />
+                <b>Building your Watermelon plan…</b>
+              </div>
+            )}
+          </div>
+
+          {messages.length === 0 && (
+            <div className="ai-quick-prompts">
+              {QUICK_PROMPTS.map((prompt) => (
+                <button type="button" key={prompt} onClick={() => void askConcierge(prompt)}>
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <form className="ai-input-row" onSubmit={onSubmit}>
+            <textarea
+              rows={2}
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              placeholder="E.g. 2 adults, one free day in Lisbon, private experience, local food and beautiful views…"
+              maxLength={1200}
+              disabled={loading}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  if (input.trim()) void askConcierge();
+                }
+              }}
+            />
+            <button type="submit" disabled={loading || !input.trim()}>
+              {loading ? "Planning…" : "Plan with AI"}
+            </button>
+          </form>
+
+          {error && <div className="ai-error">{error}</div>}
+        </div>
+      </div>
+
+      {recommendations.length > 0 && (
+        <div className="ai-recommendations">
+          <div className="ai-recommendations-head">
+            <div>
+              <p className="eyebrow dark">YOUR AI SHORTLIST</p>
+              <h3>A plan built from Watermelon experiences</h3>
+            </div>
+            <button className="ai-build-proposal" type="button" onClick={buildProposal}>
+              Build this proposal
+            </button>
+          </div>
+
+          <div className="ai-recommendation-grid">
+            {recommendations.map((item) => {
+              const added = addedCodes.includes(item.code);
+              return (
+                <article className="ai-recommendation-card" key={item.code}>
+                  <img src={item.image || "/logo-full.jpg"} alt="" loading="lazy" />
+                  <div className="ai-recommendation-body">
+                    <div className="ai-recommendation-meta">
+                      <span>{item.location}</span>
+                      <span>{item.duration}</span>
+                    </div>
+                    <h4>{item.title}</h4>
+                    <p>{item.reason}</p>
+                    <div className="ai-recommendation-bottom">
+                      <div>
+                        <small>{item.price === null ? "Price" : "From"}</small>
+                        <strong>
+                          {item.price === null ? "On request" : money(item.price, item.currency)}
+                        </strong>
+                        {item.price !== null && (
+                          <em>{item.livePrice ? "live price check" : "guide price"}</em>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => addRecommendations([item])}
+                        disabled={added}
+                      >
+                        {added ? "Added ✓" : "Add to proposal"}
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="ai-human-handoff">
+            <div>
+              <strong>Want a human to take it from here?</strong>
+              <span>Send this shortlist to Watermelon on WhatsApp and we can refine it with you.</span>
+            </div>
+            <a
+              href={"https://wa.me/351918404101?text=" + encodeURIComponent(whatsappText)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Continue on WhatsApp
+            </a>
+          </div>
+        </div>
+      )}
+
+      <p className="ai-disclaimer">
+        AI recommendations are planning guidance. Final itinerary, availability and price are
+        confirmed by Watermelon Experiences before booking.
+      </p>
+    </section>
+  );
+}

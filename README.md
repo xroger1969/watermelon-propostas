@@ -34,3 +34,26 @@ Abrir `http://localhost:3000`.
 ## Fonte do catálogo
 
 Exportação do Supplier Center (`productList.csv`) fornecida pelo operador. A aplicação não publica preços automáticos enquanto não existir uma integração segura de disponibilidade/preço.
+
+
+## Watermelon AI Concierge
+
+The public site includes a server-side AI travel concierge grounded in the
+Watermelon Experiences catalogue. It can recommend relevant Watermelon
+products, check current Viator guide prices when available, add a shortlist to
+the existing proposal flow and hand the traveller over to WhatsApp.
+
+Required Vercel environment variable:
+
+```
+OPENAI_API_KEY=...
+```
+
+Optional model override:
+
+```
+OPENAI_CONCIERGE_MODEL=gpt-5.6-terra
+```
+
+The OpenAI API key must remain server-side and must never be exposed through a
+`NEXT_PUBLIC_*` variable.
