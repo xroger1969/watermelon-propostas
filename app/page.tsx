@@ -18,8 +18,8 @@ export default function Home() {
           </p>
 
           <div className="hero-actions">
-            <a className="button button-primary" href="#experiencias">Explore experiences</a>
-            <a className="hero-proposal-link" href="/proposta">Looking for something tailored to you? <strong>Request a proposal →</strong></a>
+            <a className="button button-primary" href="#ai-concierge">Plan my trip with AI ✦</a>
+            <a className="hero-proposal-link" href="#experiencias">Prefer to browse? <strong>Explore experiences →</strong></a>
           </div>
         </div>
       </section>
