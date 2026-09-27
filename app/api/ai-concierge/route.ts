@@ -1,5 +1,6 @@
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { experiences } from "@/data/products";
 import { viatorListings } from "@/data/viator";
 import {
@@ -7,6 +8,10 @@ import {
   getLiveViatorPrices,
   type LiveViatorCatalogProduct,
 } from "@/lib/viator-live";
+import {
+  SUPABASE_BOOKING_PUBLISHABLE_KEY,
+  SUPABASE_BOOKING_URL,
+} from "@/lib/supabase/config";
 
 export const dynamic = "force-dynamic";
 
@@ -27,12 +32,27 @@ type TailorMadeIdea = {
   status: "tailor_made_concept";
 };
 
+type AIQuoteRequest = {
+  requested: boolean;
+  ready_to_create: boolean;
+  customer_name: string;
+  customer_phone: string;
+  customer_email: string;
+  requested_date: string;
+  guests: number;
+  selected_codes: string[];
+  tailor_made_titles: string[];
+  notes: string;
+  success_message: string;
+};
+
 type AIPlan = {
   reply: string;
   question: string;
   intent_summary: string;
   recommendations: AIRecommendation[];
   tailor_made_ideas: TailorMadeIdea[];
+  quote_request: AIQuoteRequest;
 };
 
 type CatalogueItem = {
@@ -150,6 +170,33 @@ function compactCatalogue(items: CatalogueItem[]) {
   }));
 }
 
+
+function aiReferenceCode(conversationId: string) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Lisbon",
+      year: "2-digit",
+      month: "2-digit",
+      day: "2-digit",
+    })
+      .formatToParts(new Date())
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+  const stamp = [parts.year, parts.month, parts.day].join("");
+  const seed = conversationId || randomUUID();
+  const suffix = createHash("sha256").update(seed).digest("hex").slice(0, 8).toUpperCase();
+  return `WM-AI-${stamp}-${suffix}`;
+}
+
+function validDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function cleanText(value: unknown, max: number) {
+  return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
 function outputText(payload: unknown) {
   const response = payload as {
     output_text?: string;
@@ -195,6 +242,20 @@ You MAY creatively suggest a new bespoke program that Watermelon could potential
 - A tailor-made concept must always be described as "subject to Watermelon review, feasibility, availability and quotation".
 - Use tailor-made ideas when the traveller asks for something not currently available, explicitly asks for something bespoke, or when a genuinely useful bespoke combination would materially improve the trip.
 - Return at most 2 tailor-made concepts. Do not generate them merely to fill space.
+
+QUOTE / CRM HANDOFF
+- A quote request is a REAL commercial action, not conversational role-play.
+- When the traveller explicitly asks for a quote, proposal, price request, or asks you to send/forward the request to Watermelon, set quote_request.requested=true.
+- NEVER say that a request was sent, forwarded, created, registered, received by the team, or saved in the CRM inside "reply". You do not have authority to claim that. The backend will create the CRM request after your response is parsed and will only then show the success message.
+- Before quote_request.ready_to_create=true, collect these minimum details from the conversation: customer name, phone/WhatsApp number, preferred date in YYYY-MM-DD, number of guests, and at least one clearly selected current catalogue experience or tailor-made concept.
+- Email is optional.
+- If any minimum detail is missing, set ready_to_create=false and ask ONE concise question for the missing detail(s). You may ask for name and phone together.
+- If all minimum details are present and the traveller has explicitly asked for a quote, set ready_to_create=true.
+- selected_codes must contain only current WATERMELON CATALOGUE codes that the traveller wants quoted.
+- tailor_made_titles must contain only tailor-made concepts from this conversation that the traveller wants reviewed.
+- If a relative or natural-language date is unambiguous from the conversation, normalize it to YYYY-MM-DD. Otherwise leave requested_date empty and ask for clarification.
+- success_message must be written in the traveller's language, must include the literal placeholder {reference}, and may only say that the request was successfully created/received after the backend has actually saved it. Example meaning: "Your request has been received by Watermelon. Reference: {reference}."
+- If an EXISTING CRM REFERENCE is supplied in context, never create another request. Treat the quote as already submitted and refer to that reference if useful.
 
 GENERAL RULES
 - Never mention competitors.
@@ -242,8 +303,53 @@ const RESPONSE_SCHEMA = {
         required: ["title", "concept", "reason", "status"],
       },
     },
+    quote_request: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        requested: { type: "boolean" },
+        ready_to_create: { type: "boolean" },
+        customer_name: { type: "string" },
+        customer_phone: { type: "string" },
+        customer_email: { type: "string" },
+        requested_date: { type: "string" },
+        guests: { type: "integer", minimum: 0, maximum: 50 },
+        selected_codes: {
+          type: "array",
+          maxItems: 4,
+          items: { type: "string" },
+        },
+        tailor_made_titles: {
+          type: "array",
+          maxItems: 2,
+          items: { type: "string" },
+        },
+        notes: { type: "string" },
+        success_message: { type: "string" },
+      },
+      required: [
+        "requested",
+        "ready_to_create",
+        "customer_name",
+        "customer_phone",
+        "customer_email",
+        "requested_date",
+        "guests",
+        "selected_codes",
+        "tailor_made_titles",
+        "notes",
+        "success_message"
+      ],
+    },
   },
-  required: ["reply", "question", "intent_summary", "recommendations", "tailor_made_ideas"],
+  required: [
+    "reply",
+    "question",
+    "intent_summary",
+    "recommendations",
+    "tailor_made_ideas",
+    "quote_request"
+  ],
 } as const;
 
 export async function POST(request: NextRequest) {
@@ -274,6 +380,18 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       message?: string;
       history?: HistoryMessage[];
+      conversationId?: string;
+      crmReference?: string;
+      currentRecommendations?: Array<{
+        code?: string;
+        title?: string;
+        reason?: string;
+      }>;
+      currentTailorMadeIdeas?: Array<{
+        title?: string;
+        concept?: string;
+        reason?: string;
+      }>;
     };
 
     const message = (body.message || "").trim().slice(0, 1200);
@@ -301,9 +419,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const currentRecommendations = Array.isArray(body.currentRecommendations)
+      ? body.currentRecommendations.slice(0, 4).map((item) => ({
+          code: cleanText(item?.code, 80),
+          title: cleanText(item?.title, 250),
+          reason: cleanText(item?.reason, 800),
+        }))
+      : [];
+    const currentTailorMadeIdeas = Array.isArray(body.currentTailorMadeIdeas)
+      ? body.currentTailorMadeIdeas.slice(0, 2).map((item) => ({
+          title: cleanText(item?.title, 250),
+          concept: cleanText(item?.concept, 1500),
+          reason: cleanText(item?.reason, 800),
+        }))
+      : [];
+    const existingCRMReference = cleanText(body.crmReference, 80);
+    const conversationId = cleanText(body.conversationId, 120);
+
     const catalogueContext =
       "WATERMELON CATALOGUE (current products only):\n" +
-      JSON.stringify(compactCatalogue(catalogue));
+      JSON.stringify(compactCatalogue(catalogue)) +
+      "\n\nCURRENT SHORTLIST DISPLAYED TO THE TRAVELLER (for conversational reference only; validate codes against the live catalogue):\n" +
+      JSON.stringify(currentRecommendations) +
+      "\n\nCURRENT TAILOR-MADE CONCEPTS DISPLAYED TO THE TRAVELLER:\n" +
+      JSON.stringify(currentTailorMadeIdeas) +
+      "\n\nEXISTING CRM REFERENCE: " +
+      (existingCRMReference || "none");
 
     const openAIResponse = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -398,13 +539,199 @@ export async function POST(request: NextRequest) {
       };
     });
 
+    const quote = plan.quote_request;
+    let crmReference = existingCRMReference;
+    let crmCreated = false;
+    let finalReply = plan.reply || "";
+
+    if (
+      quote?.requested &&
+      quote.ready_to_create &&
+      !crmReference &&
+      cleanText(quote.customer_name, 150) &&
+      cleanText(quote.customer_phone, 80) &&
+      validDate(cleanText(quote.requested_date, 10)) &&
+      Number(quote.guests) >= 1
+    ) {
+      const selectedCodes = (quote.selected_codes || [])
+        .map((code) => cleanText(code, 80))
+        .filter((code) => catalogueByCode.has(code))
+        .slice(0, 4);
+
+      const currentReasonByCode = new Map(
+        currentRecommendations
+          .filter((item) => item.code)
+          .map((item) => [item.code, item.reason])
+      );
+      const planReasonByCode = new Map(
+        (plan.recommendations || []).map((item) => [item.code, item.reason])
+      );
+
+      const availableItems = selectedCodes.map((code, index) => {
+        const product = catalogueByCode.get(code)!;
+        const live = livePrices.get(code);
+        const price = live?.price ?? product.priceFrom;
+        const reason =
+          planReasonByCode.get(code) ||
+          currentReasonByCode.get(code) ||
+          "Selected during the AI Concierge conversation.";
+
+        return {
+          position: index,
+          product_code: product.code,
+          experience_title: product.title,
+          option_code: product.optionCode || null,
+          option_name: product.optionName || null,
+          requested_date: cleanText(quote.requested_date, 10),
+          preferred_time: "Flexible",
+          date_flexibility: "Exact date",
+          guests: Math.max(1, Math.min(50, Number(quote.guests) || 1)),
+          unit_price: price,
+          subtotal:
+            price === null
+              ? null
+              : Number(
+                  (
+                    price * Math.max(1, Math.min(50, Number(quote.guests) || 1))
+                  ).toFixed(2)
+                ),
+          pickup_location: null,
+          guide_language: null,
+          special_request: cleanText("AI Concierge: " + reason, 2000),
+          children_ages: null,
+          accessibility: null,
+          dietary: null,
+          occasion: null,
+        };
+      });
+
+      const tailorPool = [
+        ...(plan.tailor_made_ideas || []),
+        ...currentTailorMadeIdeas.map((item) => ({
+          title: item.title,
+          concept: item.concept,
+          reason: item.reason,
+          status: "tailor_made_concept" as const,
+        })),
+      ];
+
+      const wantedTailorTitles = new Set(
+        (quote.tailor_made_titles || [])
+          .map((title) => cleanText(title, 250).toLowerCase())
+          .filter(Boolean)
+      );
+      const seenTailorTitles = new Set<string>();
+      const tailorItems = tailorPool
+        .filter((idea) => {
+          const key = cleanText(idea.title, 250).toLowerCase();
+          if (!key || !wantedTailorTitles.has(key) || seenTailorTitles.has(key)) return false;
+          seenTailorTitles.add(key);
+          return true;
+        })
+        .slice(0, 2)
+        .map((idea, index) => ({
+          position: availableItems.length + index,
+          product_code: null,
+          experience_title: cleanText(idea.title, 250) || "Tailor-made concept",
+          option_code: null,
+          option_name: "Tailor-made concept — subject to review",
+          requested_date: cleanText(quote.requested_date, 10),
+          preferred_time: "Flexible",
+          date_flexibility: "Exact date",
+          guests: Math.max(1, Math.min(50, Number(quote.guests) || 1)),
+          unit_price: null,
+          subtotal: null,
+          pickup_location: null,
+          guide_language: null,
+          special_request: cleanText(
+            "AI tailor-made concept: " +
+              cleanText(idea.concept, 1300) +
+              " Why it fits: " +
+              cleanText(idea.reason, 600) +
+              " Subject to Watermelon review, feasibility, availability and quotation.",
+            2000
+          ),
+          children_ages: null,
+          accessibility: null,
+          dietary: null,
+          occasion: null,
+        }));
+
+      const crmItems = [...availableItems, ...tailorItems];
+
+      if (crmItems.length > 0) {
+        crmReference = aiReferenceCode(conversationId);
+        const estimatedTotal = crmItems.reduce(
+          (sum, item) => sum + (item.subtotal === null ? 0 : Number(item.subtotal)),
+          0
+        );
+        const transcript = [...history, { role: "user" as const, content: message }]
+          .slice(-8)
+          .map((item) => (item.role === "user" ? "Customer: " : "AI: ") + item.content)
+          .join("\n");
+        const customerNotes = cleanText(
+          [
+            "AI Concierge automatic CRM handoff.",
+            "Intent: " + cleanText(plan.intent_summary, 700),
+            quote.notes ? "Quote notes: " + cleanText(quote.notes, 1200) : "",
+            "Conversation context:",
+            transcript,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+          4000
+        );
+
+        const supabase = createClient(
+          SUPABASE_BOOKING_URL,
+          SUPABASE_BOOKING_PUBLISHABLE_KEY,
+          { auth: { persistSession: false, autoRefreshToken: false } }
+        );
+        const { data: requestId, error: crmError } = await supabase.rpc(
+          "watermelon_create_ai_proposal_request",
+          {
+            p_reference: crmReference,
+            p_customer_name: cleanText(quote.customer_name, 150),
+            p_customer_email: cleanText(quote.customer_email, 250),
+            p_customer_phone: cleanText(quote.customer_phone, 80),
+            p_customer_notes: customerNotes,
+            p_estimated_total: Number(estimatedTotal.toFixed(2)),
+            p_currency: "EUR",
+            p_items: crmItems,
+          }
+        );
+
+        if (crmError || !requestId) {
+          console.error("Unable to create AI Concierge CRM request", crmError);
+          return NextResponse.json(
+            {
+              error:
+                "I understood the quote request, but I could not save it in the Watermelon CRM. Please try again.",
+              code: "CRM_HANDOFF_FAILED",
+            },
+            { status: 502 }
+          );
+        }
+
+        crmCreated = true;
+        const successMessage =
+          cleanText(quote.success_message, 700) ||
+          "Your request has been received by Watermelon. Reference: {reference}.";
+        finalReply = [finalReply, successMessage.replaceAll("{reference}", crmReference)]
+          .filter(Boolean)
+          .join("\n\n");
+      }
+    }
+
     return NextResponse.json(
       {
-        reply: plan.reply || "",
-        question: plan.question || "",
+        reply: finalReply,
+        question: crmCreated ? "" : plan.question || "",
         intentSummary: plan.intent_summary || "",
         recommendations,
         tailorMadeIdeas: (plan.tailor_made_ideas || []).slice(0, 2),
+        crmReference: crmReference || "",
+        crmCreated,
       },
       {
         headers: {
