@@ -57,3 +57,6 @@ OPENAI_CONCIERGE_MODEL=gpt-5.6-terra
 
 The OpenAI API key must remain server-side and must never be exposed through a
 `NEXT_PUBLIC_*` variable.
+
+
+> Deployment note: AI Concierge environment changes require a fresh Vercel deployment.
