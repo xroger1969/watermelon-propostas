@@ -7,6 +7,13 @@ import {
 export function createClient() {
   return createSupabaseClient(
     SUPABASE_BOOKING_URL,
-    SUPABASE_BOOKING_PUBLISHABLE_KEY
+    SUPABASE_BOOKING_PUBLISHABLE_KEY,
+    {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    }
   );
 }
