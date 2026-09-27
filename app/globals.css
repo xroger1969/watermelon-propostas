@@ -1492,11 +1492,26 @@ button { cursor: pointer; }
     padding: 24px 20px;
   }
   .admin-topbar {
-    align-items: flex-start;
+    align-items: stretch;
     flex-direction: column;
   }
   .admin-topbar h1 {
     font-size: 34px;
+  }
+  .admin-topbar-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px;
+  }
+  .admin-topbar-actions .button {
+    width: 100%;
+    min-width: 0;
+    min-height: 50px;
+    padding: 10px 12px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.25;
   }
   .admin-stats {
     grid-template-columns: 1fr 1fr;
@@ -3460,4 +3475,24 @@ button { cursor: pointer; }
   font-size: 30px;
   font-weight: 800;
   letter-spacing: .28em;
+}
+
+
+/* Touch-device CRM polish */
+@media (hover: none) {
+  .crm-stats button:hover {
+    border-color: var(--line);
+  }
+  .crm-stats button.crm-stat-active:hover {
+    border-color: var(--green);
+  }
+}
+
+@media (max-width: 650px) {
+  .admin-page,
+  .admin-shell,
+  .crm-shell {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
 }
