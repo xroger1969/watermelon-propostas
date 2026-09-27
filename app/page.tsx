@@ -1,4 +1,5 @@
 import Catalog from "@/components/Catalog";
+import AIConcierge from "@/components/AIConcierge";
 
 export default function Home() {
   return (
@@ -22,6 +23,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <AIConcierge />
 
       <section className="intro">
         <div>
