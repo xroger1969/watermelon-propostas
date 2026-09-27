@@ -172,7 +172,7 @@ export default function AIConcierge() {
   }
 
   return (
-    <section className="ai-concierge-section" aria-labelledby="ai-concierge-title">
+    <section className="ai-concierge-section" id="ai-concierge" aria-labelledby="ai-concierge-title">
       <div className="ai-concierge-shell">
         <div className="ai-concierge-intro">
           <div className="ai-concierge-kicker">
