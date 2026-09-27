@@ -96,12 +96,21 @@ export default function ProposalBuilder() {
   const [savedReference, setSavedReference] = useState("");
 
   useEffect(() => {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]") as Partial<ProposalItem>[];
-      setItems(Array.isArray(parsed) ? parsed.map((item) => normalizeItem(item)) : []);
-    } catch {
-      setItems([]);
+    function loadStoredProposal() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]") as Partial<ProposalItem>[];
+        setItems(Array.isArray(parsed) ? parsed.map((item) => normalizeItem(item)) : []);
+      } catch {
+        setItems([]);
+      }
     }
+
+    loadStoredProposal();
+    window.addEventListener("watermelon-proposal-updated", loadStoredProposal);
+
+    return () => {
+      window.removeEventListener("watermelon-proposal-updated", loadStoredProposal);
+    };
   }, []);
 
   function persist(next: ProposalItem[]) {
@@ -235,7 +244,7 @@ export default function ProposalBuilder() {
   }
 
   return (
-    <section className="proposal-shell">
+    <section className="proposal-shell" id="proposal-builder">
       <div className="proposal-form">
         <div className="proposal-block">
           <div className="block-title">
