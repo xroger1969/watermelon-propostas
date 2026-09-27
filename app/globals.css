@@ -1932,6 +1932,14 @@ button { cursor: pointer; }
 .crm-stats button:hover {
   border-color: var(--green-2);
 }
+.crm-stats button.crm-stat-active {
+  border-color: var(--green);
+  background: var(--mint);
+  box-shadow: 0 0 0 2px rgba(17, 97, 68, .08);
+}
+.crm-stats button.crm-stat-active span {
+  color: var(--green);
+}
 .crm-stats span {
   color: var(--muted);
   font-size: 11px;
@@ -1976,6 +1984,161 @@ button { cursor: pointer; }
 .crm-search input:focus {
   border-color: var(--green-2);
   box-shadow: 0 0 0 3px rgba(23,122,85,.1);
+}
+.crm-results-heading {
+  scroll-margin-top: 18px;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 4px 0 14px;
+  padding: 0 2px;
+}
+.crm-results-heading > div {
+  display: grid;
+  gap: 2px;
+}
+.crm-results-heading span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.crm-results-heading h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 22px;
+}
+.crm-results-heading > strong {
+  display: grid;
+  place-items: center;
+  min-width: 38px;
+  min-height: 38px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--mint);
+  color: var(--green);
+  font-size: 18px;
+}
+.crm-contact-list {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.crm-contact-card {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 10px 34px rgba(8, 42, 29, .055);
+  overflow: hidden;
+}
+.crm-contact-card > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.crm-contact-card h2 {
+  margin: 5px 0 3px;
+  font-size: 21px;
+}
+.crm-contact-card header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.crm-contact-request-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--mint);
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+.crm-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px 20px;
+}
+.crm-contact-grid > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.crm-contact-grid span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.crm-contact-grid strong,
+.crm-contact-grid a {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 750;
+  text-decoration: none;
+}
+.crm-contact-grid a {
+  color: var(--green);
+}
+.crm-contact-notes,
+.crm-contact-history {
+  margin: 0 20px 16px;
+  padding: 13px 14px;
+  border-radius: 13px;
+  background: #f7faf8;
+}
+.crm-contact-notes > strong,
+.crm-contact-history > strong {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.crm-contact-notes p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.crm-contact-history > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.crm-contact-history button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+.crm-contact-history button span {
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 850;
+}
+.crm-contact-history button b {
+  color: var(--muted);
+  font-size: 10px;
 }
 .crm-request-list {
   display: grid;
@@ -2178,7 +2341,8 @@ button { cursor: pointer; }
   .crm-toolbar {
     grid-template-columns: 1fr;
   }
-  .crm-customer-panel {
+  .crm-customer-panel,
+  .crm-contact-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -2193,9 +2357,18 @@ button { cursor: pointer; }
   .crm-stats {
     grid-template-columns: 1fr 1fr;
   }
-  .crm-request-header {
+  .crm-request-header,
+  .crm-contact-card > header {
     flex-direction: column;
     padding: 17px;
+  }
+  .crm-contact-grid {
+    grid-template-columns: 1fr;
+    padding: 15px 17px;
+  }
+  .crm-contact-notes,
+  .crm-contact-history {
+    margin: 0 17px 15px;
   }
   .crm-request-body {
     padding: 15px 17px;
