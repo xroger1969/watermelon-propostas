@@ -60,10 +60,15 @@ export default function PrivacyPolicyPage() {
             relevant travel-planning context may be securely processed through
             the OpenAI API to generate suggestions from the Watermelon
             Experiences catalogue. Please avoid entering unnecessary sensitive
-            personal information in the AI planner. Watermelon configures these
-            requests without response storage in the API workflow, and OpenAI
-            does not use API business inputs or outputs to train its models by
-            default unless the account holder explicitly opts in.
+            personal information in the AI planner. If you explicitly ask the
+            AI Concierge to request a quotation and provide the required contact
+            details, Watermelon may save those contact details, the selected
+            experience or tailor-made concept, travel details and relevant
+            conversation context in its CRM so that our team can review and
+            respond to your request. Watermelon configures OpenAI API requests
+            without response storage in that API workflow, and OpenAI does not
+            use API business inputs or outputs to train its models by default
+            unless the account holder explicitly opts in.
           </p>
         </section>
 
