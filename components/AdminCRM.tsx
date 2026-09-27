@@ -20,12 +20,15 @@ type CRMStatus =
 
 type CRMContact = {
   id: string;
+  created_at: string;
+  updated_at: string;
   name: string;
   email: string | null;
   phone: string | null;
   preferred_language: string | null;
   source: string;
   last_contact_at: string;
+  notes: string | null;
 };
 
 type CRMItem = {
@@ -124,7 +127,7 @@ type CRMRequest = {
   messages: CRMMessage[];
 };
 
-type Filter = "all" | "in_progress" | CRMStatus;
+type Filter = "all" | "in_progress" | "contacts" | CRMStatus;
 
 const IN_PROGRESS_STATUSES: CRMStatus[] = [
   "in_review",
@@ -202,7 +205,7 @@ export default function AdminCRM() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginCooldown, setLoginCooldown] = useState(0);
   const [requests, setRequests] = useState<CRMRequest[]>([]);
-  const [contactCount, setContactCount] = useState(0);
+  const [contacts, setContacts] = useState<CRMContact[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [filter, setFilter] = useState<Filter>("new");
@@ -241,7 +244,8 @@ export default function AdminCRM() {
         .order("created_at", { ascending: false }),
       supabase
         .from("watermelon_contacts")
-        .select("id", { count: "exact", head: true }),
+        .select("*")
+        .order("last_contact_at", { ascending: false }),
     ]);
 
     if (error) {
@@ -274,7 +278,7 @@ export default function AdminCRM() {
     }
 
     if (!contactsResult.error) {
-      setContactCount(contactsResult.count || 0);
+      setContacts((contactsResult.data || []) as CRMContact[]);
     }
 
     setLoading(false);
@@ -836,6 +840,17 @@ export default function AdminCRM() {
     setEditing(null);
   }
 
+  function openView(nextFilter: Filter) {
+    setFilter(nextFilter);
+    setQuery("");
+    window.setTimeout(() => {
+      document.getElementById("crm-results")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 40);
+  }
+
   async function declineDirectBooking(request: CRMRequest) {
     if (!supabase || request.kind !== "direct_booking") return;
 
@@ -898,6 +913,37 @@ export default function AdminCRM() {
       return haystack.includes(q);
     });
   }, [requests, filter, query]);
+
+  const filteredContacts = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return contacts;
+
+    return contacts.filter((contact) =>
+      [
+        contact.name,
+        contact.email,
+        contact.phone,
+        contact.source,
+        contact.preferred_language,
+        contact.notes,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [contacts, query]);
+
+  const contactCount = contacts.length;
+
+  const viewTitle =
+    filter === "contacts"
+      ? "Contacts"
+      : filter === "all"
+        ? "All requests"
+        : filter === "in_progress"
+          ? "In progress"
+          : STATUS_LABELS[filter as CRMStatus];
 
   if (!authReady) {
     return (
@@ -1073,40 +1119,65 @@ export default function AdminCRM() {
       )}
 
       <div className="crm-stats">
-        <button type="button" onClick={() => setFilter("new")}>
+        <button
+          type="button"
+          className={filter === "new" ? "crm-stat-active" : ""}
+          aria-pressed={filter === "new"}
+          onClick={() => openView("new")}
+        >
           <span>New requests</span><strong>{counts.new}</strong>
         </button>
-        <button type="button" onClick={() => setFilter("in_progress")}>
+        <button
+          type="button"
+          className={filter === "in_progress" ? "crm-stat-active" : ""}
+          aria-pressed={filter === "in_progress"}
+          onClick={() => openView("in_progress")}
+        >
           <span>In progress</span><strong>{counts.inReview}</strong>
         </button>
-        <button type="button" onClick={() => setFilter("proposal_sent")}>
+        <button
+          type="button"
+          className={filter === "proposal_sent" ? "crm-stat-active" : ""}
+          aria-pressed={filter === "proposal_sent"}
+          onClick={() => openView("proposal_sent")}
+        >
           <span>Proposal sent</span><strong>{counts.proposalSent}</strong>
         </button>
-        <button type="button" onClick={() => setFilter("awaiting_payment")}>
+        <button
+          type="button"
+          className={filter === "awaiting_payment" ? "crm-stat-active" : ""}
+          aria-pressed={filter === "awaiting_payment"}
+          onClick={() => openView("awaiting_payment")}
+        >
           <span>Awaiting payment</span><strong>{counts.awaitingPayment}</strong>
         </button>
-        <button type="button" onClick={() => setFilter("confirmed")}>
+        <button
+          type="button"
+          className={filter === "confirmed" ? "crm-stat-active" : ""}
+          aria-pressed={filter === "confirmed"}
+          onClick={() => openView("confirmed")}
+        >
           <span>Confirmed</span><strong>{counts.confirmed}</strong>
         </button>
-        <div className="crm-contact-stat">
+        <button
+          type="button"
+          className={filter === "contacts" ? "crm-stat-active" : ""}
+          aria-pressed={filter === "contacts"}
+          onClick={() => openView("contacts")}
+        >
           <span>Contacts</span><strong>{contactCount}</strong>
-        </div>
+        </button>
       </div>
 
       <div className="crm-toolbar">
         <div className="admin-filters crm-filters">
           {([
-            ["all", "All"],
-            ["new", "New"],
-            ["in_progress", "In progress"],
+            ["all", "All requests"],
             ["in_review", "In review"],
             ["awaiting_customer", "Waiting for customer"],
             ["proposal_drafting", "Drafting"],
-            ["proposal_sent", "Proposal sent"],
             ["customer_replied", "Customer replied"],
             ["accepted", "Accepted"],
-            ["awaiting_payment", "Awaiting payment"],
-            ["confirmed", "Confirmed"],
             ["declined", "Declined"],
             ["cancelled", "Cancelled"],
           ] as Array<[Filter, string]>).map(([value, label]) => (
@@ -1125,7 +1196,11 @@ export default function AdminCRM() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Name, phone, email, reference or experience"
+            placeholder={
+              filter === "contacts"
+                ? "Name, phone, email or source"
+                : "Name, phone, email, reference or experience"
+            }
           />
         </label>
       </div>
@@ -1133,11 +1208,107 @@ export default function AdminCRM() {
       {message && <p className="admin-error">{message}</p>}
       {loading && <p className="admin-loading">Loading CRM…</p>}
 
-      <div className="crm-request-list">
+      <div className="crm-results-heading" id="crm-results">
+        <div>
+          <span>Showing</span>
+          <h2>{viewTitle}</h2>
+        </div>
+        <strong>{filter === "contacts" ? filteredContacts.length : filtered.length}</strong>
+      </div>
+
+      {filter === "contacts" && !loading && (
+        <div className="crm-contact-list">
+          {filteredContacts.length === 0 && (
+            <div className="admin-empty">
+              <h2>No contacts found.</h2>
+              <p>Try another search or wait for a new customer interaction.</p>
+            </div>
+          )}
+
+          {filteredContacts.map((contact) => {
+            const relatedRequests = requests.filter(
+              (request) => request.contact?.id === contact.id
+            );
+
+            return (
+              <article className="crm-contact-card" key={contact.id}>
+                <header>
+                  <div>
+                    <span className="admin-reference">{contact.source || "customer"}</span>
+                    <h2>{contact.name}</h2>
+                    <p>Last contact {dateTime(contact.last_contact_at)}</p>
+                  </div>
+                  <span className="crm-contact-request-count">
+                    {relatedRequests.length} request{relatedRequests.length === 1 ? "" : "s"}
+                  </span>
+                </header>
+
+                <div className="crm-contact-grid">
+                  <div>
+                    <span>Phone / WhatsApp</span>
+                    {contact.phone ? (
+                      <a href={"tel:" + contact.phone}>{contact.phone}</a>
+                    ) : (
+                      <strong>—</strong>
+                    )}
+                  </div>
+                  <div>
+                    <span>Email</span>
+                    {contact.email ? (
+                      <a href={"mailto:" + contact.email}>{contact.email}</a>
+                    ) : (
+                      <strong>—</strong>
+                    )}
+                  </div>
+                  <div>
+                    <span>Language</span>
+                    <strong>{contact.preferred_language || "—"}</strong>
+                  </div>
+                  <div>
+                    <span>Created</span>
+                    <strong>{shortDate(contact.created_at)}</strong>
+                  </div>
+                </div>
+
+                {contact.notes && (
+                  <div className="crm-contact-notes">
+                    <strong>Notes</strong>
+                    <p>{contact.notes}</p>
+                  </div>
+                )}
+
+                {relatedRequests.length > 0 && (
+                  <div className="crm-contact-history">
+                    <strong>Request history</strong>
+                    <div>
+                      {relatedRequests.map((request) => (
+                        <button
+                          type="button"
+                          key={request.id}
+                          onClick={() => {
+                            setFilter("all");
+                            setQuery(request.reference);
+                          }}
+                        >
+                          <span>{request.reference}</span>
+                          <b>{STATUS_LABELS[request.status]}</b>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {filter !== "contacts" && (
+        <div className="crm-request-list">
         {!loading && filtered.length === 0 && (
           <div className="admin-empty">
-            <h2>No requests here.</h2>
-            <p>New website enquiries will appear automatically.</p>
+            <h2>No requests in {viewTitle.toLowerCase()}.</h2>
+            <p>Choose another area above or wait for a new customer interaction.</p>
           </div>
         )}
 
@@ -1336,7 +1507,8 @@ export default function AdminCRM() {
             </article>
           );
         })}
-      </div>
+        </div>
+      )}
     </section>
   );
 }
