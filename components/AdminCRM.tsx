@@ -212,6 +212,7 @@ export default function AdminCRM() {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [pushSupported, setPushSupported] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushPermission, setPushPermission] = useState<
@@ -370,6 +371,17 @@ export default function AdminCRM() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const navigatorWithStandalone = window.navigator as Navigator & {
+      standalone?: boolean;
+    };
+    setIsStandalone(
+      window.matchMedia("(display-mode: standalone)").matches ||
+        navigatorWithStandalone.standalone === true
+    );
+  }, []);
+
+  useEffect(() => {
     const supported =
       typeof window !== "undefined" &&
       "serviceWorker" in navigator &&
@@ -478,7 +490,7 @@ export default function AdminCRM() {
         shouldCreateUser: false,
         emailRedirectTo:
           typeof window !== "undefined"
-            ? `${window.location.origin}/admin`
+            ? `${window.location.origin}/crm`
             : undefined,
       },
     });
@@ -1033,7 +1045,9 @@ export default function AdminCRM() {
           <p>
             {otpSent
               ? "Open the latest Watermelon CRM email and tap Sign in. You will return directly here. If the email shows a 6-digit code instead, enter it below."
-              : "Access is restricted to the Watermelon owner account. No email address needs to be entered."}
+              : isStandalone
+                ? "Open the Watermelon CRM from this icon. Sign in once on this device and your session will stay saved until you sign out or the secure session is revoked."
+                : "Access is restricted to the Watermelon owner account. For persistent access on iPhone, install the Watermelon CRM on the Home Screen and sign in there once."}
           </p>
 
           <div className="admin-owner-account">
@@ -1154,10 +1168,12 @@ export default function AdminCRM() {
             <strong>CRM alerts are off on this device</strong>
             <span>
               {pushPermission === "denied"
-                ? "Browser notifications are blocked. Allow notifications for watermelonexperiences.pt, then activate alerts again."
+                ? "Notifications are blocked for this CRM app. Allow notifications in iPhone Settings, then activate alerts again."
                 : pushSupported
-                  ? "Activate them once and you will receive new enquiry, WhatsApp reply and customer-update alerts without keeping the CRM open."
-                  : "This browser cannot receive web push alerts. On iPhone, add Watermelon to the Home Screen and open it from there."}
+                  ? "Activate them once on this device. After that, the CRM keeps the subscription and restores it automatically whenever you open the app."
+                  : isStandalone
+                    ? "This installed CRM cannot use web push on this device."
+                    : "You are viewing the CRM inside a browser that cannot keep iPhone push notifications active. Open watermelonexperiences.pt/crm in Safari, tap Share → Add to Home Screen, then use that Watermelon CRM icon."}
             </span>
           </div>
 
