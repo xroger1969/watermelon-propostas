@@ -6,7 +6,8 @@ import AdminAccessButton from "@/components/AdminAccessButton";
 
 export default function SiteChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const isPrivateAdmin = pathname?.startsWith("/admin");
+  const isPrivateAdmin =
+    pathname?.startsWith("/admin") || pathname?.startsWith("/crm");
 
   if (isPrivateAdmin) {
     return <>{children}</>;
