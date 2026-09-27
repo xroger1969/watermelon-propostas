@@ -2140,6 +2140,25 @@ button { cursor: pointer; }
   color: var(--muted);
   font-size: 10px;
 }
+.crm-contact-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 20px 18px;
+}
+.crm-contact-actions span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.crm-danger-button {
+  border: 1px solid #b42318 !important;
+  background: #fff !important;
+  color: #b42318 !important;
+}
+.crm-danger-button:hover {
+  background: #fff5f4 !important;
+}
 .crm-request-list {
   display: grid;
   gap: 16px;
@@ -2369,6 +2388,14 @@ button { cursor: pointer; }
   .crm-contact-notes,
   .crm-contact-history {
     margin: 0 17px 15px;
+  }
+  .crm-contact-actions {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 0 17px 17px;
+  }
+  .crm-contact-actions .button {
+    width: 100%;
   }
   .crm-request-body {
     padding: 15px 17px;
