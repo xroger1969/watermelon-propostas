@@ -347,6 +347,11 @@ export default function AdminCRM() {
         { event: "*", schema: "public", table: "watermelon_messages" },
         scheduleRefresh
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "watermelon_contacts" },
+        scheduleRefresh
+      )
       .subscribe();
 
     return () => {
@@ -664,6 +669,57 @@ export default function AdminCRM() {
     }
 
     setMessage("Request " + request.reference + " was permanently deleted.");
+    await loadCRM();
+    setEditing(null);
+  }
+
+  async function deleteContactPermanently(
+    contact: CRMContact,
+    relatedRequestCount: number
+  ) {
+    if (!supabase) return;
+
+    if (relatedRequestCount > 0) {
+      setMessage(
+        "This contact still has " +
+          relatedRequestCount +
+          " request" +
+          (relatedRequestCount === 1 ? "" : "s") +
+          ". Delete those requests first, then the contact can be removed permanently."
+      );
+      return;
+    }
+
+    const firstCheck = window.confirm(
+      'Permanently delete contact "' +
+        contact.name +
+        '"? This removes the contact and any standalone WhatsApp messages or activity linked only to this contact. This cannot be undone.'
+    );
+    if (!firstCheck) return;
+
+    const typed = window.prompt(
+      'For safety, type DELETE to permanently remove "' + contact.name + '".',
+      ""
+    );
+    if (typed !== "DELETE") {
+      setMessage("Deletion cancelled.");
+      return;
+    }
+
+    setEditing(contact.id);
+    setMessage("");
+
+    const { error } = await supabase.rpc("watermelon_delete_contact", {
+      p_contact_id: contact.id,
+    });
+
+    if (error) {
+      setMessage(error.message);
+      setEditing(null);
+      return;
+    }
+
+    setMessage('Contact "' + contact.name + '" was permanently deleted.');
     await loadCRM();
     setEditing(null);
   }
@@ -1297,6 +1353,22 @@ export default function AdminCRM() {
                     </div>
                   </div>
                 )}
+
+                <div className="crm-contact-actions">
+                  <button
+                    className="button crm-danger-button"
+                    type="button"
+                    disabled={editing === contact.id}
+                    onClick={() =>
+                      void deleteContactPermanently(contact, relatedRequests.length)
+                    }
+                  >
+                    {editing === contact.id ? "Deleting…" : "Delete contact permanently"}
+                  </button>
+                  {relatedRequests.length > 0 && (
+                    <span>Delete the contact's requests first.</span>
+                  )}
+                </div>
               </article>
             );
           })}
