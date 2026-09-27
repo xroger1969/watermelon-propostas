@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { trackLeadConversion } from "@/lib/marketing";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -183,6 +184,7 @@ export default function AIConcierge({
       setRecommendations(Array.isArray(data.recommendations) ? data.recommendations : []);
       setTailorMadeIdeas(Array.isArray(data.tailorMadeIdeas) ? data.tailorMadeIdeas : []);
       if (data.crmReference) setCrmReference(data.crmReference);
+      if (data.crmCreated) void trackLeadConversion("ai_crm_lead");
     } catch (requestError) {
       setError(
         requestError instanceof Error
