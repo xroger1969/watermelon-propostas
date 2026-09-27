@@ -23,11 +23,19 @@ type Recommendation = {
   livePrice: boolean;
 };
 
+type TailorMadeIdea = {
+  title: string;
+  concept: string;
+  reason: string;
+  status: "tailor_made_concept";
+};
+
 type ConciergeResponse = {
   reply?: string;
   question?: string;
   intentSummary?: string;
   recommendations?: Recommendation[];
+  tailorMadeIdeas?: TailorMadeIdea[];
   error?: string;
   code?: string;
 };
@@ -73,6 +81,7 @@ export default function AIConcierge() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [tailorMadeIdeas, setTailorMadeIdeas] = useState<TailorMadeIdea[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [addedCodes, setAddedCodes] = useState<string[]>([]);
@@ -126,6 +135,7 @@ export default function AIConcierge() {
         },
       ]);
       setRecommendations(Array.isArray(data.recommendations) ? data.recommendations : []);
+      setTailorMadeIdeas(Array.isArray(data.tailorMadeIdeas) ? data.tailorMadeIdeas : []);
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -182,11 +192,11 @@ export default function AIConcierge() {
           <h2 id="ai-concierge-title">Tell us the trip you imagine. We will turn it into a plan.</h2>
           <p>
             Describe your dates, group, interests, pace or budget in normal language.
-            Our AI searches only Watermelon experiences and helps you build a proposal.
+            Our AI matches you with current Watermelon experiences and can also suggest tailor-made concepts for our team to review and quote.
           </p>
           <div className="ai-trust-row">
-            <span>Watermelon catalogue only</span>
-            <span>Live price check when available</span>
+            <span>Available products clearly identified</span>
+            <span>Tailor-made ideas clearly separated</span>
             <span>Human confirmation before booking</span>
           </div>
         </div>
@@ -267,6 +277,55 @@ export default function AIConcierge() {
           {error && <div className="ai-error">{error}</div>}
         </div>
       </div>
+
+
+      {tailorMadeIdeas.length > 0 && (
+        <div className="ai-tailor-made">
+          <div className="ai-recommendations-head">
+            <div>
+              <p className="eyebrow dark">TAILOR-MADE IDEAS</p>
+              <h3>Ideas Watermelon could design specially for you</h3>
+            </div>
+          </div>
+
+          <div className="ai-tailor-grid">
+            {tailorMadeIdeas.map((idea, index) => {
+              const message =
+                "Hello Watermelon Experiences, your AI Concierge suggested this tailor-made concept:\n\n" +
+                idea.title +
+                "\n\n" +
+                idea.concept +
+                "\n\nWhy it fits: " +
+                idea.reason +
+                "\n\nI understand this is not yet an available product and is subject to Watermelon review, feasibility, availability and quotation. Could you review it for me?";
+
+              return (
+                <article className="ai-tailor-card" key={idea.title + "-" + index}>
+                  <div className="ai-tailor-badge">TAILOR-MADE CONCEPT</div>
+                  <h4>{idea.title}</h4>
+                  <p>{idea.concept}</p>
+                  <div className="ai-tailor-reason">
+                    <strong>Why it may suit you</strong>
+                    <span>{idea.reason}</span>
+                  </div>
+                  <div className="ai-tailor-warning">
+                    Not currently available as a Watermelon product. Subject to our review,
+                    feasibility, availability and quotation.
+                  </div>
+                  <a
+                    className="ai-tailor-action"
+                    href={"https://wa.me/351918404101?text=" + encodeURIComponent(message)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Ask Watermelon to create this
+                  </a>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {recommendations.length > 0 && (
         <div className="ai-recommendations">
