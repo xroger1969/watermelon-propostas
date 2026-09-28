@@ -1,0 +1,28 @@
+.section {
+  padding: 64px 0;
+  background: var(--cream);
+  scroll-margin-top: 100px;
+}
+.inner { width: min(1180px, calc(100% - 48px)); margin: 0 auto; }
+.inner h2 { margin: 0; font-size: clamp(28px, 3.5vw, 42px); line-height: 1.15; letter-spacing: -.035em; }
+.intro { color: var(--muted); margin: 16px 0 28px; }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.card { margin: 0; padding: 26px; border: 1px solid var(--line); border-radius: 20px; background: white; display: flex; flex-direction: column; }
+.experience { color: var(--green); font-size: 12px; font-weight: 750; margin: 0 0 18px; }
+.card blockquote { margin: 0 0 24px; flex: 1; }
+.card blockquote p { margin: 0; font-size: 18px; line-height: 1.65; }
+.card figcaption { display: grid; gap: 5px; }
+.card figcaption strong { font-size: 14px; }
+.card time { color: var(--muted); font-size: 12px; }
+.card figcaption a { color: var(--green); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; padding: 10px 0; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-top: 28px; }
+.secondary { color: var(--green); font-size: 13px; padding: 12px 0; text-decoration: underline; text-underline-offset: 3px; }
+.note { color: var(--muted); font-size: 12px; margin: 18px 0 0; max-width: 650px; }
+.section a:focus-visible { outline: 3px solid var(--green-2); outline-offset: 5px; }
+@media (max-width: 760px) {
+  .section { padding: 44px 0; }
+  .grid { grid-template-columns: 1fr; gap: 14px; }
+  .card { padding: 22px; }
+  .card blockquote p { font-size: 17px; }
+  .actions { align-items: flex-start; flex-direction: column; gap: 4px; }
+}

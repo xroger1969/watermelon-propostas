@@ -1,5 +1,6 @@
 import Catalog from "@/components/Catalog";
 import AIConcierge from "@/components/AIConcierge";
+import GuestReviews from "@/components/GuestReviews";
 
 export default function Home() {
   const aiConciergeEnabled = Boolean(process.env.OPENAI_API_KEY);
@@ -49,6 +50,7 @@ export default function Home() {
       </section>
 
       <Catalog />
+      <GuestReviews />
     </main>
   );
 }
