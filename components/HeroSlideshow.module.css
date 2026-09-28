@@ -1,0 +1,89 @@
+.layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: transparent;
+}
+
+.slide {
+  position: absolute;
+  inset: -3%;
+  width: 106%;
+  height: 106%;
+  object-fit: cover;
+  object-position: center;
+  opacity: 0;
+  transform: scale(1.035);
+  filter: saturate(.82) contrast(.96) brightness(.86);
+  transition: opacity 1.8s ease;
+  will-change: opacity, transform;
+}
+
+.active {
+  opacity: .34;
+  animation: slowZoom 7.6s ease-out both;
+}
+
+.tint {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(4, 42, 29, .94) 0%,
+      rgba(7, 55, 38, .88) 42%,
+      rgba(10, 69, 47, .72) 72%,
+      rgba(8, 54, 37, .74) 100%
+    ),
+    radial-gradient(circle at 84% 18%, rgba(247, 194, 74, .20), transparent 30%),
+    radial-gradient(circle at 10% 92%, rgba(98, 197, 153, .18), transparent 34%);
+}
+
+.texture {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,.015),
+    rgba(0,0,0,.045)
+  );
+}
+
+@keyframes slowZoom {
+  from { transform: scale(1.035); }
+  to { transform: scale(1.105); }
+}
+
+@media (max-width: 650px) {
+  .slide {
+    inset: -5%;
+    width: 110%;
+    height: 110%;
+    object-position: center;
+  }
+
+  .active {
+    opacity: .27;
+  }
+
+  .tint {
+    background:
+      linear-gradient(
+        180deg,
+        rgba(5, 45, 31, .92) 0%,
+        rgba(7, 57, 39, .86) 55%,
+        rgba(8, 52, 36, .80) 100%
+      ),
+      radial-gradient(circle at 88% 14%, rgba(247, 194, 74, .15), transparent 32%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slide {
+    transition: none;
+    animation: none;
+    transform: scale(1.04);
+  }
+}
