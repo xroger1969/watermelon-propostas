@@ -257,7 +257,7 @@ export default function AIConcierge({
           <h2 id={proposalMode ? "proposal-ai-concierge-title" : "ai-concierge-title"}>
             {proposalMode
               ? "Plan your experience with AI."
-              : "Let’s plan your trip with AI."}
+              : "Let’s plan your trip with Watermelon Experiences AI."}
           </h2>
           <p>
             {proposalMode
