@@ -5,7 +5,6 @@ import styles from "./HeroSlideshow.module.css";
 
 type Slide = {
   code: string;
-  label: string;
   fallback: string;
 };
 
@@ -21,25 +20,21 @@ type CatalogResponse = {
 const SLIDES: Slide[] = [
   {
     code: "9963P16",
-    label: "Lisbon",
     fallback:
       "https://media-cdn.tripadvisor.com/media/attractions-splice-spp-720x480/10/7d/4d/36.jpg",
   },
   {
     code: "9963P28",
-    label: "Horseback riding on the beach",
     fallback:
       "https://media-cdn.tripadvisor.com/media/attractions-splice-spp-720x480/12/55/45/63.jpg",
   },
   {
     code: "9963P32",
-    label: "Surf in Costa da Caparica",
     fallback:
       "https://media-cdn.tripadvisor.com/media/attractions-splice-spp-720x480/17/04/95/d9.jpg",
   },
   {
     code: "9963P25",
-    label: "Portuguese cooking workshop",
     fallback:
       "https://media-cdn.tripadvisor.com/media/attractions-splice-spp-720x480/07/95/83/2c.jpg",
   },
