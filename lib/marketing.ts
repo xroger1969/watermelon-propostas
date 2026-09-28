@@ -9,14 +9,31 @@ declare global {
   }
 }
 
+const DEFAULT_GOOGLE_ADS_ID = "AW-999129069";
+
+const DEFAULT_CONVERSION_LABELS: Record<LeadConversionType, string> = {
+  booking_request: "Bbb-CClLmMnNoOpPqQ",
+  proposal_request: "3TiGCMuhkokdEO3_tdwD",
+  ai_crm_lead: "nD0tCPmwjYkdEO3_tdwD",
+};
+
 function conversionLabel(type: LeadConversionType) {
   if (type === "booking_request") {
-    return process.env.NEXT_PUBLIC_GOOGLE_ADS_BOOKING_LABEL?.trim();
+    return (
+      process.env.NEXT_PUBLIC_GOOGLE_ADS_BOOKING_LABEL?.trim() ||
+      DEFAULT_CONVERSION_LABELS.booking_request
+    );
   }
   if (type === "proposal_request") {
-    return process.env.NEXT_PUBLIC_GOOGLE_ADS_PROPOSAL_LABEL?.trim();
+    return (
+      process.env.NEXT_PUBLIC_GOOGLE_ADS_PROPOSAL_LABEL?.trim() ||
+      DEFAULT_CONVERSION_LABELS.proposal_request
+    );
   }
-  return process.env.NEXT_PUBLIC_GOOGLE_ADS_AI_LEAD_LABEL?.trim();
+  return (
+    process.env.NEXT_PUBLIC_GOOGLE_ADS_AI_LEAD_LABEL?.trim() ||
+    DEFAULT_CONVERSION_LABELS.ai_crm_lead
+  );
 }
 
 export async function trackLeadConversion(
@@ -33,7 +50,8 @@ export async function trackLeadConversion(
     currency: "EUR",
   });
 
-  const adsId = process.env.NEXT_PUBLIC_GOOGLE_ADS_ID?.trim();
+  const adsId =
+    process.env.NEXT_PUBLIC_GOOGLE_ADS_ID?.trim() || DEFAULT_GOOGLE_ADS_ID;
   const label = conversionLabel(type);
 
   if (!adsId || !label) return;
