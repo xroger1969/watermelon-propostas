@@ -1,10 +1,5 @@
 import styles from "./GuestReviews.module.css";
 
-const listings = {
-  lisbon: "https://www.tripadvisor.com/Attraction_Review-g189158-d33096782-Reviews-Watermelon_Experiences_Lisbon_Portugal-Lisbon_Lisbon_District_Central_Portugal.html",
-  almada: "https://www.tripadvisor.com/Attraction_Review-g1022768-d15274843-Reviews-Watermelon_Experiences_Lisbon_Portugal-Almada_Setubal_District_Alentejo.html",
-};
-
 // Curated excerpts checked on 2026-09-28. These are not a live review feed.
 // Keep the original wording, public author and written date when updating.
 // Do not combine listing scores/counts: the two listings may overlap.
@@ -62,15 +57,7 @@ export default function GuestReviews() {
           ))}
         </div>
 
-        <div className={styles.actions}>
-          <a className="button button-primary" href={listings.lisbon} target="_blank" rel="noopener noreferrer">
-            Read more reviews on Tripadvisor <span aria-hidden="true">&nbsp;↗</span>
-          </a>
-          <a className={styles.secondary} href={listings.almada} target="_blank" rel="noopener noreferrer">
-            Also see our Almada reviews <span aria-hidden="true">↗</span>
-          </a>
-        </div>
-        <p className={styles.note}>Selected excerpts from Tripadvisor guest reviews. Visit Tripadvisor for the latest reviews. Links open in a new tab.</p>
+        <p className={styles.note}>Selected excerpts from Tripadvisor guest reviews. Source links open in a new tab.</p>
       </div>
     </section>
   );
