@@ -2,8 +2,11 @@
 
 import Script from "next/script";
 
+const DEFAULT_GOOGLE_ADS_ID = "AW-999129069";
+
 export default function GoogleMarketing() {
-  const adsId = process.env.NEXT_PUBLIC_GOOGLE_ADS_ID?.trim();
+  const adsId =
+    process.env.NEXT_PUBLIC_GOOGLE_ADS_ID?.trim() || DEFAULT_GOOGLE_ADS_ID;
   const ga4Id = process.env.NEXT_PUBLIC_GA4_ID?.trim();
   const primaryId = adsId || ga4Id;
 
