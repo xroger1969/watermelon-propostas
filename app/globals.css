@@ -4255,3 +4255,32 @@ button { cursor: pointer; }
     padding: 20px;
   }
 }
+
+/* Make the AI entry point visible before the conversation starts. */
+.ai-concierge-section { scroll-margin-top: 110px; }
+.ai-concierge-panel { border: 2px solid #177a55; }
+.ai-input-label { grid-column: 1 / -1; color: #0f5138; font-size: 14px; font-weight: 800; }
+.ai-input-row { background: #e9f6ef; }
+.ai-input-row textarea { border: 2px solid #177a55; min-height: 100px; font-size: 16px; }
+.ai-input-row textarea::placeholder { color: #586b60; opacity: 1; }
+.ai-input-row textarea:focus-visible { outline: 3px solid #177a55; outline-offset: 3px; }
+.ai-concierge-empty .ai-chat-window { min-height: 0; padding: 20px; }
+.ai-concierge-empty .ai-quick-prompts { padding: 14px 16px; }
+.ai-concierge-empty .ai-welcome p { font-size: 14px; }
+@media (max-width: 900px) {
+  .ai-concierge-shell { gap: 18px; }
+  .ai-concierge-intro > p { margin-top: 12px; font-size: 15px; line-height: 1.5; }
+  .ai-concierge-kicker { margin-bottom: 12px; font-size: 10px; letter-spacing: .1em; }
+  .ai-concierge-intro h2,
+  .ai-concierge-compact .ai-concierge-intro h2 { font-size: 30px; line-height: 1.1; }
+}
+@media (max-width: 640px) {
+  .ai-concierge-section { padding: 28px 16px; }
+  .ai-concierge-compact { padding: 0 12px; }
+  .ai-concierge-compact .ai-concierge-shell { padding: 14px; gap: 16px; }
+  .ai-concierge-empty .ai-chat-window { padding: 16px; }
+  .ai-concierge-empty .ai-welcome { gap: 10px; }
+  .ai-concierge-empty .ai-welcome strong { font-size: 16px; }
+  .ai-concierge-empty .ai-welcome p { margin: 0; font-size: 13px; }
+  .ai-input-row, .ai-concierge-compact .ai-input-row { padding: 14px; }
+}

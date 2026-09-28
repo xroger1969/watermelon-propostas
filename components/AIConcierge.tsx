@@ -256,31 +256,26 @@ export default function AIConcierge({
           </div>
           <h2 id={proposalMode ? "proposal-ai-concierge-title" : "ai-concierge-title"}>
             {proposalMode
-              ? "Describe your ideal experience. AI can build the starting point."
-              : "Tell us the trip you imagine. We will turn it into a plan."}
+              ? "Plan your experience with AI."
+              : "Let’s plan your trip with AI."}
           </h2>
           <p>
             {proposalMode
-              ? "Tell us what you want in normal language. We can suggest current Watermelon experiences or clearly marked tailor-made concepts, then add the result directly to this proposal."
-              : "Describe your dates, group, interests, pace or budget in normal language. Our AI matches you with current Watermelon experiences and can also suggest tailor-made concepts for our team to review and quote."}
+              ? "Tell us your dates, group and interests. Get ideas for your personalised proposal."
+              : "Tell us your dates, group and interests. Our AI will help you explore Watermelon experiences."}
           </p>
-          <div className="ai-trust-row">
-            <span>Available products clearly identified</span>
-            <span>Tailor-made ideas clearly separated</span>
-            <span>Human confirmation before booking</span>
-          </div>
+
         </div>
 
-        <div className="ai-concierge-panel">
+        <div className={"ai-concierge-panel" + (messages.length === 0 ? " ai-concierge-empty" : "")}>
           <div className="ai-chat-window" aria-live="polite" ref={chatWindowRef}>
             {messages.length === 0 ? (
               <div className="ai-welcome">
                 <span className="ai-avatar" aria-hidden="true">W</span>
                 <div>
-                  <strong>What would make this trip unforgettable?</strong>
+                  <strong>Chat with your AI travel planner</strong>
                   <p>
-                    Try: “We are 4 adults in Lisbon for two days. We like wine, views and
-                    authentic local places, and we do not want to rush.”
+                    Start below — tell us what you would love to do.
                   </p>
                 </div>
               </div>
@@ -314,22 +309,16 @@ export default function AIConcierge({
             )}
           </div>
 
-          {messages.length === 0 && (
-            <div className="ai-quick-prompts">
-              {QUICK_PROMPTS.map((prompt) => (
-                <button type="button" key={prompt} onClick={() => void askConcierge(prompt)}>
-                  {prompt}
-                </button>
-              ))}
-            </div>
-          )}
+
 
           <form className="ai-input-row" onSubmit={onSubmit}>
+            <label className="ai-input-label" htmlFor={proposalMode ? "proposal-ai-message" : "home-ai-message"}>Your trip starts here ↓</label>
             <textarea
+              id={proposalMode ? "proposal-ai-message" : "home-ai-message"}
               rows={2}
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="E.g. 2 adults, one free day in Lisbon, private experience, local food and beautiful views…"
+              placeholder="Type here… e.g. 2 adults in Lisbon, one day, food and sea views"
               maxLength={1200}
               disabled={loading}
               onKeyDown={(event) => {
@@ -343,6 +332,16 @@ export default function AIConcierge({
               {loading ? "Planning…" : "Plan with AI"}
             </button>
           </form>
+
+          {messages.length === 0 && (
+            <div className="ai-quick-prompts">
+              {QUICK_PROMPTS.map((prompt) => (
+                <button type="button" key={prompt} onClick={() => void askConcierge(prompt)}>
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          )}
 
           {crmReference && (
             <div className="ai-crm-confirmation" role="status">
@@ -470,7 +469,7 @@ export default function AIConcierge({
       )}
 
       <p className="ai-disclaimer">
-        AI recommendations are planning guidance. Final itinerary, availability and price are
+        Explore our experiences or tailor-made ideas for our team to review. Final itinerary, availability and price are
         confirmed by Watermelon Experiences before booking.
       </p>
     </section>
