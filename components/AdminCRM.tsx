@@ -1471,7 +1471,7 @@ export default function AdminCRM() {
                 {request.kind === "personalized_proposal" && (
                   <ProposalEditor
                     request={request}
-                    onChanged={() => void loadCRM()}
+                    onChanged={loadCRM}
                   />
                 )}
 

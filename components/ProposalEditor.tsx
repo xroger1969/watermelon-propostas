@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type RequestItem = {
@@ -159,8 +159,26 @@ export default function ProposalEditor({
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [hasChanges, setHasChanges] = useState(false);
+  const editRevision = useRef(0);
+  const dirty = useRef(false);
+  const editingRequest = useRef(request.id);
+  const saveInFlight = useRef(false);
+
+  function markChanged() {
+    editRevision.current += 1;
+    dirty.current = true;
+    setHasChanges(true);
+    setFeedback("");
+  }
 
   useEffect(() => {
+    // Realtime refreshes create new arrays even when this proposal has not changed.
+    // Never replace the owner's unsaved prices or other edits with server values.
+    if (editingRequest.current === request.id && dirty.current) return;
+    editingRequest.current = request.id;
+    dirty.current = false;
+    setHasChanges(false);
     const draft = request.proposals
       ?.filter((proposal) => proposal.status === "draft")
       .sort((a, b) => b.version - a.version)[0];
@@ -242,57 +260,73 @@ export default function ProposalEditor({
   }
 
   async function saveDraft(showFeedback = true): Promise<SavedDraft | null> {
-    if (!items.length || saving) return null;
+    if (!items.length || saveInFlight.current) return null;
+    if (items.some((item) => !/^\d+(?:[.,]\d{1,2})?$/.test(item.unit_price.trim()))) {
+      setFeedback("Enter your price per person for every experience (for example 150 or 150,50).");
+      return null;
+    }
+    saveInFlight.current = true;
+    const revisionAtSave = editRevision.current;
 
     setSaving(true);
     setFeedback("");
 
-    const { data, error } = await supabase.rpc("watermelon_save_proposal_draft", {
-      p_request_id: request.id,
-      p_valid_until: validUntil || null,
-      p_intro_text: introText,
-      p_conditions_text: conditionsText,
-      p_discount_amount: numberValue(discount),
-      p_extras_amount: numberValue(extras),
-      p_items: items.map((item, index) => ({
-        position: index,
-        experience_title: item.experience_title,
-        option_name: item.option_name,
-        proposed_date: item.proposed_date || null,
-        proposed_time: item.proposed_time,
-        guests: Math.max(1, Number.parseInt(item.guests, 10) || 1),
-        unit_price: numberValue(item.unit_price),
-        pickup_location: item.pickup_location,
-        notes: item.notes,
-      })),
-    });
+    try {
+      const { data, error } = await supabase.rpc("watermelon_save_proposal_draft", {
+        p_request_id: request.id,
+        p_valid_until: validUntil || null,
+        p_intro_text: introText,
+        p_conditions_text: conditionsText,
+        p_discount_amount: numberValue(discount),
+        p_extras_amount: numberValue(extras),
+        p_items: items.map((item, index) => ({
+          position: index,
+          experience_title: item.experience_title,
+          option_name: item.option_name,
+          proposed_date: item.proposed_date || null,
+          proposed_time: item.proposed_time,
+          guests: Math.max(1, Number.parseInt(item.guests, 10) || 1),
+          unit_price: numberValue(item.unit_price),
+          pickup_location: item.pickup_location,
+          notes: item.notes,
+        })),
+      });
 
-    setSaving(false);
+      if (error) {
+        setFeedback(error.message);
+        return null;
+      }
 
-    if (error) {
-      setFeedback(error.message);
+      const row = Array.isArray(data) ? data[0] : null;
+      if (!row) {
+        setFeedback("The proposal draft could not be saved.");
+        return null;
+      }
+
+      const saved: SavedDraft = {
+        proposal_id: row.proposal_id,
+        public_token: row.public_token,
+        version: Number(row.version),
+        total: Number(row.total),
+      };
+
+      setSavedDraft(saved);
+      if (showFeedback) {
+        setFeedback("Draft v" + saved.version + " saved.");
+      }
+      await onChanged();
+      if (editRevision.current === revisionAtSave) {
+        dirty.current = false;
+        setHasChanges(false);
+      }
+      return saved;
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "The proposal draft could not be saved.");
       return null;
+    } finally {
+      setSaving(false);
+      saveInFlight.current = false;
     }
-
-    const row = Array.isArray(data) ? data[0] : null;
-    if (!row) {
-      setFeedback("The proposal draft could not be saved.");
-      return null;
-    }
-
-    const saved: SavedDraft = {
-      proposal_id: row.proposal_id,
-      public_token: row.public_token,
-      version: Number(row.version),
-      total: Number(row.total),
-    };
-
-    setSavedDraft(saved);
-    if (showFeedback) {
-      setFeedback("Draft v" + saved.version + " saved.");
-    }
-    await onChanged();
-    return saved;
   }
 
   async function sendProposal() {
@@ -481,7 +515,7 @@ export default function ProposalEditor({
       </button>
 
       {open && (
-        <div className="crm-proposal-body">
+        <div className="crm-proposal-body" onChangeCapture={markChanged}>
           {latest && latest.status !== "draft" && (
             <div className="crm-proposal-current-actions">
               <a
@@ -562,6 +596,11 @@ export default function ProposalEditor({
 
           {!proposalLocked && (
             <>
+          <p className="crm-proposal-feedback">
+            Set your own Watermelon prices below. The catalogue price is only a starting point.
+            Totals update as you type. Save changes to keep your prices.
+          </p>
+          {hasChanges && <p role="status">Unsaved changes — save your proposal before leaving.</p>}
           <div className="crm-proposal-head-fields">
             <label>
               <span>Valid until</span>
@@ -662,11 +701,11 @@ export default function ProposalEditor({
                       />
                     </label>
                     <label>
-                      <span>Price per person</span>
+                      <span>Your price per person ({request.currency || "EUR"})</span>
                       <input
-                        type="number"
-                        min="0"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="Enter your price"
                         value={item.unit_price}
                         onChange={(event) =>
                           updateItem(index, { unit_price: event.target.value })
