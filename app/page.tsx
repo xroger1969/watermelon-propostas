@@ -1,6 +1,7 @@
 import Catalog from "@/components/Catalog";
 import AIConcierge from "@/components/AIConcierge";
 import GuestReviews from "@/components/GuestReviews";
+import HeroSlideshow from "@/components/HeroSlideshow";
 
 export default function Home() {
   const aiConciergeEnabled = Boolean(process.env.OPENAI_API_KEY);
@@ -8,6 +9,8 @@ export default function Home() {
   return (
     <main>
       <section className="hero">
+        <HeroSlideshow />
+
         <div className="hero-inner">
           <div className="hero-logo-badge" aria-hidden="true">
             <img src="/watermelon-mark.svg" alt="" />
