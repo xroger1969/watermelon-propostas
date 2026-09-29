@@ -2,11 +2,19 @@
 
 import Script from "next/script";
 
-const DEFAULT_GOOGLE_ADS_ID = "AW-999129069";
+const CURRENT_GOOGLE_ADS_ID = "AW-18482784763";
+const LEGACY_GOOGLE_ADS_ID = "AW-999129069";
+
+function resolveGoogleAdsId() {
+  const configured = process.env.NEXT_PUBLIC_GOOGLE_ADS_ID?.trim();
+  if (!configured || configured === LEGACY_GOOGLE_ADS_ID) {
+    return CURRENT_GOOGLE_ADS_ID;
+  }
+  return configured;
+}
 
 export default function GoogleMarketing() {
-  const adsId =
-    process.env.NEXT_PUBLIC_GOOGLE_ADS_ID?.trim() || DEFAULT_GOOGLE_ADS_ID;
+  const adsId = resolveGoogleAdsId();
   const ga4Id = process.env.NEXT_PUBLIC_GA4_ID?.trim();
   const primaryId = adsId || ga4Id;
 
