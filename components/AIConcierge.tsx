@@ -52,6 +52,45 @@ type ProposalItem = {
   notes: string;
 };
 
+type SpeechRecognitionResultLike = {
+  isFinal: boolean;
+  length: number;
+  [index: number]: { transcript: string };
+};
+
+type SpeechRecognitionEventLike = Event & {
+  results: ArrayLike<SpeechRecognitionResultLike>;
+};
+
+type SpeechRecognitionErrorEventLike = Event & {
+  error: string;
+};
+
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null {
+  if (typeof window === "undefined") return null;
+
+  const speechWindow = window as typeof window & {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  };
+
+  return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition ?? null;
+}
+
 const STORAGE_KEY = "watermelon-proposal";
 
 const QUICK_PROMPTS = [
@@ -95,7 +134,11 @@ export default function AIConcierge({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [addedCodes, setAddedCodes] = useState<string[]>([]);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [speechError, setSpeechError] = useState("");
   const chatWindowRef = useRef<HTMLDivElement | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
     const chatWindow = chatWindowRef.current;
@@ -110,6 +153,15 @@ export default function AIConcierge({
 
     return () => window.cancelAnimationFrame(frame);
   }, [messages, loading, error, crmReference]);
+
+  useEffect(() => {
+    setSpeechSupported(Boolean(getSpeechRecognitionConstructor()));
+
+    return () => {
+      recognitionRef.current?.abort();
+      recognitionRef.current = null;
+    };
+  }, []);
 
   const whatsappText = useMemo(() => {
     if (!recommendations.length) {
@@ -193,6 +245,74 @@ export default function AIConcierge({
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  function toggleVoiceInput() {
+    if (loading) return;
+
+    if (isListening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const SpeechRecognition = getSpeechRecognitionConstructor();
+    if (!SpeechRecognition) {
+      setSpeechSupported(false);
+      setSpeechError("Voice input is not supported by this browser. You can still type your message.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    const initialInput = input.trim();
+
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = navigator.language || "en-US";
+
+    recognition.onresult = (event) => {
+      let transcript = "";
+
+      for (let index = 0; index < event.results.length; index += 1) {
+        transcript += event.results[index]?.[0]?.transcript || "";
+      }
+
+      const spokenText = transcript.trim();
+      const combined = initialInput
+        ? initialInput + (spokenText ? " " + spokenText : "")
+        : spokenText;
+
+      setInput(combined.slice(0, 1200));
+    };
+
+    recognition.onerror = (event) => {
+      if (event.error === "aborted") return;
+
+      const message =
+        event.error === "not-allowed" || event.error === "service-not-allowed"
+          ? "Microphone access was blocked. Allow microphone access in your browser settings and try again."
+          : event.error === "no-speech"
+            ? "I did not hear anything. Tap the microphone and try again."
+            : "Voice input could not start. Please try again or type your message.";
+
+      setSpeechError(message);
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
+
+    try {
+      setSpeechError("");
+      recognitionRef.current = recognition;
+      recognition.start();
+      setIsListening(true);
+    } catch {
+      recognitionRef.current = null;
+      setIsListening(false);
+      setSpeechError("Voice input could not start. Please try again or type your message.");
     }
   }
 
@@ -313,23 +433,56 @@ export default function AIConcierge({
 
           <form className="ai-input-row" onSubmit={onSubmit}>
             <label className="ai-input-label" htmlFor={proposalMode ? "proposal-ai-message" : "home-ai-message"}>Your trip starts here ↓</label>
-            <textarea
-              id={proposalMode ? "proposal-ai-message" : "home-ai-message"}
-              rows={2}
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              placeholder="Type here… e.g. 2 adults in Lisbon, one day, food and sea views"
-              maxLength={1200}
-              disabled={loading}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  if (input.trim()) void askConcierge();
-                }
-              }}
-            />
-            <button type="submit" disabled={loading || !input.trim()}>
-              {loading ? "Planning…" : "Plan with AI"}
+            <div className="ai-input-field">
+              <textarea
+                id={proposalMode ? "proposal-ai-message" : "home-ai-message"}
+                rows={2}
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                placeholder="Type or speak… e.g. 2 adults in Lisbon, one day, food and sea views"
+                maxLength={1200}
+                disabled={loading}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    if (input.trim() && !isListening) void askConcierge();
+                  }
+                }}
+              />
+
+              {speechSupported && (
+                <button
+                  className={"ai-voice-button" + (isListening ? " ai-voice-button-active" : "")}
+                  type="button"
+                  onClick={toggleVoiceInput}
+                  disabled={loading}
+                  aria-label={isListening ? "Stop voice input" : "Write with microphone"}
+                  aria-pressed={isListening}
+                  title={isListening ? "Stop listening" : "Write with microphone"}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 15.25a3.75 3.75 0 0 0 3.75-3.75V6.75a3.75 3.75 0 1 0-7.5 0v4.75A3.75 3.75 0 0 0 12 15.25Z" />
+                    <path d="M5.75 11.25a6.25 6.25 0 0 0 12.5 0M12 17.5V21M8.75 21h6.5" />
+                  </svg>
+                </button>
+              )}
+
+              {isListening && (
+                <span className="ai-voice-status" role="status">
+                  <span aria-hidden="true" />
+                  Listening… tap the microphone to stop
+                </span>
+              )}
+
+              {speechError && (
+                <span className="ai-voice-error" role="status">
+                  {speechError}
+                </span>
+              )}
+            </div>
+
+            <button type="submit" disabled={loading || isListening || !input.trim()}>
+              {loading ? "Planning…" : isListening ? "Listening…" : "Plan with AI"}
             </button>
           </form>
 
