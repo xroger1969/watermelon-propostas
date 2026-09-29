@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import SiteChrome from "@/components/SiteChrome";
 import GoogleMarketing from "@/components/GoogleMarketing";
+import ConsentBanner from "@/components/ConsentBanner";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.watermelonexperiences.pt"),
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <GoogleMarketing />
         <SiteChrome>{children}</SiteChrome>
+        <ConsentBanner />
       </body>
     </html>
   );
