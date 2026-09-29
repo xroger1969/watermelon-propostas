@@ -9,31 +9,36 @@ declare global {
   }
 }
 
-const DEFAULT_GOOGLE_ADS_ID = "AW-999129069";
+const CURRENT_GOOGLE_ADS_ID = "AW-18482784763";
+const LEGACY_GOOGLE_ADS_ID = "AW-999129069";
 
-const DEFAULT_CONVERSION_LABELS: Record<LeadConversionType, string> = {
-  booking_request: "Bbb-CClLmMnNoOpPqQ",
-  proposal_request: "3TiGCMuhkokdEO3_tdwD",
-  ai_crm_lead: "nD0tCPmwjYkdEO3_tdwD",
-};
+const LEGACY_CONVERSION_LABELS = new Set([
+  "Bbb-CClLmMnNoOpPqQ",
+  "3TiGCMuhkokdEO3_tdwD",
+  "nD0tCPmwjYkdEO3_tdwD",
+]);
+
+function googleAdsId() {
+  const configured = process.env.NEXT_PUBLIC_GOOGLE_ADS_ID?.trim();
+  if (!configured || configured === LEGACY_GOOGLE_ADS_ID) {
+    return CURRENT_GOOGLE_ADS_ID;
+  }
+  return configured;
+}
 
 function conversionLabel(type: LeadConversionType) {
+  let label: string | undefined;
+
   if (type === "booking_request") {
-    return (
-      process.env.NEXT_PUBLIC_GOOGLE_ADS_BOOKING_LABEL?.trim() ||
-      DEFAULT_CONVERSION_LABELS.booking_request
-    );
+    label = process.env.NEXT_PUBLIC_GOOGLE_ADS_BOOKING_LABEL?.trim();
+  } else if (type === "proposal_request") {
+    label = process.env.NEXT_PUBLIC_GOOGLE_ADS_PROPOSAL_LABEL?.trim();
+  } else {
+    label = process.env.NEXT_PUBLIC_GOOGLE_ADS_AI_LEAD_LABEL?.trim();
   }
-  if (type === "proposal_request") {
-    return (
-      process.env.NEXT_PUBLIC_GOOGLE_ADS_PROPOSAL_LABEL?.trim() ||
-      DEFAULT_CONVERSION_LABELS.proposal_request
-    );
-  }
-  return (
-    process.env.NEXT_PUBLIC_GOOGLE_ADS_AI_LEAD_LABEL?.trim() ||
-    DEFAULT_CONVERSION_LABELS.ai_crm_lead
-  );
+
+  if (!label || LEGACY_CONVERSION_LABELS.has(label)) return "";
+  return label;
 }
 
 export async function trackLeadConversion(
@@ -50,8 +55,7 @@ export async function trackLeadConversion(
     currency: "EUR",
   });
 
-  const adsId =
-    process.env.NEXT_PUBLIC_GOOGLE_ADS_ID?.trim() || DEFAULT_GOOGLE_ADS_ID;
+  const adsId = googleAdsId();
   const label = conversionLabel(type);
 
   if (!adsId || !label) return;
