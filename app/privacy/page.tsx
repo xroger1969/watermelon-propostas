@@ -12,7 +12,7 @@ export default function PrivacyPolicyPage() {
       <article className="legal-card">
         <p className="eyebrow dark">WATERMELON EXPERIENCES</p>
         <h1>Privacy Policy</h1>
-        <p className="legal-updated">Last updated: 27 September 2026</p>
+        <p className="legal-updated">Last updated: 29 September 2026</p>
 
         <section>
           <h2>1. Who we are</h2>
@@ -73,7 +73,25 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2>6. Sharing of information</h2>
+          <h2>6. Cookies, Google Ads and measurement</h2>
+          <p>
+            We use essential website technology and a Google tag for advertising
+            measurement. Optional analytics and advertising storage are set to
+            denied by default until you make a choice in our cookie preferences.
+            If you grant permission, Google technology may use cookies or
+            similar identifiers for measurement and, where applicable,
+            advertising personalization. If you do not grant permission, Google
+            tags may still send limited cookieless measurement signals in
+            accordance with Google Consent Mode.
+          </p>
+          <p>
+            You can change your choice at any time by using the Cookie settings
+            control shown on the website.
+          </p>
+        </section>
+
+        <section>
+          <h2>7. Sharing of information</h2>
           <p>
             We share information only when necessary to provide the requested
             service, for example with payment providers, technology providers
@@ -83,7 +101,7 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2>7. Data retention and security</h2>
+          <h2>8. Data retention and security</h2>
           <p>
             We retain information only for as long as reasonably necessary for
             the purposes described above, including legal, accounting and
@@ -93,7 +111,7 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2>8. Your rights</h2>
+          <h2>9. Your rights</h2>
           <p>
             Subject to applicable law, you may request access, correction or
             deletion of your personal information, or object to or restrict
@@ -103,7 +121,7 @@ export default function PrivacyPolicyPage() {
         </section>
 
         <section>
-          <h2>9. Contact</h2>
+          <h2>10. Contact</h2>
           <p>
             For privacy questions or requests, contact Watermelon Experiences
             through the contact details published on our official website.
