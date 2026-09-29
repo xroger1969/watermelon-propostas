@@ -4376,3 +4376,77 @@ button { cursor: pointer; }
   .ai-concierge-empty .ai-welcome p { margin: 0; font-size: 13px; }
   .ai-input-row, .ai-concierge-compact .ai-input-row { padding: 14px; }
 }
+
+
+/* Mobile catalogue density — show experiences sooner */
+@media (max-width: 650px) {
+  .intro {
+    gap: 10px;
+    padding-top: 30px;
+    padding-bottom: 18px;
+  }
+
+  .intro > p {
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  .catalog-section {
+    padding-top: 10px;
+    padding-bottom: 72px;
+  }
+
+  .section-heading {
+    gap: 12px;
+  }
+
+  .section-heading h2 {
+    font-size: 36px;
+    line-height: 1.02;
+  }
+
+  .price-check {
+    max-width: 125px;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .filters {
+    margin-top: 18px;
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .search-box {
+    gap: 5px;
+  }
+
+  .search-box input {
+    padding: 11px 12px;
+    min-height: 46px;
+  }
+
+  .category-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 7px;
+    margin-top: 10px;
+    padding-bottom: 3px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .category-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chip {
+    flex: 0 0 auto;
+    padding: 8px 11px;
+    font-size: 12px;
+  }
+
+  .catalog-count {
+    margin: 11px 0 8px;
+  }
+}
