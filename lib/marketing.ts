@@ -1,3 +1,5 @@
+import { trackAnalyticsEvent } from "@/lib/analytics";
+
 export type LeadConversionType =
   | "booking_request"
   | "proposal_request"
@@ -45,9 +47,11 @@ export async function trackLeadConversion(
   type: LeadConversionType,
   value?: number
 ) {
-  if (typeof window === "undefined" || typeof window.gtag !== "function") return;
-
   const safeValue = Number.isFinite(value) && (value || 0) > 0 ? Number(value) : 0;
+
+  void trackAnalyticsEvent(type, safeValue);
+
+  if (typeof window === "undefined" || typeof window.gtag !== "function") return;
 
   window.gtag("event", "generate_lead", {
     lead_type: type,
