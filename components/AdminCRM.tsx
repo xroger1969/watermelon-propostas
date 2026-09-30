@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import ProposalEditor from "@/components/ProposalEditor";
 import WhatsAppConversation from "@/components/WhatsAppConversation";
 import CRMAnalytics from "@/components/CRMAnalytics";
+import CRMMarketingPerformance from "@/components/CRMMarketingPerformance";
 
 type CRMStatus =
   | "new"
@@ -1242,6 +1243,7 @@ export default function AdminCRM() {
         </button>
       </div>
 
+      <CRMMarketingPerformance />
       <CRMAnalytics />
 
       <div className="crm-toolbar">
