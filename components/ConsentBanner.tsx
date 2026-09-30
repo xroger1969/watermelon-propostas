@@ -52,6 +52,10 @@ function applyChoice(choice: ConsentChoice) {
     ad_personalization: choice.advertising ? "granted" : "denied",
     analytics_storage: choice.analytics ? "granted" : "denied",
   });
+
+  window.dispatchEvent(
+    new CustomEvent("watermelon-consent-changed", { detail: choice })
+  );
 }
 
 export default function ConsentBanner() {
