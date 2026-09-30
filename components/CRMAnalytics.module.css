@@ -88,6 +88,44 @@
   font-size: 0.76rem;
 }
 
+.trend {
+  display: flex !important;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid #edf1ee;
+  line-height: 1.25;
+}
+
+.trend strong {
+  display: inline !important;
+  margin: 0 !important;
+  font-size: 0.76rem !important;
+  line-height: 1 !important;
+}
+
+.trend span {
+  display: inline !important;
+  color: #7d8982 !important;
+  font-size: 0.68rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+.trendUp strong {
+  color: #197347 !important;
+}
+
+.trendDown strong {
+  color: #a4473d !important;
+}
+
+.trendNeutral strong {
+  color: #68746d !important;
+}
+
 .chartCard,
 .listCard {
   margin-top: 12px;
