@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import ProposalEditor from "@/components/ProposalEditor";
 import WhatsAppConversation from "@/components/WhatsAppConversation";
+import CRMAnalytics from "@/components/CRMAnalytics";
 
 type CRMStatus =
   | "new"
@@ -1240,6 +1241,8 @@ export default function AdminCRM() {
           <span>Contacts</span><strong>{contactCount}</strong>
         </button>
       </div>
+
+      <CRMAnalytics />
 
       <div className="crm-toolbar">
         <div className="admin-filters crm-filters">
