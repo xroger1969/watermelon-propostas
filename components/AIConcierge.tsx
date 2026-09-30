@@ -119,6 +119,34 @@ function readProposal(): ProposalItem[] {
   }
 }
 
+function comparableText(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[.!?…]+$/g, "")
+    .toLocaleLowerCase();
+}
+
+function buildAssistantText(reply?: string, question?: string) {
+  const replyText = (reply || "").trim();
+  const questionText = (question || "").trim();
+
+  if (!replyText) return questionText;
+  if (!questionText) return replyText;
+
+  const comparableReply = comparableText(replyText);
+  const comparableQuestion = comparableText(questionText);
+
+  if (
+    comparableReply === comparableQuestion ||
+    comparableReply.endsWith(comparableQuestion)
+  ) {
+    return replyText;
+  }
+
+  return replyText + "\n\n" + questionText;
+}
+
 export default function AIConcierge({
   variant = "home",
 }: {
@@ -139,6 +167,8 @@ export default function AIConcierge({
   const [speechError, setSpeechError] = useState("");
   const chatWindowRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const speechDraftRef = useRef("");
+  const sendVoiceOnEndRef = useRef(false);
 
   useEffect(() => {
     const chatWindow = chatWindowRef.current;
@@ -158,6 +188,7 @@ export default function AIConcierge({
     setSpeechSupported(Boolean(getSpeechRecognitionConstructor()));
 
     return () => {
+      sendVoiceOnEndRef.current = false;
       recognitionRef.current?.abort();
       recognitionRef.current = null;
     };
@@ -225,7 +256,7 @@ export default function AIConcierge({
         );
       }
 
-      const assistantText = [data.reply, data.question].filter(Boolean).join("\n\n");
+      const assistantText = buildAssistantText(data.reply, data.question);
       setMessages((current) => [
         ...current,
         {
@@ -252,6 +283,7 @@ export default function AIConcierge({
     if (loading) return;
 
     if (isListening) {
+      sendVoiceOnEndRef.current = true;
       recognitionRef.current?.stop();
       return;
     }
@@ -265,6 +297,8 @@ export default function AIConcierge({
 
     const recognition = new SpeechRecognition();
     const initialInput = input.trim();
+    speechDraftRef.current = initialInput;
+    sendVoiceOnEndRef.current = false;
 
     recognition.continuous = true;
     recognition.interimResults = true;
@@ -282,7 +316,9 @@ export default function AIConcierge({
         ? initialInput + (spokenText ? " " + spokenText : "")
         : spokenText;
 
-      setInput(combined.slice(0, 1200));
+      const nextInput = combined.slice(0, 1200);
+      speechDraftRef.current = nextInput;
+      setInput(nextInput);
     };
 
     recognition.onerror = (event) => {
@@ -295,13 +331,24 @@ export default function AIConcierge({
             ? "I did not hear anything. Tap the microphone and try again."
             : "Voice input could not start. Please try again or type your message.";
 
+      sendVoiceOnEndRef.current = false;
       setSpeechError(message);
       setIsListening(false);
     };
 
     recognition.onend = () => {
+      const shouldSend = sendVoiceOnEndRef.current;
+      const voiceMessage = speechDraftRef.current.trim();
+
+      sendVoiceOnEndRef.current = false;
       setIsListening(false);
       recognitionRef.current = null;
+
+      if (shouldSend && voiceMessage) {
+        window.setTimeout(() => {
+          void askConcierge(voiceMessage);
+        }, 0);
+      }
     };
 
     try {
