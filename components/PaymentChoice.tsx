@@ -53,6 +53,26 @@ function dateLabel(value: string | null) {
   }).format(date);
 }
 
+function paypalReceiveLink(
+  baseLink: string | null,
+  amount: number | null,
+  currency: string
+) {
+  if (!baseLink) return null;
+  if (amount === null || !/paypal\.me\//i.test(baseLink)) return baseLink;
+
+  try {
+    const url = new URL(baseLink);
+    const cleanPath = url.pathname.replace(/\/+$/, "").replace(/\/\d+(?:\.\d+)?[A-Z]{3}$/i, "");
+    const amountText = Number(amount).toFixed(2).replace(/\.00$/, "");
+    url.pathname = cleanPath + "/" + amountText + String(currency || "EUR").toUpperCase();
+    url.search = "";
+    return url.toString();
+  } catch {
+    return baseLink;
+  }
+}
+
 export default function PaymentChoice({
   reference,
   token,
@@ -161,6 +181,11 @@ export default function PaymentChoice({
   }
 
   const alreadyPaid = payment.payment_status === "paid";
+  const paypalPayLink = paypalReceiveLink(
+    payment.paypal_link,
+    payment.estimated_total,
+    payment.currency
+  );
 
   return (
     <main className="payment-page-shell">
@@ -207,18 +232,20 @@ export default function PaymentChoice({
 
         {!alreadyPaid && (
           <div className="payment-methods">
-            {payment.paypal_link && (
+            {paypalPayLink && (
               <article className="payment-method-card">
                 <div className="payment-method-title">
                   <div className="payment-method-mark paypal">P</div>
                   <div>
                     <h2>PayPal</h2>
-                    <p>Pay securely using your PayPal account or available PayPal payment options.</p>
+                    <p>
+                      Pay Watermelon Experiences directly. The exact amount is pre-filled when PayPal.Me supports it.
+                    </p>
                   </div>
                 </div>
                 <a
                   className="button button-primary wide"
-                  href={payment.paypal_link}
+                  href={paypalPayLink}
                   target="_blank"
                   rel="noreferrer"
                   onClick={() => void recordMethod("paypal")}
@@ -234,7 +261,9 @@ export default function PaymentChoice({
                   <div className="payment-method-mark revolut">R</div>
                   <div>
                     <h2>Revolut</h2>
-                    <p>Open Revolut and complete the payment using the amount shown above.</p>
+                    <p>
+                      This is Watermelon Experiences' receive-money link. Open Revolut and pay exactly {money(payment.estimated_total, payment.currency)}.
+                    </p>
                   </div>
                 </div>
                 <a
@@ -244,7 +273,7 @@ export default function PaymentChoice({
                   rel="noreferrer"
                   onClick={() => void recordMethod("revolut")}
                 >
-                  Pay with Revolut
+                  Pay Watermelon with Revolut
                 </a>
               </article>
             )}
