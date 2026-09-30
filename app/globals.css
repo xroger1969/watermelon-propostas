@@ -2323,6 +2323,126 @@ button { cursor: pointer; }
 .crm-notes-panel strong {
   margin-right: 4px;
 }
+.crm-ai-brief {
+  display: grid;
+  gap: 12px;
+  padding: 15px;
+  border: 1px solid #cfe4d8;
+  border-radius: 15px;
+  background: #f6fbf8;
+}
+.crm-ai-brief-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.crm-ai-brief-heading > div {
+  display: grid;
+  gap: 2px;
+}
+.crm-ai-brief-heading span,
+.crm-ai-brief-primary > span,
+.crm-ai-brief-grid span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.crm-ai-brief-heading h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1.2;
+}
+.crm-ai-brief-heading > strong {
+  flex: none;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: var(--mint);
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 850;
+}
+.crm-ai-brief-primary {
+  display: grid;
+  gap: 4px;
+  padding: 13px 14px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.crm-ai-brief-primary > strong {
+  color: var(--ink);
+  font-size: 15px;
+}
+.crm-ai-brief-primary p {
+  margin: 0;
+  color: #415249;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.crm-ai-brief-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+.crm-ai-brief-grid > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 11px;
+  border-radius: 11px;
+  background: #edf7f1;
+}
+.crm-ai-brief-grid strong {
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.crm-ai-brief-extra {
+  padding-top: 2px;
+}
+.crm-ai-brief-extra p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.crm-ai-brief-extra strong {
+  color: var(--ink);
+}
+.crm-ai-conversation-details {
+  border-top: 1px solid #dbe8df;
+  padding-top: 9px;
+}
+.crm-ai-conversation-details summary {
+  cursor: pointer;
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 850;
+}
+.crm-ai-conversation-details p {
+  margin: 9px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.crm-ai-conversation-details p + p {
+  margin-top: 7px;
+}
+@media (max-width: 650px) {
+  .crm-ai-brief-heading {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .crm-ai-brief-grid {
+    grid-template-columns: 1fr;
+  }
+}
 .crm-activity {
   border-top: 1px solid var(--line);
   padding-top: 12px;
