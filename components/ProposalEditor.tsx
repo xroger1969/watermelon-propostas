@@ -542,6 +542,74 @@ export default function ProposalEditor({
     }
   }
 
+  async function sendPaymentLinkFromCRM() {
+    if (
+      !latest ||
+      latest.status !== "accepted" ||
+      latest.payment_status === "paid" ||
+      !latest.payment_token ||
+      sending
+    ) {
+      return;
+    }
+
+    const paymentLink =
+      window.location.origin +
+      "/payment/" +
+      encodeURIComponent(request.reference) +
+      "?token=" +
+      encodeURIComponent(latest.payment_token);
+
+    const text = [
+      "Hello " + (request.contact?.name || "") + ",",
+      "",
+      "Your Watermelon Experiences payment link is ready.",
+      "Reference: " + request.reference,
+      "Amount: " + money(Number(latest.total), request.currency),
+      "",
+      "Pay securely here:",
+      paymentLink,
+      "",
+      "You can choose PayPal, Revolut or bank transfer.",
+      "",
+      "Watermelon Experiences",
+    ].join("\n");
+
+    setSending(true);
+    setFeedback("");
+
+    try {
+      const delivery = await sendViaCRM(text);
+      setFeedback(
+        delivery.mode === "template"
+          ? "The WhatsApp 24-hour window is closed. The CRM sent the approved Watermelon template first and will send the secure payment link automatically when the customer replies."
+          : "Secure payment link submitted from the CRM to WhatsApp."
+      );
+
+      await supabase.from("watermelon_activities").insert({
+        request_id: request.id,
+        contact_id: request.contact?.id || null,
+        activity_type: "payment_link_sent",
+        summary: "Secure payment link submitted from CRM",
+        metadata: {
+          proposal_id: latest.id,
+          payment_link: paymentLink,
+          mode: delivery.mode || "text",
+        },
+      });
+
+      await onChanged();
+    } catch (error) {
+      setFeedback(
+        error instanceof Error
+          ? error.message
+          : "The payment link could not be submitted from the CRM."
+      );
+    } finally {
+      setSending(false);
+    }
+  }
+
   async function markLatestPaid() {
     if (!latest || latest.status !== "accepted" || latest.payment_status === "paid") return;
 
@@ -658,14 +726,26 @@ export default function ProposalEditor({
                 </span>
               </div>
               {latest.payment_status !== "paid" && (
-                <button
-                  className="button button-primary"
-                  type="button"
-                  disabled={sending}
-                  onClick={() => void markLatestPaid()}
-                >
-                  Mark payment received
-                </button>
+                <div className="crm-proposal-payment-actions">
+                  {latest.payment_token && (
+                    <button
+                      className="button button-outline"
+                      type="button"
+                      disabled={sending}
+                      onClick={() => void sendPaymentLinkFromCRM()}
+                    >
+                      {sending ? "Sending…" : "Send payment link from CRM"}
+                    </button>
+                  )}
+                  <button
+                    className="button button-primary"
+                    type="button"
+                    disabled={sending}
+                    onClick={() => void markLatestPaid()}
+                  >
+                    Mark payment received
+                  </button>
+                </div>
               )}
             </div>
           )}
