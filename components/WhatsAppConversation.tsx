@@ -167,6 +167,9 @@ export default function WhatsAppConversation({
         hint?: string;
         code?: number | string | null;
         subcode?: number | string | null;
+        mode?: "text" | "template";
+        template_name?: string | null;
+        customer_service_window_open?: boolean;
       };
 
       if (!response.ok || !data.ok) {
@@ -186,8 +189,16 @@ export default function WhatsAppConversation({
         );
       }
 
-      setDraft("");
-      setFeedback("Message sent from the CRM.");
+      if (data.mode === "template") {
+        setFeedback(
+          "The 24-hour WhatsApp service window is closed. An approved template was submitted to the customer instead. Your message has been kept here so you can send it as soon as the customer replies."
+        );
+      } else {
+        setDraft("");
+        setFeedback(
+          "Message submitted to WhatsApp. Delivery/read confirmation will update automatically in the CRM."
+        );
+      }
       await onChanged();
     } catch (error) {
       setFeedback(
@@ -255,7 +266,8 @@ export default function WhatsAppConversation({
         {feedback && (
           <p
             className={
-              feedback.toLowerCase().includes("sent from")
+              feedback.toLowerCase().includes("submitted") ||
+              feedback.toLowerCase().includes("approved template")
                 ? "crm-proposal-feedback"
                 : "admin-error"
             }
@@ -285,7 +297,7 @@ export default function WhatsAppConversation({
         </div>
 
         <p className="crm-whatsapp-window-note">
-          Meta allows free-form Cloud API replies during the customer-service conversation window. If Meta blocks a CRM send outside that window, use an approved template or the WhatsApp fallback.
+          CRM replies use free-form WhatsApp messages during the 24-hour customer-service window. If that window is closed, the CRM automatically sends an approved Watermelon template first and keeps your reply ready until the customer answers.
         </p>
       </div>
     </section>
