@@ -1163,7 +1163,7 @@ export default function AdminCRM() {
         </div>
       </div>
 
-      {!pushEnabled && (
+      {!pushEnabled && pushSupported && (
         <div className="crm-alert-setup">
           <div>
             <strong>CRM alerts are off on this device</strong>
