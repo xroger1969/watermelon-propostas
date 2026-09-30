@@ -4,9 +4,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import styles from "./CRMAnalytics.module.css";
 
+type PeriodStats = {
+  views: number;
+  visitors: number;
+  leads: number;
+  sessions?: number;
+  conversionRate?: number;
+};
+
 type AnalyticsSummary = {
-  today: { views: number; visitors: number; leads: number };
-  last7: { views: number; visitors: number; sessions: number; leads: number };
+  today: PeriodStats;
+  yesterday: PeriodStats;
+  last7: PeriodStats;
+  previous7: PeriodStats;
   last30: {
     views: number;
     visitors: number;
@@ -22,6 +32,48 @@ type AnalyticsSummary = {
 
 function compact(value: number) {
   return new Intl.NumberFormat("en-GB", { notation: "compact" }).format(value || 0);
+}
+
+function trend(current: number, previous: number) {
+  if (previous <= 0) {
+    if (current <= 0) return { label: "No change", direction: "neutral" as const };
+    return { label: "New activity", direction: "up" as const };
+  }
+
+  const percent = ((current - previous) / previous) * 100;
+  if (Math.abs(percent) < 0.5) {
+    return { label: "0%", direction: "neutral" as const };
+  }
+
+  return {
+    label: `${percent > 0 ? "↑" : "↓"} ${Math.abs(percent).toFixed(0)}%`,
+    direction: percent > 0 ? ("up" as const) : ("down" as const),
+  };
+}
+
+function Trend({
+  current,
+  previous,
+  comparison,
+}: {
+  current: number;
+  previous: number;
+  comparison: string;
+}) {
+  const result = trend(current, previous);
+  const className =
+    result.direction === "up"
+      ? styles.trendUp
+      : result.direction === "down"
+        ? styles.trendDown
+        : styles.trendNeutral;
+
+  return (
+    <small className={`${styles.trend} ${className}`}>
+      <strong>{result.label}</strong>
+      <span>{comparison}</span>
+    </small>
+  );
 }
 
 function countryLabel(code: string) {
@@ -101,11 +153,21 @@ export default function CRMAnalytics() {
               <span>Page views today</span>
               <strong>{compact(summary.today.views)}</strong>
               <small>{compact(summary.today.visitors)} unique visitors</small>
+              <Trend
+                current={summary.today.views}
+                previous={summary.yesterday.views}
+                comparison="vs yesterday at the same time"
+              />
             </article>
             <article>
               <span>Visitors · 7 days</span>
               <strong>{compact(summary.last7.visitors)}</strong>
-              <small>{compact(summary.last7.sessions)} sessions</small>
+              <small>{compact(summary.last7.sessions || 0)} sessions</small>
+              <Trend
+                current={summary.last7.visitors}
+                previous={summary.previous7.visitors}
+                comparison="vs previous 7 days"
+              />
             </article>
             <article>
               <span>Visitors · 30 days</span>
@@ -116,11 +178,21 @@ export default function CRMAnalytics() {
               <span>Leads · 30 days</span>
               <strong>{compact(summary.last30.leads)}</strong>
               <small>Proposal, booking or AI lead</small>
+              <Trend
+                current={summary.last7.leads}
+                previous={summary.previous7.leads}
+                comparison="7 days vs previous 7 days"
+              />
             </article>
             <article>
               <span>Conversion · 30 days</span>
               <strong>{Number(summary.last30.conversionRate || 0).toFixed(1)}%</strong>
               <small>Leads ÷ unique visitors</small>
+              <Trend
+                current={Number(summary.last7.conversionRate || 0)}
+                previous={Number(summary.previous7.conversionRate || 0)}
+                comparison="7-day conversion vs prior period"
+              />
             </article>
           </div>
 
