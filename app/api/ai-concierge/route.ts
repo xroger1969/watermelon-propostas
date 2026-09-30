@@ -251,6 +251,7 @@ QUOTE / CRM HANDOFF
 - Email is optional.
 - If any minimum detail is missing, set ready_to_create=false and ask ONE concise question for the missing detail(s). You may ask for name and phone together.
 - If all minimum details are present and the traveller has explicitly asked for a quote, set ready_to_create=true.
+- quote_request.notes is the internal commercial brief for Watermelon. Keep it concise (maximum 2 short sentences) and include only useful proposal details such as group composition, child ages, preferences or constraints. Do not repeat the conversation transcript.
 - selected_codes must contain only current WATERMELON CATALOGUE codes that the traveller wants quoted.
 - tailor_made_titles must contain only tailor-made concepts from this conversation that the traveller wants reviewed.
 - If a relative or natural-language date is unambiguous from the conversation, normalize it to YYYY-MM-DD. Otherwise leave requested_date empty and ask for clarification.
@@ -673,7 +674,7 @@ export async function POST(request: NextRequest) {
           [
             "AI Concierge automatic CRM handoff.",
             "Intent: " + cleanText(plan.intent_summary, 700),
-            quote.notes ? "Quote notes: " + cleanText(quote.notes, 1200) : "",
+            quote.notes ? "Quote notes: " + cleanText(quote.notes, 700) : "",
             "Conversation context:",
             transcript,
           ]
