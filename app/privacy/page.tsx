@@ -12,7 +12,7 @@ export default function PrivacyPolicyPage() {
       <article className="legal-card">
         <p className="eyebrow dark">WATERMELON EXPERIENCES</p>
         <h1>Privacy Policy</h1>
-        <p className="legal-updated">Last updated: 29 September 2026</p>
+        <p className="legal-updated">Last updated: 30 September 2026</p>
 
         <section>
           <h2>1. Who we are</h2>
@@ -83,6 +83,14 @@ export default function PrivacyPolicyPage() {
             advertising personalization. If you do not grant permission, Google
             tags may still send limited cookieless measurement signals in
             accordance with Google Consent Mode.
+          </p>
+          <p>
+            If you allow Analytics, Watermelon also uses first-party measurement
+            to count page views, sessions, approximate country, traffic source
+            and successful proposal, booking or AI lead events. This measurement
+            uses randomly generated visitor and session identifiers. We do not
+            store your IP address in this analytics database, and first-party
+            analytics events are automatically removed after 13 months.
           </p>
           <p>
             You can change your choice at any time by using the Cookie settings
