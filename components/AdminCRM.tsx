@@ -191,6 +191,29 @@ function dateTime(value: string) {
   }).format(date);
 }
 
+function extractAiNote(notes: string | null, labels: string[]) {
+  if (!notes) return "";
+
+  for (const label of labels) {
+    const marker = label + ":";
+    const start = notes.toLowerCase().indexOf(marker.toLowerCase());
+    if (start < 0) continue;
+
+    const after = notes.slice(start + marker.length).trimStart();
+    const line = after.split("\n")[0]?.trim() || "";
+    if (line) return line;
+  }
+
+  return "";
+}
+
+function cleanAiSpecialRequest(value: string | null | undefined) {
+  return (value || "")
+    .replace(/^AI Concierge:\s*/i, "")
+    .replace(/^AI tailor-made concept:\s*/i, "")
+    .trim();
+}
+
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -1408,6 +1431,13 @@ export default function AdminCRM() {
         {filtered.map((request) => {
           const busy = editing === request.id;
           const first = request.items[0];
+          const aiRequest = request.source === "ai_concierge";
+          const aiCustomerSummary = extractAiNote(request.customer_notes, [
+            "Quote notes",
+            "Customer details",
+          ]);
+          const aiIntent = extractAiNote(request.customer_notes, ["Intent"]);
+          const aiRequestedPlan = cleanAiSpecialRequest(first?.special_request);
 
           return (
             <article className="crm-request-card" key={request.id}>
@@ -1455,22 +1485,82 @@ export default function AdminCRM() {
                   ))}
                 </section>
 
-                {(request.customer_notes ||
-                  first?.pickup_location ||
-                  first?.special_request ||
-                  first?.children_ages ||
-                  first?.dietary ||
-                  first?.accessibility ||
-                  first?.occasion) && (
-                  <section className="crm-notes-panel">
-                    {request.customer_notes && <p><strong>General notes:</strong> {request.customer_notes}</p>}
-                    {first?.pickup_location && <p><strong>Pickup:</strong> {first.pickup_location}</p>}
-                    {first?.special_request && <p><strong>Special request:</strong> {first.special_request}</p>}
-                    {first?.children_ages && <p><strong>Children:</strong> {first.children_ages}</p>}
-                    {first?.dietary && <p><strong>Dietary:</strong> {first.dietary}</p>}
-                    {first?.accessibility && <p><strong>Accessibility:</strong> {first.accessibility}</p>}
-                    {first?.occasion && <p><strong>Occasion:</strong> {first.occasion}</p>}
+                {aiRequest ? (
+                  <section className="crm-ai-brief">
+                    <div className="crm-ai-brief-heading">
+                      <div>
+                        <span>AI REQUEST SUMMARY</span>
+                        <h3>What needs to be prepared</h3>
+                      </div>
+                      <strong>Personalized proposal</strong>
+                    </div>
+
+                    <div className="crm-ai-brief-primary">
+                      <span>REQUEST</span>
+                      <strong>{first?.experience_title || "Tailor-made proposal"}</strong>
+                      {aiRequestedPlan && <p>{aiRequestedPlan}</p>}
+                    </div>
+
+                    <div className="crm-ai-brief-grid">
+                      <div>
+                        <span>Date</span>
+                        <strong>{shortDate(first?.requested_date || null)}</strong>
+                      </div>
+                      <div>
+                        <span>Group</span>
+                        <strong>
+                          {aiCustomerSummary ||
+                            (first
+                              ? first.guests + " guest" + (first.guests === 1 ? "" : "s")
+                              : "Not specified")}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Action</span>
+                        <strong>Prepare and send proposal</strong>
+                      </div>
+                    </div>
+
+                    {(first?.pickup_location ||
+                      first?.children_ages ||
+                      first?.dietary ||
+                      first?.accessibility ||
+                      first?.occasion) && (
+                      <div className="crm-ai-brief-extra">
+                        {first?.pickup_location && <p><strong>Pickup:</strong> {first.pickup_location}</p>}
+                        {first?.children_ages && <p><strong>Children:</strong> {first.children_ages}</p>}
+                        {first?.dietary && <p><strong>Dietary:</strong> {first.dietary}</p>}
+                        {first?.accessibility && <p><strong>Accessibility:</strong> {first.accessibility}</p>}
+                        {first?.occasion && <p><strong>Occasion:</strong> {first.occasion}</p>}
+                      </div>
+                    )}
+
+                    {(request.customer_notes || aiIntent) && (
+                      <details className="crm-ai-conversation-details">
+                        <summary>Conversation details</summary>
+                        {aiIntent && <p><strong>Intent:</strong> {aiIntent}</p>}
+                        {request.customer_notes && <p>{request.customer_notes}</p>}
+                      </details>
+                    )}
                   </section>
+                ) : (
+                  (request.customer_notes ||
+                    first?.pickup_location ||
+                    first?.special_request ||
+                    first?.children_ages ||
+                    first?.dietary ||
+                    first?.accessibility ||
+                    first?.occasion) && (
+                    <section className="crm-notes-panel">
+                      {request.customer_notes && <p><strong>General notes:</strong> {request.customer_notes}</p>}
+                      {first?.pickup_location && <p><strong>Pickup:</strong> {first.pickup_location}</p>}
+                      {first?.special_request && <p><strong>Special request:</strong> {first.special_request}</p>}
+                      {first?.children_ages && <p><strong>Children:</strong> {first.children_ages}</p>}
+                      {first?.dietary && <p><strong>Dietary:</strong> {first.dietary}</p>}
+                      {first?.accessibility && <p><strong>Accessibility:</strong> {first.accessibility}</p>}
+                      {first?.occasion && <p><strong>Occasion:</strong> {first.occasion}</p>}
+                    </section>
+                  )
                 )}
 
                 {request.kind === "personalized_proposal" && (
