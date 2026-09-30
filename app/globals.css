@@ -4577,3 +4577,19 @@ button { cursor: pointer; }
   font-size: 11px;
   line-height: 1.5;
 }
+
+.crm-proposal-payment-actions {
+  display: flex !important;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px !important;
+}
+@media (max-width: 650px) {
+  .crm-proposal-payment-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+  .crm-proposal-payment-actions .button {
+    width: 100%;
+  }
+}
