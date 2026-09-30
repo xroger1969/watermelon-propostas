@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { SUPABASE_BOOKING_URL } from "@/lib/supabase/config";
 
 type RequestItem = {
   id: string;
@@ -170,6 +171,48 @@ export default function ProposalEditor({
     dirty.current = true;
     setHasChanges(true);
     setFeedback("");
+  }
+
+  async function sendViaCRM(text: string) {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+
+    if (!accessToken) {
+      throw new Error("Your private-area session has expired. Please sign in again.");
+    }
+
+    const response = await fetch(
+      SUPABASE_BOOKING_URL + "/functions/v1/watermelon-whatsapp-send-v2",
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + accessToken,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          request_id: request.id,
+          text,
+          purpose: "proposal",
+        }),
+      }
+    );
+
+    const data = (await response.json().catch(() => ({}))) as {
+      ok?: boolean;
+      error?: string;
+      hint?: string;
+      mode?: "text" | "template";
+      template_name?: string | null;
+    };
+
+    if (!response.ok || !data.ok) {
+      throw new Error(
+        [data.error, data.hint].filter(Boolean).join(" ") ||
+          "WhatsApp could not submit the proposal."
+      );
+    }
+
+    return data;
   }
 
   useEffect(() => {
@@ -380,19 +423,40 @@ export default function ProposalEditor({
       "Watermelon Experiences",
     ].filter(Boolean);
 
-    await onChanged();
-    setFeedback("Proposal v" + row.version + " prepared.");
-
-    if (phone) {
-      window.location.href =
-        "https://wa.me/" + phone + "?text=" + encodeURIComponent(lines.join("\n"));
-    } else {
+    if (!phone) {
       try {
         await navigator.clipboard.writeText(link);
         setFeedback("Proposal link copied. This contact has no phone number.");
       } catch {
         setFeedback("Proposal prepared. This contact has no phone number.");
       }
+      await onChanged();
+      setSending(false);
+      return;
+    }
+
+    try {
+      const delivery = await sendViaCRM(lines.join("\n"));
+      if (delivery.mode === "template") {
+        setFeedback(
+          "Proposal v" +
+            row.version +
+            " is ready. The 24-hour WhatsApp window is closed, so the CRM sent an approved Watermelon template first. The full proposal will be sent automatically from the CRM as soon as the customer replies."
+        );
+      } else {
+        setFeedback(
+          "Proposal v" +
+            row.version +
+            " submitted from the CRM to WhatsApp. Delivery/read status will update automatically in the conversation."
+        );
+      }
+      await onChanged();
+    } catch (error) {
+      setFeedback(
+        error instanceof Error
+          ? error.message
+          : "The proposal could not be submitted from the CRM."
+      );
     }
 
     setSending(false);
@@ -414,7 +478,7 @@ export default function ProposalEditor({
   }
 
   async function resendLatestProposal() {
-    if (!latest || latest.status === "draft") return;
+    if (!latest || latest.status === "draft" || sending) return;
 
     const phone = (request.contact?.phone || "").replace(/[^0-9]/g, "");
     const link = proposalLink(latest.public_token);
@@ -433,11 +497,14 @@ export default function ProposalEditor({
       "Watermelon Experiences",
     ].filter(Boolean);
 
+    setSending(true);
+    setFeedback("");
+
     await supabase.from("watermelon_activities").insert({
       request_id: request.id,
       contact_id: request.contact?.id || null,
       activity_type: "proposal_resent",
-      summary: "Proposal v" + latest.version + " reopened for WhatsApp",
+      summary: "Proposal v" + latest.version + " queued for CRM WhatsApp delivery",
       metadata: {
         proposal_id: latest.id,
         version: latest.version,
@@ -445,17 +512,33 @@ export default function ProposalEditor({
       },
     });
 
-    if (phone) {
-      window.location.href =
-        "https://wa.me/" + phone + "?text=" + encodeURIComponent(lines.join("\n"));
+    if (!phone) {
+      try {
+        await navigator.clipboard.writeText(link);
+        setFeedback("Proposal link copied. This contact has no phone number.");
+      } catch {
+        setFeedback("Proposal link ready, but this contact has no phone number.");
+      }
+      setSending(false);
       return;
     }
 
     try {
-      await navigator.clipboard.writeText(link);
-      setFeedback("Proposal link copied. This contact has no phone number.");
-    } catch {
-      setFeedback("Proposal link ready, but this contact has no phone number.");
+      const delivery = await sendViaCRM(lines.join("\n"));
+      setFeedback(
+        delivery.mode === "template"
+          ? "The WhatsApp 24-hour window is closed. The CRM sent the approved Watermelon template and will resend the proposal automatically when the customer replies."
+          : "Proposal resubmitted from the CRM to WhatsApp."
+      );
+      await onChanged();
+    } catch (error) {
+      setFeedback(
+        error instanceof Error
+          ? error.message
+          : "The proposal could not be resubmitted from the CRM."
+      );
+    } finally {
+      setSending(false);
     }
   }
 
@@ -537,7 +620,7 @@ export default function ProposalEditor({
                   type="button"
                   onClick={() => void resendLatestProposal()}
                 >
-                  Resend current proposal
+                  {sending ? "Sending…" : "Resend proposal from CRM"}
                 </button>
               )}
               {latest.status === "accepted" &&
@@ -774,9 +857,12 @@ export default function ProposalEditor({
               disabled={saving || sending || !items.length}
               onClick={() => void sendProposal()}
             >
-              {sending ? "Preparing proposal…" : "Send proposal on WhatsApp"}
+              {sending ? "Sending from CRM…" : "Send proposal from CRM"}
             </button>
           </div>
+          <p className="crm-proposal-send-note">
+            Proposal delivery stays inside the CRM. If the WhatsApp 24-hour service window is closed, the CRM sends an approved template first and automatically sends the proposal after the customer replies.
+          </p>
             </>
           )}
 
