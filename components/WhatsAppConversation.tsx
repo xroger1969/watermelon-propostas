@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { SUPABASE_BOOKING_URL } from "@/lib/supabase/config";
 
@@ -77,6 +77,7 @@ export default function WhatsAppConversation({
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const messagesViewportRef = useRef<HTMLDivElement | null>(null);
 
   const messages = useMemo(
     () =>
@@ -89,6 +90,22 @@ export default function WhatsAppConversation({
         .slice(-30),
     [request.messages]
   );
+
+  const newestMessageId = messages[messages.length - 1]?.id || "";
+
+  useEffect(() => {
+    const viewport = messagesViewportRef.current;
+    if (!viewport) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      viewport.scrollTo({
+        top: viewport.scrollHeight,
+        behavior: "smooth",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [request.id, newestMessageId]);
 
   function fullFirstMessage() {
     const lines: string[] = [
@@ -224,7 +241,7 @@ export default function WhatsAppConversation({
       </div>
 
       {messages.length > 0 && (
-        <div className="crm-whatsapp-messages">
+        <div className="crm-whatsapp-messages" ref={messagesViewportRef}>
           {messages.map((message) => (
             <div
               className={
