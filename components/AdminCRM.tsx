@@ -1154,6 +1154,9 @@ export default function AdminCRM() {
           </p>
         </div>
         <div className="admin-topbar-actions">
+          <a className="button button-ghost" href="/">
+            Back to website
+          </a>
           <a className="button button-ghost" href="/admin/whatsapp">
             WhatsApp CRM
           </a>
