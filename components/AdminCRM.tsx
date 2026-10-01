@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import ProposalEditor from "@/components/ProposalEditor";
 import WhatsAppConversation from "@/components/WhatsAppConversation";
@@ -243,6 +243,8 @@ export default function AdminCRM() {
   const [pushPermission, setPushPermission] = useState<
     NotificationPermission | "unsupported"
   >("default");
+  const loadSequenceRef = useRef(0);
+  const latestMessageIdRef = useRef("");
 
   const supabase = useMemo(() => {
     try {
@@ -254,6 +256,7 @@ export default function AdminCRM() {
 
   const loadCRM = useCallback(async () => {
     if (!supabase) return;
+    const loadSequence = ++loadSequenceRef.current;
     setLoading(true);
 
     const [{ data, error }, contactsResult] = await Promise.all([
@@ -300,8 +303,21 @@ export default function AdminCRM() {
             new Date(b.whatsapp_timestamp || b.created_at).getTime()
         ),
       }));
+      if (loadSequence !== loadSequenceRef.current) return;
+
+      const newestMessage = normalized
+        .flatMap((request) => request.messages || [])
+        .sort(
+          (a, b) =>
+            new Date(b.whatsapp_timestamp || b.created_at).getTime() -
+            new Date(a.whatsapp_timestamp || a.created_at).getTime()
+        )[0];
+      if (newestMessage?.id) latestMessageIdRef.current = newestMessage.id;
+
       setRequests(normalized);
     }
+
+    if (loadSequence !== loadSequenceRef.current) return;
 
     if (!contactsResult.error) {
       setContacts((contactsResult.data || []) as CRMContact[]);
@@ -338,12 +354,52 @@ export default function AdminCRM() {
     if (!supabase || !signedIn) return;
 
     let refreshTimer: number | null = null;
+    let messageSettleTimer: number | null = null;
+    let safetyPollBusy = false;
+
     const scheduleRefresh = () => {
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
       refreshTimer = window.setTimeout(() => {
         refreshTimer = null;
         void loadCRM();
-      }, 180);
+      }, 120);
+    };
+
+    const scheduleMessageRefresh = () => {
+      scheduleRefresh();
+
+      if (messageSettleTimer !== null) {
+        window.clearTimeout(messageSettleTimer);
+      }
+      messageSettleTimer = window.setTimeout(() => {
+        messageSettleTimer = null;
+        void loadCRM();
+      }, 900);
+    };
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") scheduleRefresh();
+    };
+
+    const safetyPoll = async () => {
+      if (document.visibilityState !== "visible" || safetyPollBusy) return;
+      safetyPollBusy = true;
+
+      try {
+        const { data } = await supabase
+          .from("watermelon_messages")
+          .select("id, created_at")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (data?.id && data.id !== latestMessageIdRef.current) {
+          latestMessageIdRef.current = data.id;
+          scheduleMessageRefresh();
+        }
+      } finally {
+        safetyPollBusy = false;
+      }
     };
 
     const channel = supabase
@@ -371,7 +427,7 @@ export default function AdminCRM() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "watermelon_messages" },
-        scheduleRefresh
+        scheduleMessageRefresh
       )
       .on(
         "postgres_changes",
@@ -380,8 +436,19 @@ export default function AdminCRM() {
       )
       .subscribe();
 
+    const safetyPollInterval = window.setInterval(() => {
+      void safetyPoll();
+    }, 2000);
+
+    window.addEventListener("focus", scheduleRefresh);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
     return () => {
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      if (messageSettleTimer !== null) window.clearTimeout(messageSettleTimer);
+      window.clearInterval(safetyPollInterval);
+      window.removeEventListener("focus", scheduleRefresh);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
       void supabase.removeChannel(channel);
     };
   }, [supabase, signedIn, loadCRM]);
