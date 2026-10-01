@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { SUPABASE_BOOKING_URL } from "@/lib/supabase/config";
 import ProposalEditor from "@/components/ProposalEditor";
 import WhatsAppConversation from "@/components/WhatsAppConversation";
 import CRMAnalytics from "@/components/CRMAnalytics";
@@ -160,6 +161,22 @@ const KIND_LABELS = {
   direct_booking: "Direct booking",
   manual: "Manual",
 } as const;
+
+function declineWhatsAppText(request: CRMRequest) {
+  const customerName = request.contact?.name?.trim();
+  const greeting = customerName ? "Hello " + customerName + "," : "Hello,";
+
+  return [
+    greeting,
+    "",
+    "Thank you for your request " + request.reference + ".",
+    "After reviewing it, unfortunately we’re unable to accept it under the terms and conditions submitted.",
+    "If you would like, we’d be happy to consider a revised proposal or an alternative arrangement.",
+    "",
+    "Thank you for your understanding.",
+    "Watermelon Experiences",
+  ].join("\n");
+}
 
 function money(value: number | null, currency = "EUR") {
   if (value === null) return "On request";
@@ -828,8 +845,75 @@ export default function AdminCRM() {
     setEditing(null);
   }
 
+  async function sendDeclineWhatsApp(request: CRMRequest) {
+    if (!supabase) {
+      return "Request declined, but WhatsApp is not available in this session.";
+    }
+
+    if (!request.contact?.phone) {
+      return "Request declined. This customer has no WhatsApp phone number, so no automatic message was sent.";
+    }
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+
+    if (!accessToken) {
+      return "Request declined, but the private-area session expired before the WhatsApp message could be sent.";
+    }
+
+    try {
+      const response = await fetch(
+        SUPABASE_BOOKING_URL + "/functions/v1/watermelon-whatsapp-send-v2",
+        {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + accessToken,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            request_id: request.id,
+            text: declineWhatsAppText(request),
+            purpose: "decline",
+          }),
+        }
+      );
+
+      const data = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        hint?: string;
+        mode?: "text" | "template";
+        code?: number | string | null;
+      };
+
+      if (!response.ok || !data.ok) {
+        return (
+          "Request declined, but the automatic WhatsApp message could not be sent. " +
+          ([data.error, data.hint].filter(Boolean).join(" ") ||
+            "Please send the customer a message manually.")
+        );
+      }
+
+      return data.mode === "template"
+        ? "Request declined. An approved WhatsApp template was sent automatically."
+        : "Request declined. The customer was notified automatically by WhatsApp.";
+    } catch (error) {
+      return (
+        "Request declined, but the automatic WhatsApp message could not be sent. " +
+        (error instanceof Error ? error.message : "Please send the customer a message manually.")
+      );
+    }
+  }
+
   async function changeStatus(request: CRMRequest, status: CRMStatus) {
     if (!supabase || request.status === status) return;
+
+    if (status === "declined") {
+      const confirmed = window.confirm(
+        "Decline this request and automatically notify the customer by WhatsApp?"
+      );
+      if (!confirmed) return;
+    }
 
     setEditing(request.id);
     setMessage("");
@@ -867,7 +951,13 @@ export default function AdminCRM() {
       },
     });
 
+    let statusFeedback = "";
+    if (status === "declined") {
+      statusFeedback = await sendDeclineWhatsApp(request);
+    }
+
     await loadCRM();
+    if (statusFeedback) setMessage(statusFeedback);
     setEditing(null);
   }
 
@@ -1014,7 +1104,9 @@ export default function AdminCRM() {
   async function declineDirectBooking(request: CRMRequest) {
     if (!supabase || request.kind !== "direct_booking") return;
 
-    const confirmed = window.confirm("Decline this booking request?");
+    const confirmed = window.confirm(
+      "Decline this booking request and automatically notify the customer by WhatsApp?"
+    );
     if (!confirmed) return;
 
     setEditing(request.id);
@@ -1030,7 +1122,10 @@ export default function AdminCRM() {
       return;
     }
 
+    const declineFeedback = await sendDeclineWhatsApp(request);
+
     await loadCRM();
+    setMessage(declineFeedback);
     setEditing(null);
   }
 
