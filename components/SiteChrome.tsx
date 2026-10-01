@@ -28,7 +28,6 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
 
         <nav className="main-nav" aria-label="Main navigation">
           <a href="/#experiencias">Experiences</a>
-          <AdminAccessButton />
           <a className="nav-cta" href="/proposta">Request a personalized proposal</a>
         </nav>
       </header>
@@ -46,7 +45,10 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
           </div>
           <p>Private experiences and personalized programs in Portugal.</p>
         </div>
-        <div className="footer-note">Prices and availability subject to confirmation.</div>
+        <div className="footer-note">
+          <span>Prices and availability subject to confirmation.</span>
+          <AdminAccessButton />
+        </div>
       </footer>
     </>
   );
