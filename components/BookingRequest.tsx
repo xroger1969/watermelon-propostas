@@ -231,9 +231,11 @@ export default function BookingRequest() {
             </div>
           </div>
 
+          <p className="required-fields-note"><span aria-hidden="true">*</span> Required fields</p>
+
           <div className="form-grid">
             <label>
-              <span>Date</span>
+              <span>Date <b className="required-mark" aria-hidden="true">*</b></span>
               <input
                 type="date"
                 required
@@ -243,9 +245,10 @@ export default function BookingRequest() {
             </label>
 
             <label>
-              <span>Number of guests</span>
+              <span>Number of guests <b className="required-mark" aria-hidden="true">*</b></span>
               <input
                 type="number"
+                required
                 min="1"
                 step="1"
                 inputMode="numeric"
@@ -329,9 +332,11 @@ export default function BookingRequest() {
             </div>
           </div>
 
+          <p className="required-fields-note"><span aria-hidden="true">*</span> Required fields</p>
+
           <div className="form-grid">
             <label>
-              <span>Name</span>
+              <span>Name <b className="required-mark" aria-hidden="true">*</b></span>
               <input
                 required
                 value={form.name}
@@ -340,7 +345,7 @@ export default function BookingRequest() {
               />
             </label>
             <label>
-              <span>Phone / WhatsApp</span>
+              <span>Phone / WhatsApp <b className="required-mark" aria-hidden="true">*</b></span>
               <input
                 required
                 value={form.phone}
