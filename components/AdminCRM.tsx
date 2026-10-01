@@ -171,7 +171,6 @@ function declineWhatsAppText(request: CRMRequest) {
     "",
     "Thank you for your request " + request.reference + ".",
     "After reviewing it, unfortunately we’re unable to accept it under the terms and conditions submitted.",
-    "If you would like, we’d be happy to consider a revised proposal or an alternative arrangement.",
     "",
     "Thank you for your understanding.",
     "Watermelon Experiences",
