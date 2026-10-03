@@ -28,6 +28,7 @@ type BookingSelection = {
   image: string;
   duration: string;
   location: string;
+  description?: string;
 };
 
 type LivePrice = {
@@ -331,6 +332,7 @@ export default function Catalog() {
       image: product.viator.image,
       duration: product.viator.duration,
       location: product.location,
+      description: product.description || "",
     };
 
     localStorage.setItem(BOOKING_STORAGE_KEY, JSON.stringify(selection));
