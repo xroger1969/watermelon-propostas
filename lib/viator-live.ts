@@ -385,33 +385,85 @@ type ViatorProductImage = {
 };
 
 const inclusionLabels: Record<string, string> = {
-  LUNCH: "Almoço",
-  DINNER: "Jantar",
-  BREAKFAST: "Pequeno-almoço",
+  LUNCH: "Lunch",
+  DINNER: "Dinner",
+  BREAKFAST: "Breakfast",
   SNACKS: "Snacks",
-  BOTTLED_WATER: "Água engarrafada",
-  AIR_CONDITIONED_VEHICLE: "Veículo com ar-condicionado",
-  PRIVATE_TRANSPORTATION: "Transporte privado",
-  WIFI_ON_BOARD: "Wi-Fi a bordo",
-  ALCOHOLIC_BEVERAGES: "Bebidas alcoólicas",
-  COFFEE_AND_OR_TEA: "Café e/ou chá",
-  PROFESSIONAL_GUIDE: "Guia",
-  HOTEL_PICKUP_AND_DROPOFF: "Recolha e regresso ao hotel",
+  BOTTLED_WATER: "Bottled water",
+  AIR_CONDITIONED_VEHICLE: "Air-conditioned vehicle",
+  PRIVATE_TRANSPORTATION: "Private transportation",
+  WIFI_ON_BOARD: "Wi-Fi on board",
+  ALCOHOLIC_BEVERAGES: "Alcoholic beverages",
+  COFFEE_AND_OR_TEA: "Coffee and/or tea",
+  PROFESSIONAL_GUIDE: "Local guide",
+  HOTEL_PICKUP_AND_DROPOFF: "Hotel/port pickup and drop-off",
 };
 
 function cleanFact(item: { description?: string; typeDescription?: string }) {
-  const description = item.description?.trim();
-  if (description && description.toLowerCase() !== "other" && description.toLowerCase() !== "outros") return description;
-  const type = item.typeDescription?.trim();
-  if (!type || type.toLowerCase() === "other" || type.toLowerCase() === "outros") return "";
+  const description = cleanText(item.description);
+  if (description && description.toLowerCase() !== "other") return description;
+  const type = cleanText(item.typeDescription);
+  if (!type || type.toLowerCase() === "other") return "";
   return inclusionLabels[type.toUpperCase()] || type.replaceAll("_", " ").toLowerCase().replace(/^./, (char) => char.toUpperCase());
 }
 
+const languageNames: Record<string, string> = {
+  en: "English",
+  pt: "Portuguese",
+  es: "Spanish",
+  fr: "French",
+  de: "German",
+  it: "Italian",
+  nl: "Dutch",
+};
+
+function languageLabel(code?: string) {
+  const normalized = (code || "").trim().toLowerCase().split("-")[0];
+  if (!normalized) return "";
+  return languageNames[normalized] || normalized.toUpperCase();
+}
+
+type ViatorItineraryItem = {
+  description?: string;
+  title?: string;
+  name?: string;
+  passByWithoutStopping?: boolean;
+  duration?: ViatorCatalogDuration;
+  pointOfInterestLocation?: {
+    location?: { name?: string; address?: string };
+    name?: string;
+    address?: string;
+  };
+  pointsOfInterestLocation?: {
+    location?: { name?: string; address?: string };
+    name?: string;
+    address?: string;
+  };
+};
+
 type ViatorProductResponse = {
   productCode?: string;
+  description?: string;
   images?: ViatorProductImage[];
   inclusions?: Array<{ description?: string; typeDescription?: string }>;
   exclusions?: Array<{ description?: string; typeDescription?: string }>;
+  languageGuides?: Array<{ type?: string; language?: string }>;
+  additionalInfo?: Array<{ type?: string; description?: string }>;
+  cancellationPolicy?: {
+    type?: "STANDARD" | "CUSTOM" | "ALL_SALES_FINAL";
+    description?: string;
+    cancelIfBadWeather?: boolean;
+    cancelIfInsufficientTravelers?: boolean;
+    refundEligibility?: Array<{
+      dayRangeMin?: number;
+      dayRangeMax?: number;
+      percentageRefundable?: number;
+    }>;
+  };
+  itinerary?: {
+    itineraryType?: string;
+    itineraryItems?: ViatorItineraryItem[];
+  };
   logistics?: {
     start?: Array<{ location?: { name?: string; address?: string }; name?: string; address?: string }>;
     travelerPickup?: { pickupOptionType?: string; additionalInfo?: string };
@@ -420,11 +472,27 @@ type ViatorProductResponse = {
 
 export type LiveViatorProduct = {
   code: string;
+  description?: string;
   images: string[];
   inclusions: string[];
   exclusions: string[];
   meetingPoint?: string;
   pickup?: string;
+  languages: string[];
+  cancellation?: {
+    type: "STANDARD" | "CUSTOM" | "ALL_SALES_FINAL";
+    description?: string;
+    freeCancellation: boolean;
+    cancelIfBadWeather: boolean;
+    cancelIfInsufficientTravelers: boolean;
+  };
+  additionalInfo: string[];
+  itinerary: Array<{
+    title: string;
+    description?: string;
+    duration?: string;
+    passByWithoutStopping?: boolean;
+  }>;
 };
 
 export async function getLiveViatorProduct(productCode: string): Promise<LiveViatorProduct | null> {
@@ -435,7 +503,7 @@ export async function getLiveViatorProduct(productCode: string): Promise<LiveVia
     method: "GET",
     headers: {
       "exp-api-key": apiKey,
-      "Accept-Language": "pt-PT",
+      "Accept-Language": "en-GB",
       Accept: "application/json;version=2.0",
     },
     next: { revalidate: 3600 },
@@ -458,8 +526,60 @@ export async function getLiveViatorProduct(productCode: string): Promise<LiveVia
   const inclusions = Array.from(new Set((product.inclusions || []).map(cleanFact).filter(Boolean)));
   const exclusions = Array.from(new Set((product.exclusions || []).map(cleanFact).filter(Boolean)));
   const start = product.logistics?.start?.[0];
-  const meetingPoint = start?.location?.name || start?.name || start?.location?.address || start?.address;
-  const pickup = product.logistics?.travelerPickup?.additionalInfo;
+  const meetingPoint = cleanText(start?.location?.name || start?.name || start?.location?.address || start?.address);
+  const pickup = cleanText(product.logistics?.travelerPickup?.additionalInfo);
+  const languages = Array.from(
+    new Set((product.languageGuides || []).map((guide) => languageLabel(guide.language)).filter(Boolean))
+  );
+  const additionalInfo = Array.from(
+    new Set((product.additionalInfo || []).map((item) => cleanText(item.description)).filter(Boolean))
+  ).slice(0, 6);
 
-  return { code: product.productCode, images: uniqueImages, inclusions, exclusions, meetingPoint, pickup };
+  const cancellation = product.cancellationPolicy?.type
+    ? {
+        type: product.cancellationPolicy.type,
+        description: cleanText(product.cancellationPolicy.description),
+        freeCancellation: (product.cancellationPolicy.refundEligibility || []).some(
+          (rule) => Number(rule.percentageRefundable) === 100 && Number(rule.dayRangeMin || 0) > 0
+        ),
+        cancelIfBadWeather: Boolean(product.cancellationPolicy.cancelIfBadWeather),
+        cancelIfInsufficientTravelers: Boolean(product.cancellationPolicy.cancelIfInsufficientTravelers),
+      }
+    : undefined;
+
+  const itinerary = (product.itinerary?.itineraryItems || [])
+    .map((item) => {
+      const point = item.pointsOfInterestLocation || item.pointOfInterestLocation;
+      const title = cleanText(
+        point?.location?.name ||
+        point?.name ||
+        point?.location?.address ||
+        point?.address ||
+        item.title ||
+        item.name
+      );
+      if (!title) return null;
+      return {
+        title,
+        description: cleanText(item.description) || undefined,
+        duration: formatDuration(item.duration) || undefined,
+        passByWithoutStopping: Boolean(item.passByWithoutStopping),
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    .slice(0, 8);
+
+  return {
+    code: product.productCode,
+    description: cleanText(product.description) || undefined,
+    images: uniqueImages,
+    inclusions,
+    exclusions,
+    meetingPoint: meetingPoint || undefined,
+    pickup: pickup || undefined,
+    languages,
+    cancellation,
+    additionalInfo,
+    itinerary,
+  };
 }
