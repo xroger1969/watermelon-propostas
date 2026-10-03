@@ -13,6 +13,7 @@ declare global {
 
 const CURRENT_GOOGLE_ADS_ID = "AW-18482784763";
 const LEGACY_GOOGLE_ADS_ID = "AW-999129069";
+const CURRENT_LEAD_CONVERSION_LABEL = "jXIgCJKAjI0dEPvTo-1E";
 
 const LEGACY_CONVERSION_LABELS = new Set([
   "Bbb-CClLmMnNoOpPqQ",
@@ -39,7 +40,7 @@ function conversionLabel(type: LeadConversionType) {
     label = process.env.NEXT_PUBLIC_GOOGLE_ADS_AI_LEAD_LABEL?.trim();
   }
 
-  if (!label || LEGACY_CONVERSION_LABELS.has(label)) return "";
+  if (!label || LEGACY_CONVERSION_LABELS.has(label)) return CURRENT_LEAD_CONVERSION_LABEL;
   return label;
 }
 
