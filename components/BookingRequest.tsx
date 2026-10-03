@@ -19,6 +19,7 @@ type BookingSelection = {
   image: string;
   duration: string;
   location: string;
+  description?: string;
 };
 
 type BookingForm = {
@@ -33,6 +34,30 @@ type BookingForm = {
   pickupLocation: string;
   language: string;
   notes: string;
+};
+
+type LiveExperienceDetails = {
+  code?: string;
+  description?: string;
+  inclusions?: string[];
+  exclusions?: string[];
+  meetingPoint?: string;
+  pickup?: string;
+  languages?: string[];
+  cancellation?: {
+    type?: "STANDARD" | "CUSTOM" | "ALL_SALES_FINAL";
+    description?: string;
+    freeCancellation?: boolean;
+    cancelIfBadWeather?: boolean;
+    cancelIfInsufficientTravelers?: boolean;
+  };
+  additionalInfo?: string[];
+  itinerary?: Array<{
+    title: string;
+    description?: string;
+    duration?: string;
+    passByWithoutStopping?: boolean;
+  }>;
 };
 
 const STORAGE_KEY = "watermelon-booking-request";
@@ -58,6 +83,8 @@ function displayDate(value: string) {
 
 export default function BookingRequest() {
   const [selection, setSelection] = useState<BookingSelection | null>(null);
+  const [experienceDetails, setExperienceDetails] = useState<LiveExperienceDetails | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
   const [form, setForm] = useState<BookingForm>({
@@ -88,6 +115,27 @@ export default function BookingRequest() {
       setSelection(null);
     }
   }, []);
+
+  useEffect(() => {
+    if (!selection?.code) return;
+
+    let cancelled = false;
+    setDetailsLoading(true);
+
+    fetch(`/api/viator-product?code=${encodeURIComponent(selection.code)}`, { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (!cancelled && data) setExperienceDetails(data as LiveExperienceDetails);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setDetailsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selection?.code]);
 
   const selectedOption = useMemo(() => {
     if (!selection) return null;
@@ -203,6 +251,10 @@ export default function BookingRequest() {
     );
   }
 
+  const overview = selection.description || experienceDetails?.description || "";
+  const pickupInfo = experienceDetails?.pickup || experienceDetails?.meetingPoint || "";
+  const cancellation = experienceDetails?.cancellation;
+
   return (
     <section className="proposal-shell booking-request-shell">
       <div className="proposal-form">
@@ -220,6 +272,110 @@ export default function BookingRequest() {
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="proposal-block booking-experience-info">
+          <div className="block-title booking-info-heading">
+            <span aria-hidden="true">i</span>
+            <div>
+              <h2>About this experience</h2>
+              <p>Key information is synced automatically from the live experience listing.</p>
+            </div>
+          </div>
+
+          {overview && <p className="booking-overview">{overview}</p>}
+
+          <div className="booking-key-facts">
+            <div className="booking-key-fact">
+              <span>Duration</span>
+              <strong>{selection.duration || "On request"}</strong>
+            </div>
+
+            {experienceDetails?.languages?.length ? (
+              <div className="booking-key-fact">
+                <span>Live guide</span>
+                <strong>{experienceDetails.languages.join(", ")}</strong>
+              </div>
+            ) : null}
+
+            {pickupInfo ? (
+              <div className="booking-key-fact">
+                <span>Pickup / meeting</span>
+                <strong>{pickupInfo}</strong>
+              </div>
+            ) : null}
+
+            <div className="booking-key-fact">
+              <span>Payment</span>
+              <strong>No payment now</strong>
+              <small>Payment is only requested after Watermelon confirms availability.</small>
+            </div>
+          </div>
+
+          {cancellation ? (
+            <div className="booking-cancellation-note">
+              <div>
+                <strong>{cancellation.freeCancellation ? "Free cancellation" : "Cancellation policy"}</strong>
+                {cancellation.description ? <p>{cancellation.description}</p> : null}
+              </div>
+              <small>These terms are synced from the experience listing and are reconfirmed with your direct booking.</small>
+            </div>
+          ) : detailsLoading ? (
+            <p className="booking-live-loading">Loading live practical information…</p>
+          ) : null}
+
+          {(experienceDetails?.inclusions?.length || experienceDetails?.exclusions?.length) ? (
+            <div className="booking-inclusions-grid">
+              {experienceDetails?.inclusions?.length ? (
+                <div>
+                  <h3>Included</h3>
+                  <ul>
+                    {experienceDetails.inclusions.slice(0, 6).map((item, index) => (
+                      <li key={`included-${index}`}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {experienceDetails?.exclusions?.length ? (
+                <div>
+                  <h3>Not included</h3>
+                  <ul>
+                    {experienceDetails.exclusions.slice(0, 5).map((item, index) => (
+                      <li key={`excluded-${index}`}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {experienceDetails?.itinerary?.length ? (
+            <details className="booking-more-info">
+              <summary>What to expect · itinerary</summary>
+              <ol className="booking-itinerary">
+                {experienceDetails.itinerary.slice(0, 6).map((item, index) => (
+                  <li key={`${item.title}-${index}`}>
+                    <strong>{item.title}</strong>
+                    <span>
+                      {[item.duration, item.passByWithoutStopping ? "Pass by" : ""].filter(Boolean).join(" · ")}
+                    </span>
+                    {item.description ? <p>{item.description}</p> : null}
+                  </li>
+                ))}
+              </ol>
+            </details>
+          ) : null}
+
+          {experienceDetails?.additionalInfo?.length ? (
+            <details className="booking-more-info">
+              <summary>Important practical information</summary>
+              <ul className="booking-practical-list">
+                {experienceDetails.additionalInfo.slice(0, 6).map((item, index) => (
+                  <li key={`practical-${index}`}>{item}</li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
         </div>
 
         <div className="proposal-block">
@@ -300,7 +456,7 @@ export default function BookingRequest() {
               <input
                 value={form.pickupLocation}
                 onChange={(event) => setForm({ ...form, pickupLocation: event.target.value })}
-                placeholder="Hotel, address or preferred meeting point"
+                placeholder={pickupInfo || "Hotel, address or preferred meeting point"}
               />
             </label>
 
