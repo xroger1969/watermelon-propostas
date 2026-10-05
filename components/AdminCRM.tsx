@@ -1067,7 +1067,7 @@ export default function AdminCRM() {
       ok?: boolean;
       error?: string;
       hint?: string;
-      mode?: "text" | "template" | "pending";
+      mode?: "text" | "template" | "pending" | "payment_template";
     };
 
     if (!response.ok || !data.ok) {
@@ -1176,6 +1176,9 @@ export default function AdminCRM() {
         } else if (delivery.mode === "pending") {
           feedback =
             "Request accepted. An approved Watermelon template was already sent recently, so no duplicate message was sent. The secure payment link is queued and will be sent automatically as soon as the customer replies.";
+        } else if (delivery.mode === "payment_template") {
+          feedback =
+            "Request accepted and the secure payment link was sent through the approved Watermelon WhatsApp payment template.";
         } else {
           feedback =
             "Request accepted and the secure payment link was sent from the CRM.";
@@ -1185,9 +1188,11 @@ export default function AdminCRM() {
           request_id: request.id,
           contact_id: request.contact?.id || null,
           activity_type:
-            delivery.mode === "text" ? "payment_link_sent" : "payment_link_queued",
+            delivery.mode === "text" || delivery.mode === "payment_template"
+              ? "payment_link_sent"
+              : "payment_link_queued",
           summary:
-            delivery.mode === "text"
+            delivery.mode === "text" || delivery.mode === "payment_template"
               ? "Secure payment link sent from CRM"
               : "Secure payment link queued for WhatsApp after customer reply",
           metadata: {
