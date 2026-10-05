@@ -67,6 +67,8 @@ type CRMActivity = {
 type CRMMessage = {
   id: string;
   created_at: string;
+  request_id: string | null;
+  contact_id: string | null;
   direction: "inbound" | "outbound";
   text_body: string | null;
   message_type: string;
@@ -382,7 +384,7 @@ export default function AdminCRM() {
     const loadSequence = ++loadSequenceRef.current;
     setLoading(true);
 
-    const [{ data, error }, contactsResult] = await Promise.all([
+    const [{ data, error }, contactsResult, messagesResult] = await Promise.all([
       supabase
         .from("watermelon_requests")
         .select(`
@@ -399,6 +401,10 @@ export default function AdminCRM() {
         .from("watermelon_contacts")
         .select("*")
         .order("last_contact_at", { ascending: false }),
+      supabase
+        .from("watermelon_messages")
+        .select("*")
+        .order("whatsapp_timestamp", { ascending: true, nullsFirst: false }),
     ]);
 
     if (error) {
@@ -409,24 +415,37 @@ export default function AdminCRM() {
       );
       setRequests([]);
     } else {
-      const normalized = ((data || []) as CRMRequest[]).map((request) => ({
-        ...request,
-        items: [...(request.items || [])].sort((a, b) => a.position - b.position),
-        activities: [...(request.activities || [])].sort(
-          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        ),
-        proposals: [...(request.proposals || [])]
-          .sort((a, b) => b.version - a.version)
-          .map((proposal) => ({
-            ...proposal,
-            items: [...(proposal.items || [])].sort((a, b) => a.position - b.position),
-          })),
-        messages: [...(request.messages || [])].sort(
-          (a, b) =>
-            new Date(a.whatsapp_timestamp || a.created_at).getTime() -
-            new Date(b.whatsapp_timestamp || b.created_at).getTime()
-        ),
-      }));
+      const allContactMessages = messagesResult.error
+        ? null
+        : ((messagesResult.data || []) as CRMMessage[]);
+
+      const normalized = ((data || []) as CRMRequest[]).map((request) => {
+        const messages =
+          allContactMessages && request.contact?.id
+            ? allContactMessages.filter(
+                (item) => item.contact_id === request.contact?.id
+              )
+            : [...(request.messages || [])];
+
+        return {
+          ...request,
+          items: [...(request.items || [])].sort((a, b) => a.position - b.position),
+          activities: [...(request.activities || [])].sort(
+            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          ),
+          proposals: [...(request.proposals || [])]
+            .sort((a, b) => b.version - a.version)
+            .map((proposal) => ({
+              ...proposal,
+              items: [...(proposal.items || [])].sort((a, b) => a.position - b.position),
+            })),
+          messages: messages.sort(
+            (a, b) =>
+              new Date(a.whatsapp_timestamp || a.created_at).getTime() -
+              new Date(b.whatsapp_timestamp || b.created_at).getTime()
+          ),
+        };
+      });
       if (loadSequence !== loadSequenceRef.current) return;
 
       const newestMessage = normalized
@@ -1048,7 +1067,7 @@ export default function AdminCRM() {
       ok?: boolean;
       error?: string;
       hint?: string;
-      mode?: "text" | "template";
+      mode?: "text" | "template" | "pending";
     };
 
     if (!response.ok || !data.ok) {
@@ -1153,7 +1172,10 @@ export default function AdminCRM() {
           }
         } else if (delivery.mode === "template") {
           feedback =
-            "Request accepted. The CRM sent the approved WhatsApp template and will send the secure payment link when the customer replies.";
+            "Request accepted. WhatsApp's 24-hour service window is closed, so one approved Watermelon template was sent. The secure payment link is queued and will be sent automatically as soon as the customer replies.";
+        } else if (delivery.mode === "pending") {
+          feedback =
+            "Request accepted. An approved Watermelon template was already sent recently, so no duplicate message was sent. The secure payment link is queued and will be sent automatically as soon as the customer replies.";
         } else {
           feedback =
             "Request accepted and the secure payment link was sent from the CRM.";
@@ -1162,8 +1184,12 @@ export default function AdminCRM() {
         await supabase.from("watermelon_activities").insert({
           request_id: request.id,
           contact_id: request.contact?.id || null,
-          activity_type: "payment_link_sent",
-          summary: "Secure payment link submitted from CRM",
+          activity_type:
+            delivery.mode === "text" ? "payment_link_sent" : "payment_link_queued",
+          summary:
+            delivery.mode === "text"
+              ? "Secure payment link sent from CRM"
+              : "Secure payment link queued for WhatsApp after customer reply",
           metadata: {
             proposal_id: payload.proposal_id || null,
             payment_link: paymentUrl,
