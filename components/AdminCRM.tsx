@@ -18,6 +18,9 @@ type CRMStatus =
   | "accepted"
   | "awaiting_payment"
   | "confirmed"
+  | "in_service"
+  | "completed"
+  | "no_show"
   | "declined"
   | "cancelled";
 
@@ -109,6 +112,16 @@ type CRMProposal = {
   items: CRMProposalItem[];
 };
 
+type CRMBooking = {
+  id: string;
+  status: string;
+  payment_status: "not_requested" | "awaiting" | "paid" | "refunded";
+  payment_method: string | null;
+  payment_reference: string | null;
+  paid_at: string | null;
+  confirmed_at: string | null;
+};
+
 type CRMRequest = {
   id: string;
   reference: string;
@@ -123,14 +136,22 @@ type CRMRequest = {
   admin_notes: string | null;
   first_response_at: string | null;
   last_contact_at: string;
+  external_booking_channel: string | null;
+  external_booking_reference: string | null;
+  service_started_at: string | null;
+  completed_at: string | null;
+  no_show_at: string | null;
+  cancelled_at: string | null;
+  review_requested_at: string | null;
   contact: CRMContact | null;
+  booking: CRMBooking | null;
   items: CRMItem[];
   activities: CRMActivity[];
   proposals: CRMProposal[];
   messages: CRMMessage[];
 };
 
-type Filter = "all" | "in_progress" | "contacts" | CRMStatus;
+type Filter = "all" | "in_progress" | "contacts" | "today" | CRMStatus;
 
 const IN_PROGRESS_STATUSES: CRMStatus[] = [
   "in_review",
@@ -152,6 +173,9 @@ const STATUS_LABELS: Record<CRMStatus, string> = {
   accepted: "Accepted",
   awaiting_payment: "Awaiting payment",
   confirmed: "Confirmed",
+  in_service: "In service",
+  completed: "Completed",
+  no_show: "No-show",
   declined: "Declined",
   cancelled: "Cancelled",
 };
@@ -205,6 +229,46 @@ function dateTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function localIsoDate() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Lisbon",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  return [
+    parts.find((part) => part.type === "year")?.value,
+    parts.find((part) => part.type === "month")?.value,
+    parts.find((part) => part.type === "day")?.value,
+  ].join("-");
+}
+
+function bookedDates(request: CRMRequest) {
+  const latestAccepted =
+    request.proposals.find((proposal) => proposal.status === "accepted") ||
+    request.proposals[0] ||
+    null;
+
+  const proposalDates =
+    latestAccepted?.items
+      ?.map((item) => item.proposed_date)
+      .filter((value): value is string => Boolean(value)) || [];
+
+  if (proposalDates.length) return proposalDates;
+
+  return request.items
+    .map((item) => item.requested_date)
+    .filter((value): value is string => Boolean(value));
+}
+
+function paymentStatusForRequest(request: CRMRequest) {
+  if (request.kind === "direct_booking") {
+    return request.booking?.payment_status || "not_requested";
+  }
+  return request.proposals[0]?.payment_status || "not_requested";
 }
 
 function extractAiNote(notes: string | null, labels: string[]) {
@@ -281,6 +345,7 @@ export default function AdminCRM() {
         .select(`
           *,
           contact:watermelon_contacts(*),
+          booking:watermelon_booking_requests!watermelon_requests_linked_booking_id_fkey(*),
           items:watermelon_request_items(*),
           activities:watermelon_activities(*),
           proposals:watermelon_proposals(*, items:watermelon_proposal_items(*)),
@@ -1260,6 +1325,178 @@ export default function AdminCRM() {
     setEditing(null);
   }
 
+  async function saveExternalBookingReference(request: CRMRequest) {
+    if (!supabase) return;
+
+    const channel = window.prompt(
+      "External channel / supplier (optional, e.g. Viator, partner, hotel)",
+      request.external_booking_channel || ""
+    );
+    if (channel === null) return;
+
+    const reference = window.prompt(
+      "External booking reference (leave blank to clear)",
+      request.external_booking_reference || ""
+    );
+    if (reference === null) return;
+
+    setEditing(request.id);
+    setMessage("");
+
+    const { error } = await supabase.rpc("watermelon_set_external_booking_reference", {
+      p_request_id: request.id,
+      p_channel: channel.trim() || null,
+      p_reference: reference.trim() || null,
+    });
+
+    if (error) setMessage(error.message);
+    else {
+      await loadCRM();
+      setMessage(
+        reference.trim()
+          ? "External booking reference saved."
+          : "External booking reference cleared."
+      );
+    }
+    setEditing(null);
+  }
+
+  async function setOperationalStatus(
+    request: CRMRequest,
+    status: "in_service" | "completed" | "no_show"
+  ) {
+    if (!supabase) return;
+
+    const label =
+      status === "in_service"
+        ? "Check in this booking and mark the experience as started?"
+        : status === "completed"
+          ? "Mark this experience as completed?"
+          : "Mark this guest as a no-show?";
+
+    if (!window.confirm(label)) return;
+
+    setEditing(request.id);
+    setMessage("");
+
+    const { error } = await supabase.rpc("watermelon_set_request_operation_status", {
+      p_request_id: request.id,
+      p_status: status,
+    });
+
+    if (error) setMessage(error.message);
+    else {
+      await loadCRM();
+      setMessage(
+        status === "in_service"
+          ? "Check-in recorded."
+          : status === "completed"
+            ? "Experience marked as completed."
+            : "No-show recorded."
+      );
+    }
+    setEditing(null);
+  }
+
+  async function cancelBooking(request: CRMRequest) {
+    if (!supabase) return;
+
+    const reason = window.prompt(
+      "Cancellation reason (optional)",
+      ""
+    );
+    if (reason === null) return;
+
+    if (!window.confirm("Cancel this booking? Payment records will be preserved.")) return;
+
+    setEditing(request.id);
+    setMessage("");
+
+    const { data, error } = await supabase.rpc("watermelon_cancel_request", {
+      p_request_id: request.id,
+      p_reason: reason.trim() || null,
+    });
+
+    if (error) {
+      setMessage(error.message);
+    } else {
+      const payload = data as { refund_required?: boolean } | null;
+      await loadCRM();
+      setMessage(
+        payload?.refund_required
+          ? "Booking cancelled. Payment had already been received — refund review is required."
+          : "Booking cancelled."
+      );
+    }
+    setEditing(null);
+  }
+
+  async function markRefunded(request: CRMRequest) {
+    if (!supabase) return;
+
+    const reference = window.prompt(
+      "Refund reference (optional)",
+      ""
+    );
+    if (reference === null) return;
+
+    if (!window.confirm("Confirm that the refund has actually been completed?")) return;
+
+    setEditing(request.id);
+    setMessage("");
+
+    const { error } = await supabase.rpc("watermelon_mark_request_refunded", {
+      p_request_id: request.id,
+      p_refund_reference: reference.trim() || null,
+    });
+
+    if (error) setMessage(error.message);
+    else {
+      await loadCRM();
+      setMessage("Refund recorded.");
+    }
+    setEditing(null);
+  }
+
+  async function requestTripadvisorReview(request: CRMRequest) {
+    if (!supabase) return;
+
+    const phone = (request.contact?.phone || "").replace(/[^0-9]/g, "");
+    if (!phone) {
+      setMessage("This customer has no WhatsApp phone number.");
+      return;
+    }
+
+    const text = [
+      "Hello " + (request.contact?.name || "") + ",",
+      "",
+      "Thank you for choosing Watermelon Experiences. We hope you enjoyed your experience with us.",
+      "If you have a moment, we would really appreciate your review on Tripadvisor:",
+      "https://www.tripadvisor.pt/Attraction_Review-g1022768-d15274843-Reviews-Watermelon_Experiences_Lisbon_Portugal-Almada_Setubal_District_Alentejo.html",
+      "",
+      "Thank you,",
+      "Watermelon Experiences",
+    ].join("\n");
+
+    setEditing(request.id);
+    setMessage("");
+
+    const { error } = await supabase.rpc("watermelon_mark_review_requested", {
+      p_request_id: request.id,
+    });
+
+    if (error) {
+      setMessage(error.message);
+      setEditing(null);
+      return;
+    }
+
+    await loadCRM();
+    setEditing(null);
+    window.location.href =
+      "https://wa.me/" + phone + "?text=" + encodeURIComponent(text);
+  }
+
   function openView(nextFilter: Filter) {
     setFilter(nextFilter);
     setQuery("");
@@ -1308,6 +1545,8 @@ export default function AdminCRM() {
       proposalSent: requests.filter((item) => item.status === "proposal_sent").length,
       awaitingPayment: requests.filter((item) => item.status === "awaiting_payment").length,
       confirmed: requests.filter((item) => item.status === "confirmed").length,
+      today: requests.filter((item) => bookedDates(item).includes(localIsoDate())).length,
+      completed: requests.filter((item) => item.status === "completed").length,
     }),
     [requests]
   );
@@ -1318,9 +1557,12 @@ export default function AdminCRM() {
     return requests.filter((request) => {
       const filterMatch =
         filter === "all" ||
-        (filter === "in_progress"
-          ? IN_PROGRESS_STATUSES.includes(request.status)
-          : request.status === filter);
+        (filter === "today"
+          ? bookedDates(request).includes(localIsoDate()) &&
+            ["confirmed", "in_service", "completed", "no_show"].includes(request.status)
+          : filter === "in_progress"
+            ? IN_PROGRESS_STATUSES.includes(request.status)
+            : request.status === filter);
       if (!filterMatch) return false;
       if (!q) return true;
 
@@ -1329,6 +1571,8 @@ export default function AdminCRM() {
         request.contact?.name,
         request.contact?.email,
         request.contact?.phone,
+        request.external_booking_channel,
+        request.external_booking_reference,
         ...request.items.map((item) => item.experience_title),
       ]
         .filter(Boolean)
@@ -1366,7 +1610,9 @@ export default function AdminCRM() {
       ? "Contacts"
       : filter === "all"
         ? "All requests"
-        : filter === "in_progress"
+        : filter === "today"
+          ? "Today"
+          : filter === "in_progress"
           ? "In progress"
           : STATUS_LABELS[filter as CRMStatus];
 
@@ -1585,11 +1831,27 @@ export default function AdminCRM() {
         </button>
         <button
           type="button"
+          className={filter === "today" ? "crm-stat-active" : ""}
+          aria-pressed={filter === "today"}
+          onClick={() => openView("today")}
+        >
+          <span>Today</span><strong>{counts.today}</strong>
+        </button>
+        <button
+          type="button"
           className={filter === "confirmed" ? "crm-stat-active" : ""}
           aria-pressed={filter === "confirmed"}
           onClick={() => openView("confirmed")}
         >
           <span>Confirmed</span><strong>{counts.confirmed}</strong>
+        </button>
+        <button
+          type="button"
+          className={filter === "completed" ? "crm-stat-active" : ""}
+          aria-pressed={filter === "completed"}
+          onClick={() => openView("completed")}
+        >
+          <span>Completed</span><strong>{counts.completed}</strong>
         </button>
         <button
           type="button"
@@ -1613,6 +1875,9 @@ export default function AdminCRM() {
             ["proposal_drafting", "Drafting"],
             ["customer_replied", "Customer replied"],
             ["accepted", "Accepted"],
+            ["in_service", "In service"],
+            ["completed", "Completed"],
+            ["no_show", "No-show"],
             ["declined", "Declined"],
             ["cancelled", "Cancelled"],
           ] as Array<[Filter, string]>).map(([value, label]) => (
@@ -1926,6 +2191,118 @@ export default function AdminCRM() {
                     </section>
                   )}
 
+                {["confirmed", "in_service", "completed", "no_show", "cancelled"].includes(request.status) && (
+                  <section className="crm-review-note">
+                    <strong>Booking operations</strong>
+                    <span>
+                      {request.external_booking_reference
+                        ? (request.external_booking_channel || "External") + " · " + request.external_booking_reference
+                        : "No external supplier/channel reference recorded."}
+                    </span>
+                    <div className="admin-topbar-actions">
+                      <button
+                        className="button button-ghost"
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void saveExternalBookingReference(request)}
+                      >
+                        {request.external_booking_reference ? "Edit external reference" : "Add external reference"}
+                      </button>
+
+                      {request.status === "confirmed" && (
+                        <>
+                          <button
+                            className="button button-primary"
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void setOperationalStatus(request, "in_service")}
+                          >
+                            Check-in / start
+                          </button>
+                          <button
+                            className="button button-outline"
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void setOperationalStatus(request, "completed")}
+                          >
+                            Complete directly
+                          </button>
+                          <button
+                            className="button button-ghost"
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void setOperationalStatus(request, "no_show")}
+                          >
+                            No-show
+                          </button>
+                        </>
+                      )}
+
+                      {request.status === "in_service" && (
+                        <>
+                          <button
+                            className="button button-primary"
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void setOperationalStatus(request, "completed")}
+                          >
+                            Mark completed
+                          </button>
+                          <button
+                            className="button button-ghost"
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void setOperationalStatus(request, "no_show")}
+                          >
+                            No-show
+                          </button>
+                        </>
+                      )}
+
+                      {request.status === "completed" && request.contact?.phone && (
+                        <button
+                          className="button button-outline"
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void requestTripadvisorReview(request)}
+                        >
+                          {request.review_requested_at ? "Send review request again" : "Ask for Tripadvisor review"}
+                        </button>
+                      )}
+
+                      {["confirmed", "in_service"].includes(request.status) && (
+                        <button
+                          className="button button-ghost"
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void cancelBooking(request)}
+                        >
+                          Cancel booking
+                        </button>
+                      )}
+
+                      {request.status === "cancelled" &&
+                        paymentStatusForRequest(request) === "paid" && (
+                          <button
+                            className="button button-outline"
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void markRefunded(request)}
+                          >
+                            Mark refund completed
+                          </button>
+                        )}
+                    </div>
+                    {request.review_requested_at && request.status === "completed" && (
+                      <small>Review request prepared {dateTime(request.review_requested_at)}.</small>
+                    )}
+                    {request.status === "cancelled" &&
+                      paymentStatusForRequest(request) === "refunded" && (
+                        <small>Refund recorded.</small>
+                      )}
+                  </section>
+                )}
+
                 {request.contact?.phone && (
                   <WhatsAppConversation
                     request={request}
@@ -2043,7 +2420,7 @@ export default function AdminCRM() {
                   )}
 
                 {request.kind !== "direct_booking" &&
-                  !["confirmed", "declined", "cancelled"].includes(request.status) && (
+                  !["confirmed", "in_service", "completed", "no_show", "declined", "cancelled"].includes(request.status) && (
                     <button
                       className="button button-ghost"
                       type="button"
