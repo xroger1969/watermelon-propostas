@@ -442,7 +442,7 @@ export default function AIConcierge({
                 <div>
                   <strong>Chat with your AI travel planner</strong>
                   <p>
-                    Start below — tell us what you would love to do.
+                    Start below — tell us what you would love to do. Our current experiences focus on Lisbon. Tailor-made ideas can also cover other parts of Portugal.
                   </p>
                 </div>
               </div>
