@@ -2191,7 +2191,7 @@ export default function AdminCRM() {
                     </section>
                   )}
 
-                {["confirmed", "in_service", "completed", "no_show", "cancelled"].includes(request.status) && (
+                {["accepted", "awaiting_payment", "confirmed", "in_service", "completed", "no_show", "cancelled"].includes(request.status) && (
                   <section className="crm-review-note">
                     <strong>Booking operations</strong>
                     <span>
@@ -2270,7 +2270,7 @@ export default function AdminCRM() {
                         </button>
                       )}
 
-                      {["confirmed", "in_service"].includes(request.status) && (
+                      {["accepted", "awaiting_payment", "confirmed", "in_service"].includes(request.status) && (
                         <button
                           className="button button-ghost"
                           type="button"
