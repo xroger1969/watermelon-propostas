@@ -904,6 +904,177 @@ export default function AdminCRM() {
     }
   }
 
+  async function sendCRMText(
+    request: CRMRequest,
+    text: string,
+    purpose: "payment" | "acceptance" = "acceptance"
+  ) {
+    if (!supabase) throw new Error("CRM session is unavailable.");
+    if (!request.contact?.phone) {
+      return { mode: "copy" as const };
+    }
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) {
+      throw new Error("Your private-area session has expired. Please sign in again.");
+    }
+
+    const response = await fetch(
+      SUPABASE_BOOKING_URL + "/functions/v1/watermelon-whatsapp-send-v2",
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + accessToken,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          request_id: request.id,
+          text,
+          purpose,
+        }),
+      }
+    );
+
+    const data = (await response.json().catch(() => ({}))) as {
+      ok?: boolean;
+      error?: string;
+      hint?: string;
+      mode?: "text" | "template";
+    };
+
+    if (!response.ok || !data.ok) {
+      throw new Error(
+        [data.error, data.hint].filter(Boolean).join(" ") ||
+          "WhatsApp could not send the message."
+      );
+    }
+
+    return { mode: data.mode || "text" };
+  }
+
+  async function acceptProposalRequest(
+    request: CRMRequest,
+    withPayment: boolean
+  ) {
+    if (!supabase || request.kind === "direct_booking") return;
+
+    const latest = request.proposals[0] || null;
+
+    if (withPayment && !latest) {
+      setMessage(
+        "Create or save the proposal first. Then the CRM can accept it and generate the secure payment link."
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      withPayment
+        ? "Accept this request and prepare the secure payment link now?"
+        : "Accept this request without requesting payment now?"
+    );
+    if (!confirmed) return;
+
+    setEditing(request.id);
+    setMessage("");
+
+    const { data, error } = await supabase.rpc(
+      "watermelon_admin_accept_request",
+      {
+        p_request_id: request.id,
+        p_with_payment: withPayment,
+      }
+    );
+
+    if (error || !data) {
+      setMessage(error?.message || "The request could not be accepted.");
+      setEditing(null);
+      return;
+    }
+
+    const payload = data as {
+      status?: CRMStatus;
+      proposal_id?: string | null;
+      proposal_version?: number | null;
+      proposal_total?: number | null;
+      payment_status?: "not_requested" | "awaiting" | "paid" | "refunded";
+      payment_token?: string | null;
+    };
+
+    let feedback = withPayment
+      ? "Request accepted and payment prepared."
+      : "Request accepted. Payment was not requested.";
+
+    if (withPayment && payload.payment_token) {
+      const paymentUrl =
+        window.location.origin +
+        "/payment/" +
+        encodeURIComponent(request.reference) +
+        "?token=" +
+        encodeURIComponent(payload.payment_token);
+
+      const paymentText = [
+        "Hello " + (request.contact?.name || "") + ",",
+        "",
+        "Your Watermelon Experiences request has been accepted.",
+        "Reference: " + request.reference,
+        payload.proposal_total !== null && payload.proposal_total !== undefined
+          ? "Amount: " + money(Number(payload.proposal_total), request.currency)
+          : "",
+        "",
+        "Choose your preferred payment method securely here:",
+        paymentUrl,
+        "",
+        "You can choose PayPal, Revolut or bank transfer.",
+        "",
+        "Watermelon Experiences",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      try {
+        const delivery = await sendCRMText(request, paymentText, "payment");
+        if (delivery.mode === "copy") {
+          try {
+            await navigator.clipboard.writeText(paymentUrl);
+            feedback =
+              "Request accepted. Payment link copied because this contact has no WhatsApp number.";
+          } catch {
+            feedback =
+              "Request accepted and payment prepared, but this contact has no WhatsApp number.";
+          }
+        } else if (delivery.mode === "template") {
+          feedback =
+            "Request accepted. The CRM sent the approved WhatsApp template and will send the secure payment link when the customer replies.";
+        } else {
+          feedback =
+            "Request accepted and the secure payment link was sent from the CRM.";
+        }
+
+        await supabase.from("watermelon_activities").insert({
+          request_id: request.id,
+          contact_id: request.contact?.id || null,
+          activity_type: "payment_link_sent",
+          summary: "Secure payment link submitted from CRM",
+          metadata: {
+            proposal_id: payload.proposal_id || null,
+            payment_link: paymentUrl,
+            mode: delivery.mode,
+          },
+          actor_email: actorEmail || null,
+        });
+      } catch (sendError) {
+        feedback =
+          "Request accepted and payment prepared, but the payment link could not be sent automatically. " +
+          (sendError instanceof Error ? sendError.message : "");
+      }
+    }
+
+    await loadCRM();
+    setMessage(feedback.trim());
+    setEditing(null);
+  }
+
   async function changeStatus(request: CRMRequest, status: CRMStatus) {
     if (!supabase || request.status === status) return;
 
@@ -1602,6 +1773,17 @@ export default function AdminCRM() {
           ]);
           const aiIntent = extractAiNote(request.customer_notes, ["Intent"]);
           const aiRequestedPlan = cleanAiSpecialRequest(first?.special_request);
+          const latestProposal = request.proposals[0] || null;
+          const canAcceptProposalRequest =
+            request.kind === "personalized_proposal" &&
+            ["new", "in_review", "awaiting_customer", "proposal_drafting", "proposal_sent", "customer_replied"].includes(
+              request.status
+            );
+          const canPrepareProposalPayment =
+            request.kind === "personalized_proposal" &&
+            Boolean(latestProposal) &&
+            latestProposal?.payment_status !== "paid" &&
+            !["confirmed", "declined", "cancelled"].includes(request.status);
 
           return (
             <article className="crm-request-card" key={request.id}>
@@ -1811,6 +1993,54 @@ export default function AdminCRM() {
                     Mark payment received
                   </button>
                 )}
+
+                {canAcceptProposalRequest && (
+                  <button
+                    className="button button-primary"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void acceptProposalRequest(request, false)}
+                  >
+                    Accept request
+                  </button>
+                )}
+
+                {canAcceptProposalRequest && latestProposal && (
+                  <button
+                    className="button button-outline"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void acceptProposalRequest(request, true)}
+                  >
+                    Accept + payment link
+                  </button>
+                )}
+
+                {!canAcceptProposalRequest &&
+                  canPrepareProposalPayment &&
+                  request.status !== "awaiting_payment" && (
+                    <button
+                      className="button button-primary"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void acceptProposalRequest(request, true)}
+                    >
+                      Send payment link
+                    </button>
+                  )}
+
+                {request.kind === "personalized_proposal" &&
+                  request.status === "awaiting_payment" &&
+                  latestProposal?.payment_token && (
+                    <button
+                      className="button button-outline"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void acceptProposalRequest(request, true)}
+                    >
+                      Resend payment link
+                    </button>
+                  )}
 
                 {request.kind !== "direct_booking" &&
                   !["confirmed", "declined", "cancelled"].includes(request.status) && (
