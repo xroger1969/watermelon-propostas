@@ -86,8 +86,7 @@ export default function WhatsAppConversation({
           (a, b) =>
             new Date(a.whatsapp_timestamp || a.created_at).getTime() -
             new Date(b.whatsapp_timestamp || b.created_at).getTime()
-        )
-        .slice(-30),
+        ),
     [request.messages]
   );
 
@@ -184,7 +183,7 @@ export default function WhatsAppConversation({
         hint?: string;
         code?: number | string | null;
         subcode?: number | string | null;
-        mode?: "text" | "template";
+        mode?: "text" | "template" | "pending";
         template_name?: string | null;
         customer_service_window_open?: boolean;
       };
@@ -208,7 +207,11 @@ export default function WhatsAppConversation({
 
       if (data.mode === "template") {
         setFeedback(
-          "The 24-hour WhatsApp service window is closed. An approved template was submitted to the customer instead. Your message has been kept here so you can send it as soon as the customer replies."
+          "The 24-hour WhatsApp service window is closed. One approved Watermelon template was sent and your message is queued. It will be delivered automatically as soon as the customer replies."
+        );
+      } else if (data.mode === "pending") {
+        setFeedback(
+          "An approved Watermelon template was already sent recently, so the CRM did not send another duplicate. Your message is queued and will be delivered automatically as soon as the customer replies."
         );
       } else {
         setDraft("");
@@ -234,10 +237,12 @@ export default function WhatsAppConversation({
         <div>
           <strong>WhatsApp conversation</strong>
           <span>
-            Incoming Cloud API messages appear here automatically. Customer replies move the request to Customer replied.
+            Full WhatsApp history for this contact appears here automatically, including Cloud API messages and supported WhatsApp Business app sync. Customer replies move the request to Customer replied.
           </span>
         </div>
-        {messages.length > 0 && <b>Live CRM history</b>}
+        {messages.length > 0 && (
+          <b>{messages.length} message{messages.length === 1 ? "" : "s"} · Full contact history</b>
+        )}
       </div>
 
       {messages.length > 0 && (
