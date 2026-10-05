@@ -151,7 +151,7 @@ type CRMRequest = {
   messages: CRMMessage[];
 };
 
-type Filter = "all" | "in_progress" | "contacts" | "today" | CRMStatus;
+type Filter = "all" | "in_progress" | "contacts" | "today" | "upcoming" | CRMStatus;
 
 const IN_PROGRESS_STATUSES: CRMStatus[] = [
   "in_review",
@@ -269,6 +269,49 @@ function paymentStatusForRequest(request: CRMRequest) {
     return request.booking?.payment_status || "not_requested";
   }
   return request.proposals[0]?.payment_status || "not_requested";
+}
+
+function daysFromToday(value: string) {
+  const today = new Date(localIsoDate() + "T12:00:00Z");
+  const target = new Date(value + "T12:00:00Z");
+  if (Number.isNaN(target.getTime())) return Number.POSITIVE_INFINITY;
+  return Math.round((target.getTime() - today.getTime()) / 86400000);
+}
+
+function operationalRows(request: CRMRequest) {
+  const latestAccepted =
+    request.proposals.find((proposal) => proposal.status === "accepted") ||
+    request.proposals[0] ||
+    null;
+
+  if (latestAccepted?.items?.length) {
+    return latestAccepted.items.map((item) => ({
+      experience: item.experience_title,
+      date: item.proposed_date,
+      time: item.proposed_time,
+      guests: item.guests,
+      pickup: item.pickup_location,
+      language: request.contact?.preferred_language || null,
+    }));
+  }
+
+  return request.items.map((item) => ({
+    experience: item.experience_title,
+    date: item.requested_date,
+    time: item.preferred_time,
+    guests: item.guests,
+    pickup: item.pickup_location,
+    language: item.guide_language || request.contact?.preferred_language || null,
+  }));
+}
+
+function escapeHtml(value: string | number | null | undefined) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function extractAiNote(notes: string | null, labels: string[]) {
@@ -1325,6 +1368,194 @@ export default function AdminCRM() {
     setEditing(null);
   }
 
+  async function saveInternalNote(request: CRMRequest) {
+    if (!supabase) return;
+
+    const note = window.prompt(
+      "Internal / operational note",
+      request.admin_notes || ""
+    );
+    if (note === null) return;
+
+    setEditing(request.id);
+    setMessage("");
+
+    const { error } = await supabase
+      .from("watermelon_requests")
+      .update({
+        admin_notes: note.trim() || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", request.id);
+
+    if (error) {
+      setMessage(error.message);
+      setEditing(null);
+      return;
+    }
+
+    await supabase.from("watermelon_activities").insert({
+      request_id: request.id,
+      contact_id: request.contact?.id || null,
+      activity_type: "internal_note_updated",
+      summary: note.trim() ? "Internal operational note updated" : "Internal operational note cleared",
+      actor_email: actorEmail || null,
+      metadata: {},
+    });
+
+    await loadCRM();
+    setMessage(note.trim() ? "Internal note saved." : "Internal note cleared.");
+    setEditing(null);
+  }
+
+  function openWhatsAppOperationalMessage(
+    request: CRMRequest,
+    kind: "confirmation" | "reminder"
+  ) {
+    const phone = (request.contact?.phone || "").replace(/[^0-9]/g, "");
+    if (!phone) {
+      setMessage("This customer has no WhatsApp phone number.");
+      return;
+    }
+
+    const rows = operationalRows(request);
+    const first = rows[0];
+    const experience =
+      rows.length > 1
+        ? rows.map((row) => row.experience).join(" / ")
+        : first?.experience || "Watermelon experience";
+    const date = first?.date ? shortDate(first.date) : "as agreed";
+    const time = first?.time || "as agreed";
+    const guests = rows.reduce((sum, row) => sum + Number(row.guests || 0), 0);
+    const pickup = first?.pickup ? "\nPickup: " + first.pickup : "";
+    const greeting = request.contact?.name?.trim()
+      ? "Hello " + request.contact.name.trim() + ","
+      : "Hello,";
+
+    const lines =
+      kind === "confirmation"
+        ? [
+            greeting,
+            "",
+            "Your Watermelon Experiences booking " + request.reference + " is confirmed.",
+            "Experience: " + experience,
+            "Date: " + date,
+            "Time: " + time,
+            guests ? "Guests: " + guests : "",
+            pickup,
+            "",
+            "If you need to update any detail, just reply to this message.",
+            "Watermelon Experiences",
+          ]
+        : [
+            greeting,
+            "",
+            "A quick reminder for your upcoming Watermelon Experiences booking " + request.reference + ".",
+            "Experience: " + experience,
+            "Date: " + date,
+            "Time: " + time,
+            guests ? "Guests: " + guests : "",
+            pickup,
+            "",
+            "We look forward to welcoming you. If anything changes, please let us know.",
+            "Watermelon Experiences",
+          ];
+
+    window.location.href =
+      "https://wa.me/" + phone + "?text=" + encodeURIComponent(lines.filter(Boolean).join("\n"));
+  }
+
+  function printTodayManifest() {
+    const today = localIsoDate();
+    const todayRequests = requests.filter(
+      (request) =>
+        ["confirmed", "in_service", "completed", "no_show"].includes(request.status) &&
+        bookedDates(request).includes(today)
+    );
+
+    const rows = todayRequests.flatMap((request) =>
+      operationalRows(request)
+        .filter((row) => row.date === today)
+        .map((row) => ({
+          time: row.time || "—",
+          customer: request.contact?.name || "Customer",
+          phone: request.contact?.phone || "—",
+          experience: row.experience,
+          guests: row.guests,
+          pickup: row.pickup || "—",
+          language: row.language || "—",
+          payment: paymentStatusForRequest(request),
+          external: request.external_booking_reference
+            ? (request.external_booking_channel || "External") +
+              " · " +
+              request.external_booking_reference
+            : "—",
+          status: STATUS_LABELS[request.status],
+          notes: request.admin_notes || "",
+        }))
+    );
+
+    rows.sort((a, b) => a.time.localeCompare(b.time));
+
+    const popup = window.open("", "_blank", "noopener,noreferrer");
+    if (!popup) {
+      setMessage("The browser blocked the manifest window. Allow pop-ups and try again.");
+      return;
+    }
+
+    const manifestRows = rows
+      .map(
+        (row) => `
+          <tr>
+            <td>${escapeHtml(row.time)}</td>
+            <td><strong>${escapeHtml(row.customer)}</strong><br><small>${escapeHtml(row.phone)}</small></td>
+            <td>${escapeHtml(row.experience)}</td>
+            <td>${escapeHtml(row.guests)}</td>
+            <td>${escapeHtml(row.pickup)}</td>
+            <td>${escapeHtml(row.language)}</td>
+            <td>${escapeHtml(row.payment)}</td>
+            <td>${escapeHtml(row.external)}</td>
+            <td>${escapeHtml(row.status)}</td>
+            <td>${escapeHtml(row.notes)}</td>
+          </tr>`
+      )
+      .join("");
+
+    popup.document.write(`<!doctype html>
+      <html>
+        <head>
+          <title>Watermelon daily manifest — ${escapeHtml(shortDate(today))}</title>
+          <meta charset="utf-8" />
+          <style>
+            body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:24px;color:#111}
+            h1{margin:0 0 4px;font-size:24px}
+            p{margin:0 0 20px;color:#555}
+            table{width:100%;border-collapse:collapse;font-size:12px}
+            th,td{border:1px solid #ddd;padding:8px;text-align:left;vertical-align:top}
+            th{background:#f3f3f3}
+            small{color:#666}
+            @media print{body{margin:10mm}button{display:none}}
+          </style>
+        </head>
+        <body>
+          <h1>Watermelon Experiences — Daily Manifest</h1>
+          <p>${escapeHtml(shortDate(today))} · ${rows.length} service row${rows.length === 1 ? "" : "s"}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th><th>Guest</th><th>Experience</th><th>Pax</th>
+                <th>Pickup</th><th>Language</th><th>Payment</th>
+                <th>External ref.</th><th>Status</th><th>Internal notes</th>
+              </tr>
+            </thead>
+            <tbody>${manifestRows || '<tr><td colspan="10">No services scheduled for today.</td></tr>'}</tbody>
+          </table>
+          <script>window.onload=()=>window.print();<\/script>
+        </body>
+      </html>`);
+    popup.document.close();
+  }
+
   async function saveExternalBookingReference(request: CRMRequest) {
     if (!supabase) return;
 
@@ -1545,7 +1776,19 @@ export default function AdminCRM() {
       proposalSent: requests.filter((item) => item.status === "proposal_sent").length,
       awaitingPayment: requests.filter((item) => item.status === "awaiting_payment").length,
       confirmed: requests.filter((item) => item.status === "confirmed").length,
-      today: requests.filter((item) => bookedDates(item).includes(localIsoDate())).length,
+      today: requests.filter(
+        (item) =>
+          bookedDates(item).includes(localIsoDate()) &&
+          ["confirmed", "in_service", "completed", "no_show"].includes(item.status)
+      ).length,
+      upcoming: requests.filter(
+        (item) =>
+          ["confirmed", "in_service"].includes(item.status) &&
+          bookedDates(item).some((date) => {
+            const days = daysFromToday(date);
+            return days >= 1 && days <= 7;
+          })
+      ).length,
       completed: requests.filter((item) => item.status === "completed").length,
     }),
     [requests]
@@ -1554,15 +1797,21 @@ export default function AdminCRM() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
 
-    return requests.filter((request) => {
+    const matches = requests.filter((request) => {
       const filterMatch =
         filter === "all" ||
         (filter === "today"
           ? bookedDates(request).includes(localIsoDate()) &&
             ["confirmed", "in_service", "completed", "no_show"].includes(request.status)
-          : filter === "in_progress"
-            ? IN_PROGRESS_STATUSES.includes(request.status)
-            : request.status === filter);
+          : filter === "upcoming"
+            ? ["confirmed", "in_service"].includes(request.status) &&
+              bookedDates(request).some((date) => {
+                const days = daysFromToday(date);
+                return days >= 1 && days <= 7;
+              })
+            : filter === "in_progress"
+              ? IN_PROGRESS_STATUSES.includes(request.status)
+              : request.status === filter);
       if (!filterMatch) return false;
       if (!q) return true;
 
@@ -1581,6 +1830,19 @@ export default function AdminCRM() {
 
       return haystack.includes(q);
     });
+
+    if (filter === "today" || filter === "upcoming") {
+      return matches.sort((a, b) => {
+        const aDate = bookedDates(a).sort()[0] || "9999-12-31";
+        const bDate = bookedDates(b).sort()[0] || "9999-12-31";
+        if (aDate !== bDate) return aDate.localeCompare(bDate);
+        const aTime = operationalRows(a)[0]?.time || "99:99";
+        const bTime = operationalRows(b)[0]?.time || "99:99";
+        return aTime.localeCompare(bTime);
+      });
+    }
+
+    return matches;
   }, [requests, filter, query]);
 
   const filteredContacts = useMemo(() => {
@@ -1612,7 +1874,9 @@ export default function AdminCRM() {
         ? "All requests"
         : filter === "today"
           ? "Today"
-          : filter === "in_progress"
+          : filter === "upcoming"
+            ? "Next 7 days"
+            : filter === "in_progress"
           ? "In progress"
           : STATUS_LABELS[filter as CRMStatus];
 
@@ -1839,6 +2103,14 @@ export default function AdminCRM() {
         </button>
         <button
           type="button"
+          className={filter === "upcoming" ? "crm-stat-active" : ""}
+          aria-pressed={filter === "upcoming"}
+          onClick={() => openView("upcoming")}
+        >
+          <span>Next 7 days</span><strong>{counts.upcoming}</strong>
+        </button>
+        <button
+          type="button"
           className={filter === "confirmed" ? "crm-stat-active" : ""}
           aria-pressed={filter === "confirmed"}
           onClick={() => openView("confirmed")}
@@ -1913,7 +2185,14 @@ export default function AdminCRM() {
           <span>Showing</span>
           <h2>{viewTitle}</h2>
         </div>
-        <strong>{filter === "contacts" ? filteredContacts.length : filtered.length}</strong>
+        <div className="admin-topbar-actions">
+          {filter === "today" && (
+            <button className="button button-outline" type="button" onClick={printTodayManifest}>
+              Print today manifest
+            </button>
+          )}
+          <strong>{filter === "contacts" ? filteredContacts.length : filtered.length}</strong>
+        </div>
       </div>
 
       {filter === "contacts" && !loading && (
@@ -2199,7 +2478,18 @@ export default function AdminCRM() {
                         ? (request.external_booking_channel || "External") + " · " + request.external_booking_reference
                         : "No external supplier/channel reference recorded."}
                     </span>
+                    {request.admin_notes && (
+                      <small><strong>Internal note:</strong> {request.admin_notes}</small>
+                    )}
                     <div className="admin-topbar-actions">
+                      <button
+                        className="button button-ghost"
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void saveInternalNote(request)}
+                      >
+                        {request.admin_notes ? "Edit internal note" : "Add internal note"}
+                      </button>
                       <button
                         className="button button-ghost"
                         type="button"
@@ -2211,6 +2501,26 @@ export default function AdminCRM() {
 
                       {request.status === "confirmed" && (
                         <>
+                          {request.contact?.phone && (
+                            <>
+                              <button
+                                className="button button-outline"
+                                type="button"
+                                disabled={busy}
+                                onClick={() => openWhatsAppOperationalMessage(request, "confirmation")}
+                              >
+                                Send confirmation
+                              </button>
+                              <button
+                                className="button button-outline"
+                                type="button"
+                                disabled={busy}
+                                onClick={() => openWhatsAppOperationalMessage(request, "reminder")}
+                              >
+                                Send trip reminder
+                              </button>
+                            </>
+                          )}
                           <button
                             className="button button-primary"
                             type="button"
