@@ -173,7 +173,7 @@ export default function ProposalEditor({
     setFeedback("");
   }
 
-  async function sendViaCRM(text: string) {
+  async function sendViaCRM(text: string, purpose: "proposal" | "payment" = "proposal") {
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData.session?.access_token;
 
@@ -192,7 +192,7 @@ export default function ProposalEditor({
         body: JSON.stringify({
           request_id: request.id,
           text,
-          purpose: "proposal",
+          purpose,
         }),
       }
     );
@@ -201,7 +201,7 @@ export default function ProposalEditor({
       ok?: boolean;
       error?: string;
       hint?: string;
-      mode?: "text" | "template";
+      mode?: "text" | "template" | "pending" | "payment_template";
       template_name?: string | null;
     };
 
@@ -579,24 +579,36 @@ export default function ProposalEditor({
     setFeedback("");
 
     try {
-      const delivery = await sendViaCRM(text);
-      setFeedback(
-        delivery.mode === "template"
-          ? "The WhatsApp 24-hour window is closed. The CRM sent the approved Watermelon template first and will send the secure payment link automatically when the customer replies."
-          : "Secure payment link submitted from the CRM to WhatsApp."
-      );
+      const delivery = await sendViaCRM(text, "payment");
 
-      await supabase.from("watermelon_activities").insert({
-        request_id: request.id,
-        contact_id: request.contact?.id || null,
-        activity_type: "payment_link_sent",
-        summary: "Secure payment link submitted from CRM",
-        metadata: {
-          proposal_id: latest.id,
-          payment_link: paymentLink,
-          mode: delivery.mode || "text",
-        },
-      });
+      const reallySent =
+        delivery.mode === "text" || delivery.mode === "payment_template";
+
+      if (reallySent) {
+        setFeedback(
+          delivery.mode === "payment_template"
+            ? "Secure payment link sent through the approved Watermelon WhatsApp payment template."
+            : "Secure payment link sent from the CRM to WhatsApp."
+        );
+
+        await supabase.from("watermelon_activities").insert({
+          request_id: request.id,
+          contact_id: request.contact?.id || null,
+          activity_type: "payment_link_sent",
+          summary: "Secure payment link sent from CRM",
+          metadata: {
+            proposal_id: latest.id,
+            payment_link: paymentLink,
+            mode: delivery.mode || "text",
+          },
+        });
+      } else {
+        setFeedback(
+          delivery.mode === "pending"
+            ? "The payment link has not been sent. WhatsApp is waiting for the customer to reply before free-form messages are allowed."
+            : "The payment link has not been sent yet."
+        );
+      }
 
       await onChanged();
     } catch (error) {
