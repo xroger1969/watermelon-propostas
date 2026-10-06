@@ -24,6 +24,9 @@ type BookingSelection = {
     optionDescription?: string;
   }>;
   price: string;
+  originalPrice?: string;
+  promotionLabel?: string;
+  websitePromotion?: boolean;
   currency: string;
   image: string;
   duration: string;
@@ -73,6 +76,21 @@ type CatalogResponse = {
   products?: LiveCatalogProduct[];
   source?: string;
   updatedAt?: string;
+};
+
+type SitePromotion = {
+  product_code: string;
+  title: string;
+  label: string;
+  before_price: number;
+  now_price: number;
+  currency: string;
+  starts_on: string | null;
+  ends_on: string | null;
+};
+
+type PromotionResponse = {
+  promotions?: SitePromotion[];
 };
 
 const STORAGE_KEY = "watermelon-proposal";
@@ -202,6 +220,7 @@ export default function Catalog() {
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [livePrices, setLivePrices] = useState<Record<string, LivePrice>>({});
   const [livePricingActive, setLivePricingActive] = useState(false);
+  const [sitePromotions, setSitePromotions] = useState<Record<string, SitePromotion>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -265,6 +284,36 @@ export default function Catalog() {
   useEffect(() => {
     let cancelled = false;
 
+    async function refreshPromotions() {
+      try {
+        const response = await fetch("/api/site-promotions", { cache: "no-store" });
+        if (!response.ok) return;
+
+        const data = (await response.json()) as PromotionResponse;
+        if (cancelled || !Array.isArray(data.promotions)) return;
+
+        setSitePromotions(
+          Object.fromEntries(
+            data.promotions.map((promotion) => [promotion.product_code, promotion])
+          )
+        );
+      } catch {
+        // Promotions are website-only enhancements; the catalogue remains usable if unavailable.
+      }
+    }
+
+    refreshPromotions();
+    const timer = window.setInterval(refreshPromotions, 2 * 60_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
     async function refreshPrices() {
       try {
         const response = await fetch("/api/viator-prices", { cache: "no-store" });
@@ -306,11 +355,30 @@ export default function Catalog() {
   function priceFor(code: string) {
     const live = livePrices[code];
     const fallback = viatorListings[code];
+    const promotion = sitePromotions[code];
+    const basePrice = live?.price ?? fallback?.price ?? null;
+    const baseCurrency = live?.currency ?? fallback?.currency ?? "EUR";
+
+    if (promotion) {
+      return {
+        price: Number(promotion.now_price),
+        beforePrice: Number(promotion.before_price),
+        currency: promotion.currency || baseCurrency,
+        isLive: Boolean(live),
+        isPromotion: true,
+        promotionLabel: promotion.label || "Website offer",
+        viatorPrice: basePrice,
+      };
+    }
 
     return {
-      price: live?.price ?? fallback?.price ?? null,
-      currency: live?.currency ?? fallback?.currency ?? "EUR",
+      price: basePrice,
+      beforePrice: null,
+      currency: baseCurrency,
       isLive: Boolean(live),
+      isPromotion: false,
+      promotionLabel: "",
+      viatorPrice: basePrice,
     };
   }
 
@@ -328,6 +396,12 @@ export default function Catalog() {
         optionDescription: item.optionDescription,
       })),
       price: currentPrice.price === null ? "" : String(currentPrice.price),
+      originalPrice:
+        currentPrice.isPromotion && currentPrice.beforePrice !== null
+          ? String(currentPrice.beforePrice)
+          : undefined,
+      promotionLabel: currentPrice.isPromotion ? currentPrice.promotionLabel : undefined,
+      websitePromotion: currentPrice.isPromotion,
       currency: currentPrice.currency,
       image: product.viator.image,
       duration: product.viator.duration,
@@ -371,7 +445,13 @@ export default function Catalog() {
           <h2>Watermelon Experiences</h2>
         </div>
         <span className="price-check">
-          {catalogSyncActive && livePricingActive ? "Catalogue & prices updated automatically" : livePricingActive ? "Prices updated automatically" : "Viator catalogue"}
+          {Object.keys(sitePromotions).length
+            ? "Website offers available · Viator catalogue stays independent"
+            : catalogSyncActive && livePricingActive
+              ? "Catalogue & prices updated automatically"
+              : livePricingActive
+                ? "Prices updated automatically"
+                : "Viator catalogue"}
         </span>
       </div>
 
@@ -421,6 +501,9 @@ export default function Catalog() {
                   loading="lazy"
                 />
                 <span className="photo-badge">{product.category}</span>
+                {currentPrice.isPromotion && (
+                  <span className="website-promo-badge">Website offer</span>
+                )}
               </button>
 
               <div className="product-body">
@@ -451,10 +534,21 @@ export default function Catalog() {
                 )}
 
                 <div className="catalog-bottom">
-                  <div className="price-block">
-                    <span>From</span>
-                    <strong>{currentPrice.price === null ? "On request" : money(currentPrice.price, currentPrice.currency)}</strong>
-                    <small>{currentPrice.price === null ? "price confirmed on request" : currentPrice.isLive ? "price updated automatically" : "Viator price"}</small>
+                  <div className={currentPrice.isPromotion ? "price-block price-block-promo" : "price-block"}>
+                    {currentPrice.isPromotion ? (
+                      <>
+                        <span>{currentPrice.promotionLabel}</span>
+                        <small className="promo-before">Before <del>{money(currentPrice.beforePrice as number, currentPrice.currency)}</del></small>
+                        <strong>Now {money(currentPrice.price as number, currentPrice.currency)}</strong>
+                        <small>Website-only offer</small>
+                      </>
+                    ) : (
+                      <>
+                        <span>From</span>
+                        <strong>{currentPrice.price === null ? "On request" : money(currentPrice.price, currentPrice.currency)}</strong>
+                        <small>{currentPrice.price === null ? "price confirmed on request" : currentPrice.isLive ? "price updated automatically" : "Viator price"}</small>
+                      </>
+                    )}
                   </div>
 
                   {product.viator.rating && (
@@ -497,7 +591,8 @@ export default function Catalog() {
 
       <p className="catalog-note">
         Prices shown are “from” prices. The final price may vary depending on the date,
-        number of guests, selected option and availability.
+        number of guests, selected option and availability. Website promotions apply only
+        to direct Watermelon bookings and do not change prices or offers on Viator.
       </p>
 
       {filtered.length === 0 && (
@@ -594,10 +689,21 @@ export default function Catalog() {
                   </div>
                 )}
                 <div className="experience-modal-summary">
-                  <div className="price-block">
-                    <span>From</span>
-                    <strong>{currentPrice.price === null ? "On request" : money(currentPrice.price, currentPrice.currency)}</strong>
-                    <small>{currentPrice.price === null ? "price confirmed on request" : currentPrice.isLive ? "price updated automatically" : "Viator price"}</small>
+                  <div className={currentPrice.isPromotion ? "price-block price-block-promo" : "price-block"}>
+                    {currentPrice.isPromotion ? (
+                      <>
+                        <span>{currentPrice.promotionLabel}</span>
+                        <small className="promo-before">Before <del>{money(currentPrice.beforePrice as number, currentPrice.currency)}</del></small>
+                        <strong>Now {money(currentPrice.price as number, currentPrice.currency)}</strong>
+                        <small>Exclusive to direct booking on watermelonexperiences.pt</small>
+                      </>
+                    ) : (
+                      <>
+                        <span>From</span>
+                        <strong>{currentPrice.price === null ? "On request" : money(currentPrice.price, currentPrice.currency)}</strong>
+                        <small>{currentPrice.price === null ? "price confirmed on request" : currentPrice.isLive ? "price updated automatically" : "Viator price"}</small>
+                      </>
+                    )}
                   </div>
                   {product.viator.rating && (
                     <div className="rating-block">
