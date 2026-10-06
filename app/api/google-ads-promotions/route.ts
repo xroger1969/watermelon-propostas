@@ -31,6 +31,15 @@ function discountPercent(before: number, now: number) {
   return Math.max(1, Math.min(99, Math.round(((before - now) / before) * 100)));
 }
 
+function stableHash(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 export async function GET() {
   const supabase = createClient(
     SUPABASE_BOOKING_URL,
@@ -90,22 +99,36 @@ export async function GET() {
     }
   }
 
-  const promotions = Array.from(groups.values()).map((group, index) => ({
-    key: "wm-site-" + index + "-" + group.percentOff,
-    target:
+  const promotions = Array.from(groups.values()).map((group) => {
+    const target =
       group.rows.length > 1
         ? "Watermelon tours"
-        : safeTarget(group.rows[0]?.title || "Watermelon tours"),
-    percentOff: group.percentOff,
-    label: group.label,
-    startsOn: group.startsOn,
-    endsOn: group.endsOn,
-    finalUrl: "https://www.watermelonexperiences.pt/",
-    terms:
-      "Direct bookings on watermelonexperiences.pt only. Subject to availability.",
-    experienceCount: group.rows.length,
-    productCodes: group.rows.map((row) => row.product_code),
-  }));
+        : safeTarget(group.rows[0]?.title || "Watermelon tours");
+    const fingerprint = [
+      target,
+      group.percentOff,
+      group.label,
+      group.startsOn || "",
+      group.endsOn || "",
+      ...group.rows.map((row) => row.product_code).sort(),
+    ].join("|");
+    const hash = stableHash(fingerprint);
+
+    return {
+      key: "wm-site-" + hash,
+      assetName: "WM_SITE_PROMO_" + group.percentOff + "_" + hash,
+      target,
+      percentOff: group.percentOff,
+      label: group.label,
+      startsOn: group.startsOn,
+      endsOn: group.endsOn,
+      finalUrl: "https://www.watermelonexperiences.pt/",
+      terms:
+        "Direct bookings on watermelonexperiences.pt only. Subject to availability.",
+      experienceCount: group.rows.length,
+      productCodes: group.rows.map((row) => row.product_code),
+    };
+  });
 
   return NextResponse.json(
     {
