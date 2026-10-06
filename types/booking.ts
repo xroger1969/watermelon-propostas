@@ -71,6 +71,7 @@ export type CreateBookingRequestInput = {
   preferredTime: string;
   guests: number;
   unitPrice: number | null;
+  websitePromotion?: boolean;
   currency: string;
   customerName: string;
   customerEmail: string;
