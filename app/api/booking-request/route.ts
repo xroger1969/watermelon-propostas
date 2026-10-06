@@ -80,6 +80,16 @@ export async function POST(request: Request) {
     promotionNowPrice > 0 &&
     promotionBeforePrice > promotionNowPrice;
 
+  if (input.websitePromotion && !promotionApplied) {
+    return NextResponse.json(
+      {
+        error:
+          "This website promotion is no longer active. Please return to the experience page and refresh the current price.",
+      },
+      { status: 409 }
+    );
+  }
+
   const unitPrice = promotionApplied ? promotionNowPrice : requestedUnitPrice;
   const currency = promotionApplied
     ? clean(promotion?.currency, 3).toUpperCase() || "EUR"
