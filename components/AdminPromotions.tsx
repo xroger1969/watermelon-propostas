@@ -72,6 +72,13 @@ export default function AdminPromotions() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState("");
+  const [bulkPercent, setBulkPercent] = useState("10");
+  const [bulkLabel, setBulkLabel] = useState("Website offer");
+  const [bulkStartsOn, setBulkStartsOn] = useState("");
+  const [bulkEndsOn, setBulkEndsOn] = useState("");
+  const [bulkSelected, setBulkSelected] = useState<string[]>([]);
 
   const loadPromotions = useCallback(async () => {
     if (!supabase) return;
@@ -199,6 +206,109 @@ export default function AdminPromotions() {
     Number.isFinite(before) && Number.isFinite(now) && before > now && before > 0
       ? Math.round(((before - now) / before) * 100)
       : null;
+
+  const bulkEligibleProducts = products.filter(
+    (product) => product.price !== null && Number(product.price) > 0
+  );
+  const allBulkSelected =
+    bulkEligibleProducts.length > 0 &&
+    bulkEligibleProducts.every((product) => bulkSelected.includes(product.code));
+
+  function toggleBulkProduct(code: string) {
+    setBulkSelected((current) =>
+      current.includes(code)
+        ? current.filter((item) => item !== code)
+        : [...current, code]
+    );
+  }
+
+  function toggleAllBulkProducts() {
+    if (allBulkSelected) {
+      setBulkSelected([]);
+    } else {
+      setBulkSelected(bulkEligibleProducts.map((product) => product.code));
+    }
+  }
+
+  async function applyBulkPromotion() {
+    if (!supabase || bulkSaving) return;
+
+    const percentage = Number(bulkPercent);
+    if (!Number.isFinite(percentage) || percentage <= 0 || percentage >= 100) {
+      setBulkMessage("Choose a discount between 1% and 99%.");
+      return;
+    }
+
+    if (bulkStartsOn && bulkEndsOn && bulkEndsOn < bulkStartsOn) {
+      setBulkMessage("The end date cannot be before the start date.");
+      return;
+    }
+
+    const selected = bulkEligibleProducts.filter((product) =>
+      bulkSelected.includes(product.code)
+    );
+
+    if (!selected.length) {
+      setBulkMessage("Select at least one experience with a valid price.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Apply a " +
+        percentage +
+        "% website-only promotion to " +
+        selected.length +
+        " experience" +
+        (selected.length === 1 ? "" : "s") +
+        "? Existing individual promotions for the selected experiences will be replaced. Viator will not be changed."
+    );
+
+    if (!confirmed) return;
+
+    setBulkSaving(true);
+    setBulkMessage("");
+
+    const updatedAt = new Date().toISOString();
+    const rows = selected.map((product) => {
+      const beforePrice = Number(product.price);
+      const nowPrice = Number((beforePrice * (1 - percentage / 100)).toFixed(2));
+
+      return {
+        product_code: product.code,
+        title: product.title,
+        enabled: true,
+        label: bulkLabel.trim() || "Website offer",
+        before_price: beforePrice,
+        now_price: nowPrice,
+        currency: product.currency || "EUR",
+        starts_on: bulkStartsOn || null,
+        ends_on: bulkEndsOn || null,
+        updated_at: updatedAt,
+        updated_by: actorEmail || null,
+      };
+    });
+
+    const { error } = await supabase
+      .from("watermelon_site_promotions")
+      .upsert(rows, { onConflict: "product_code" });
+
+    if (error) {
+      setBulkMessage(error.message);
+      setBulkSaving(false);
+      return;
+    }
+
+    await loadPromotions();
+    setBulkMessage(
+      percentage +
+        "% promotion applied to " +
+        selected.length +
+        " experience" +
+        (selected.length === 1 ? "" : "s") +
+        ". Watermelon website only — Viator unchanged."
+    );
+    setBulkSaving(false);
+  }
 
   function chooseProduct(code: string) {
     const promotion = promotions.find((item) => item.product_code === code);
@@ -392,6 +502,172 @@ export default function AdminPromotions() {
           These discounts change the Watermelon direct-booking price only. They never edit the Viator listing, Viator price or Viator booking button.
         </span>
       </div>
+
+      <section className="promotion-bulk-card">
+        <div className="block-title">
+          <span>%</span>
+          <div>
+            <h2>Promotion for several experiences</h2>
+            <p>
+              Select all experiences or only the ones you want, then apply the same percentage in one step.
+            </p>
+          </div>
+        </div>
+
+        <div className="promotion-bulk-controls">
+          <div className="promotion-bulk-percent">
+            <span>Discount</span>
+            <div className="promotion-percent-buttons">
+              {[5, 10, 15, 20].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={bulkPercent === String(value) ? "chip chip-active" : "chip"}
+                  onClick={() => setBulkPercent(String(value))}
+                >
+                  {value}%
+                </button>
+              ))}
+              <label>
+                <span>Other</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="99"
+                  step="1"
+                  inputMode="numeric"
+                  value={bulkPercent}
+                  onChange={(event) => setBulkPercent(event.target.value)}
+                />
+              </label>
+            </div>
+          </div>
+
+          <label>
+            <span>Promotion label</span>
+            <input
+              value={bulkLabel}
+              maxLength={80}
+              onChange={(event) => setBulkLabel(event.target.value)}
+              placeholder="Website offer"
+            />
+          </label>
+
+          <label>
+            <span>Starts on (optional)</span>
+            <input
+              type="date"
+              value={bulkStartsOn}
+              onChange={(event) => setBulkStartsOn(event.target.value)}
+            />
+          </label>
+
+          <label>
+            <span>Ends on (optional)</span>
+            <input
+              type="date"
+              value={bulkEndsOn}
+              onChange={(event) => setBulkEndsOn(event.target.value)}
+            />
+          </label>
+        </div>
+
+        <div className="promotion-bulk-selectbar">
+          <label className="promotion-select-all">
+            <input
+              type="checkbox"
+              checked={allBulkSelected}
+              onChange={toggleAllBulkProducts}
+            />
+            <span>
+              Select all ({bulkEligibleProducts.length})
+            </span>
+          </label>
+          <span>
+            {bulkSelected.length} selected
+          </span>
+          {bulkSelected.length > 0 && (
+            <button
+              type="button"
+              className="button button-ghost"
+              onClick={() => setBulkSelected([])}
+            >
+              Clear selection
+            </button>
+          )}
+        </div>
+
+        <div className="promotion-bulk-products">
+          {products.map((product) => {
+            const isEligible = product.price !== null && Number(product.price) > 0;
+            const percentage = Number(bulkPercent);
+            const previewPrice =
+              isEligible && Number.isFinite(percentage) && percentage > 0 && percentage < 100
+                ? Number((Number(product.price) * (1 - percentage / 100)).toFixed(2))
+                : null;
+
+            return (
+              <label
+                className={
+                  isEligible
+                    ? "promotion-bulk-product"
+                    : "promotion-bulk-product promotion-bulk-product-disabled"
+                }
+                key={product.code}
+              >
+                <input
+                  type="checkbox"
+                  disabled={!isEligible}
+                  checked={bulkSelected.includes(product.code)}
+                  onChange={() => toggleBulkProduct(product.code)}
+                />
+                <div>
+                  <strong>{product.title}</strong>
+                  <span>{product.code}</span>
+                </div>
+                <div className="promotion-bulk-price">
+                  {isEligible ? (
+                    <>
+                      <small>Before {money(Number(product.price), product.currency)}</small>
+                      <b>
+                        Now {previewPrice !== null ? money(previewPrice, product.currency) : "—"}
+                      </b>
+                    </>
+                  ) : (
+                    <small>No current price available</small>
+                  )}
+                </div>
+              </label>
+            );
+          })}
+        </div>
+
+        {bulkMessage && (
+          <p className={bulkMessage.includes("applied") ? "promotion-success" : "admin-error"}>
+            {bulkMessage}
+          </p>
+        )}
+
+        <div className="promotion-bulk-actions">
+          <button
+            className="button button-primary"
+            type="button"
+            disabled={bulkSaving || bulkSelected.length === 0}
+            onClick={() => void applyBulkPromotion()}
+          >
+            {bulkSaving
+              ? "Applying…"
+              : "Apply " +
+                (bulkPercent || "0") +
+                "% to " +
+                bulkSelected.length +
+                " selected"}
+          </button>
+          <small>
+            This replaces the individual promotion only for the selected experiences. You can still edit any one of them afterwards.
+          </small>
+        </div>
+      </section>
 
       <div className="promotion-admin-grid">
         <form className="promotion-editor-card" onSubmit={savePromotion}>
