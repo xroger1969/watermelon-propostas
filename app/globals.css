@@ -5326,3 +5326,76 @@ button { cursor: pointer; }
     flex-direction: column;
   }
 }
+
+
+/* Google Ads promotion sync */
+.promotion-ads-sync-card {
+  margin: 0 0 18px;
+  padding: 22px;
+  border: 1px solid #d7e5ff;
+  border-radius: 20px;
+  background: #f7faff;
+  box-shadow: 0 10px 34px rgba(8, 42, 29, .045);
+}
+.promotion-ads-sync-card .block-title > span {
+  min-width: 44px;
+  background: #e8f1ff;
+  color: #28558d;
+}
+.promotion-ads-sync-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+.promotion-ads-sync-grid > div {
+  display: grid;
+  gap: 4px;
+  padding: 13px 14px;
+  border: 1px solid #dfe8f7;
+  border-radius: 13px;
+  background: #fff;
+}
+.promotion-ads-sync-grid span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.promotion-ads-sync-grid strong {
+  color: var(--ink);
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.promotion-ads-sync-grid small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.promotion-ads-sync-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  margin-top: 15px;
+}
+.promotion-ads-sync-actions > small {
+  flex: 1 1 320px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+  .promotion-ads-sync-card {
+    padding: 16px;
+  }
+  .promotion-ads-sync-grid {
+    grid-template-columns: 1fr;
+  }
+  .promotion-ads-sync-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
