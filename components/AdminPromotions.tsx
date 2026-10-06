@@ -79,6 +79,7 @@ export default function AdminPromotions() {
   const [bulkStartsOn, setBulkStartsOn] = useState("");
   const [bulkEndsOn, setBulkEndsOn] = useState("");
   const [bulkSelected, setBulkSelected] = useState<string[]>([]);
+  const [adsSyncMessage, setAdsSyncMessage] = useState("");
 
   const loadPromotions = useCallback(async () => {
     if (!supabase) return;
@@ -310,6 +311,26 @@ export default function AdminPromotions() {
     setBulkSaving(false);
   }
 
+  async function copyGoogleAdsSyncScript() {
+    setAdsSyncMessage("");
+    try {
+      const response = await fetch("/google-ads-promotion-sync.js", {
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error("Unable to load the sync script.");
+
+      const script = await response.text();
+      await navigator.clipboard.writeText(script);
+      setAdsSyncMessage(
+        "Google Ads sync script copied. Paste it once in Google Ads Scripts, authorize it and schedule it hourly."
+      );
+    } catch (error) {
+      setAdsSyncMessage(
+        error instanceof Error ? error.message : "Unable to copy the Google Ads sync script."
+      );
+    }
+  }
+
   function chooseProduct(code: string) {
     const promotion = promotions.find((item) => item.product_code === code);
     const product = products.find((item) => item.code === code);
@@ -502,6 +523,65 @@ export default function AdminPromotions() {
           These discounts change the Watermelon direct-booking price only. They never edit the Viator listing, Viator price or Viator booking button.
         </span>
       </div>
+
+      <section className="promotion-ads-sync-card">
+        <div className="block-title">
+          <span>Ads</span>
+          <div>
+            <h2>Google Ads promotion sync</h2>
+            <p>
+              Watermelon now exposes the active website promotions in a Google Ads-ready feed.
+              The sync creates campaign-level Promotion assets for the Watermelon Performance Max campaign.
+            </p>
+          </div>
+        </div>
+
+        <div className="promotion-ads-sync-grid">
+          <div>
+            <span>Website promotions</span>
+            <strong>{promotions.filter((promotion) => promotion.enabled).length}</strong>
+            <small>Only active, in-date offers are sent to Google Ads.</small>
+          </div>
+          <div>
+            <span>Campaign</span>
+            <strong>281499272571268</strong>
+            <small>Watermelon Performance Max campaign.</small>
+          </div>
+          <div>
+            <span>Viator</span>
+            <strong>Not connected</strong>
+            <small>These promotions never change Viator prices or listings.</small>
+          </div>
+        </div>
+
+        <div className="promotion-ads-sync-actions">
+          <button
+            className="button button-primary"
+            type="button"
+            onClick={() => void copyGoogleAdsSyncScript()}
+          >
+            Copy Google Ads sync script
+          </button>
+          <a
+            className="button button-outline"
+            href="/api/google-ads-promotions"
+            target="_blank"
+            rel="noreferrer"
+          >
+            View Ads promotion feed
+          </a>
+          <small>
+            One-time activation is required inside Google Ads because Google must authorize the script
+            in your advertising account. After that, the website and Google Ads can stay aligned automatically.
+          </small>
+        </div>
+
+        {adsSyncMessage && (
+          <p className={adsSyncMessage.includes("copied") ? "promotion-success" : "admin-error"}>
+            {adsSyncMessage}
+          </p>
+        )}
+      </section>
 
       <section className="promotion-bulk-card">
         <div className="block-title">
