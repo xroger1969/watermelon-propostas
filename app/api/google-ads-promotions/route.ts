@@ -133,7 +133,7 @@ export async function GET() {
   return NextResponse.json(
     {
       source: "watermelon-site-promotions",
-      campaignId: "281499272571268",
+      campaignId: "24302500298",
       generatedAt: new Date().toISOString(),
       promotions,
     },
