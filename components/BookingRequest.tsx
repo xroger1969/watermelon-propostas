@@ -186,6 +186,7 @@ export default function BookingRequest() {
           preferredTime: time,
           guests,
           unitPrice: unitPrice || null,
+          websitePromotion,
           currency: selection.currency || "EUR",
           customerName: form.name.trim(),
           customerEmail: form.email.trim(),
