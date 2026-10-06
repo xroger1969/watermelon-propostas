@@ -12,7 +12,7 @@
 
 const WATERMELON_PROMOTION_FEED =
   "https://www.watermelonexperiences.pt/api/google-ads-promotions";
-const WATERMELON_CAMPAIGN_ID = "281499272571268";
+const WATERMELON_CAMPAIGN_ID = "24302500298";
 const WATERMELON_ASSET_PREFIX = "WM_SITE_PROMO_";
 
 function main() {
