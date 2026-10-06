@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   }
 
   const guests = Math.max(1, Math.min(50, Number(input.guests) || 1));
-  const unitPrice =
+  const requestedUnitPrice =
     input.unitPrice === null || input.unitPrice === undefined
       ? null
       : Math.max(0, Number(input.unitPrice) || 0);
@@ -56,12 +56,35 @@ export async function POST(request: Request) {
     );
   }
 
-  const estimatedTotal = unitPrice === null ? null : Number((unitPrice * guests).toFixed(2));
   const reference = referenceCode();
 
   const supabase = createClient(SUPABASE_BOOKING_URL, SUPABASE_BOOKING_PUBLISHABLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+  const { data: promotion, error: promotionError } = await supabase
+    .from("watermelon_site_promotions")
+    .select("label,before_price,now_price,currency")
+    .eq("product_code", productCode)
+    .maybeSingle();
+
+  if (promotionError) {
+    console.error("Unable to check website promotion", promotionError);
+  }
+
+  const promotionNowPrice = Number(promotion?.now_price);
+  const promotionBeforePrice = Number(promotion?.before_price);
+  const promotionApplied =
+    Number.isFinite(promotionNowPrice) &&
+    Number.isFinite(promotionBeforePrice) &&
+    promotionNowPrice > 0 &&
+    promotionBeforePrice > promotionNowPrice;
+
+  const unitPrice = promotionApplied ? promotionNowPrice : requestedUnitPrice;
+  const currency = promotionApplied
+    ? clean(promotion?.currency, 3).toUpperCase() || "EUR"
+    : clean(input.currency, 3).toUpperCase() || "EUR";
+  const estimatedTotal = unitPrice === null ? null : Number((unitPrice * guests).toFixed(2));
 
   const { error } = await supabase
     .from("watermelon_booking_requests")
@@ -77,8 +100,13 @@ export async function POST(request: Request) {
       preferred_time: clean(input.preferredTime, 80) || null,
       guests,
       unit_price: unitPrice,
-      currency: clean(input.currency, 3).toUpperCase() || "EUR",
+      currency,
       estimated_total: estimatedTotal,
+      site_promotion_applied: promotionApplied,
+      site_before_price: promotionApplied ? promotionBeforePrice : null,
+      site_promotion_label: promotionApplied
+        ? clean(promotion?.label, 120) || "Website offer"
+        : null,
       customer_name: customerName,
       customer_email: clean(input.customerEmail, 250) || null,
       customer_phone: customerPhone,
