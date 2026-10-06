@@ -544,7 +544,7 @@ export default function AdminPromotions() {
           </div>
           <div>
             <span>Campaign</span>
-            <strong>281499272571268</strong>
+            <strong>24302500298</strong>
             <small>Watermelon Performance Max campaign.</small>
           </div>
           <div>
