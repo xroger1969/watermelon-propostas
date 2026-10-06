@@ -15,6 +15,9 @@ type BookingSelection = {
     optionDescription?: string;
   }>;
   price: string;
+  originalPrice?: string;
+  promotionLabel?: string;
+  websitePromotion?: boolean;
   currency: string;
   image: string;
   duration: string;
@@ -143,8 +146,13 @@ export default function BookingRequest() {
   }, [selection, form.optionCode]);
 
   const unitPrice = Number.parseFloat(selection?.price || "") || 0;
+  const originalUnitPrice = Number.parseFloat(selection?.originalPrice || "") || 0;
+  const websitePromotion = Boolean(
+    selection?.websitePromotion && originalUnitPrice > unitPrice && unitPrice > 0
+  );
   const guests = Math.max(1, Number.parseInt(form.guests, 10) || 1);
   const estimatedTotal = unitPrice * guests;
+  const originalEstimatedTotal = originalUnitPrice * guests;
 
   const canSend = Boolean(
     selection &&
@@ -218,9 +226,20 @@ export default function BookingRequest() {
         "Phone: " + form.phone.trim(),
         form.notes.trim() ? "Notes: " + form.notes.trim() : "",
         "",
-        unitPrice
-          ? "Guide price: " + money(unitPrice, selection.currency) + " per person × " + guests + " = " + money(estimatedTotal, selection.currency)
-          : "Price: to be confirmed",
+        websitePromotion
+          ? (selection.promotionLabel || "Website offer") +
+            ": Before " +
+            money(originalUnitPrice, selection.currency) +
+            " → Now " +
+            money(unitPrice, selection.currency) +
+            " per person × " +
+            guests +
+            " = " +
+            money(estimatedTotal, selection.currency) +
+            " (Watermelon website only)"
+          : unitPrice
+            ? "Guide price: " + money(unitPrice, selection.currency) + " per person × " + guests + " = " + money(estimatedTotal, selection.currency)
+            : "Price: to be confirmed",
         "",
         "Please confirm availability before I consider this booking confirmed.",
       ].filter(Boolean);
@@ -266,6 +285,14 @@ export default function BookingRequest() {
               <span className="code-pill">{selection.code}</span>
               <h2>{selection.title}</h2>
               <p>{selection.location} · {selection.duration}</p>
+              {websitePromotion && (
+                <div className="booking-website-promotion">
+                  <span>{selection.promotionLabel || "Website offer"}</span>
+                  <small>Before <del>{money(originalUnitPrice, selection.currency)}</del></small>
+                  <strong>Now {money(unitPrice, selection.currency)}</strong>
+                  <em>Exclusive to direct booking on watermelonexperiences.pt</em>
+                </div>
+              )}
               <div className="booking-status-note">
                 <strong>Availability is confirmed manually.</strong>
                 <span>You send the request now. Watermelon checks availability and only then confirms the booking.</span>
@@ -543,9 +570,15 @@ export default function BookingRequest() {
             <div><span>Option</span><strong>{selectedOption?.optionName || "Standard"}</strong></div>
           </div>
 
-          <div className="summary-total">
-            <span>Guide total</span>
+          <div className={websitePromotion ? "summary-total summary-total-promo" : "summary-total"}>
+            <span>{websitePromotion ? "Website offer total" : "Guide total"}</span>
+            {websitePromotion && (
+              <small>Before <del>{money(originalEstimatedTotal, selection.currency)}</del></small>
+            )}
             <strong>{unitPrice ? money(estimatedTotal, selection.currency) : "On request"}</strong>
+            {websitePromotion && (
+              <em>Direct Watermelon booking only · Viator is not changed</em>
+            )}
           </div>
 
           <div className="direct-proposal-note booking-pending-note">
