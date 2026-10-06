@@ -1214,6 +1214,98 @@ export default function AdminCRM() {
     setEditing(null);
   }
 
+  async function resendPaymentLink(request: CRMRequest) {
+    if (!supabase || request.kind === "direct_booking") return;
+
+    const latest = request.proposals[0] || null;
+    if (!latest?.payment_token || latest.payment_status === "paid") {
+      setMessage("There is no pending secure payment link to resend for this request.");
+      return;
+    }
+
+    const confirmed = window.confirm("Resend the secure payment link to this customer now?");
+    if (!confirmed) return;
+
+    const paymentUrl =
+      window.location.origin +
+      "/payment/" +
+      encodeURIComponent(request.reference) +
+      "?token=" +
+      encodeURIComponent(latest.payment_token);
+
+    const paymentText = [
+      "Hello " + (request.contact?.name || "") + ",",
+      "",
+      "Your Watermelon Experiences payment link is ready.",
+      "Reference: " + request.reference,
+      "Amount: " + money(Number(latest.total), request.currency),
+      "",
+      "Pay securely here:",
+      paymentUrl,
+      "",
+      "You can choose PayPal, Revolut or bank transfer.",
+      "",
+      "Watermelon Experiences",
+    ].join("\n");
+
+    setEditing(request.id);
+    setMessage("");
+
+    try {
+      const delivery = await sendCRMText(request, paymentText, "payment");
+      const sent =
+        delivery.mode === "text" || delivery.mode === "payment_template";
+
+      if (sent) {
+        await supabase.from("watermelon_activities").insert({
+          request_id: request.id,
+          contact_id: request.contact?.id || null,
+          activity_type: "payment_link_sent",
+          summary: "Secure payment link resent from CRM",
+          metadata: {
+            proposal_id: latest.id,
+            payment_link: paymentUrl,
+            mode: delivery.mode,
+          },
+          actor_email: actorEmail || null,
+        });
+
+        setMessage(
+          delivery.mode === "payment_template"
+            ? "Secure payment link sent through the approved Watermelon WhatsApp payment template."
+            : "Secure payment link resent from the CRM to WhatsApp."
+        );
+      } else {
+        await supabase.from("watermelon_activities").insert({
+          request_id: request.id,
+          contact_id: request.contact?.id || null,
+          activity_type: "payment_link_queued",
+          summary: "Secure payment link not sent yet",
+          metadata: {
+            proposal_id: latest.id,
+            payment_link: paymentUrl,
+            mode: delivery.mode,
+          },
+          actor_email: actorEmail || null,
+        });
+
+        setMessage(
+          "The secure payment link has not been sent yet. WhatsApp is still preventing free-form delivery outside the 24-hour customer-service window."
+        );
+      }
+
+      await loadCRM();
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "The secure payment link could not be sent."
+      );
+    } finally {
+      setEditing(null);
+    }
+  }
+
   async function changeStatus(request: CRMRequest, status: CRMStatus) {
     if (!supabase || request.status === status) return;
 
@@ -2754,7 +2846,7 @@ export default function AdminCRM() {
                       className="button button-outline"
                       type="button"
                       disabled={busy}
-                      onClick={() => void acceptProposalRequest(request, true)}
+                      onClick={() => void resendPaymentLink(request)}
                     >
                       Resend payment link
                     </button>
