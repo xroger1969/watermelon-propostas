@@ -122,6 +122,9 @@ type CRMBooking = {
   payment_reference: string | null;
   paid_at: string | null;
   confirmed_at: string | null;
+  site_promotion_applied: boolean;
+  site_before_price: number | null;
+  site_promotion_label: string | null;
 };
 
 type CRMRequest = {
@@ -2128,6 +2131,9 @@ export default function AdminCRM() {
           <a className="button button-ghost" href="/admin/bookings">
             Bookings & payments
           </a>
+          <a className="button button-outline" href="/admin/promotions">
+            Website promotions
+          </a>
           {pushSupported && (
             <button
               className={pushEnabled ? "button button-outline" : "button button-primary"}
@@ -2480,6 +2486,16 @@ export default function AdminCRM() {
                   <div><span>Source</span><strong>{request.source}</strong></div>
                   <div><span>Estimated total</span><strong>{money(request.estimated_total, request.currency)}</strong></div>
                 </section>
+
+                {request.booking?.site_promotion_applied &&
+                  request.booking.site_before_price !== null && (
+                    <section className="crm-review-note">
+                      <strong>{request.booking.site_promotion_label || "Website offer"}</strong>
+                      <span>
+                        Direct-site promotion applied · Before {money(request.booking.site_before_price, request.currency)} · Now {request.items[0]?.unit_price !== null && request.items[0]?.unit_price !== undefined ? money(request.items[0].unit_price, request.currency) : "—"} per guest. Viator was not changed.
+                      </span>
+                    </section>
+                  )}
 
                 <section className="crm-experience-list">
                   {request.items.map((item, index) => (
