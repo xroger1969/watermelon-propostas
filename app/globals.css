@@ -5117,3 +5117,212 @@ button { cursor: pointer; }
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Bulk website promotions */
+.promotion-bulk-card {
+  margin: 0 0 18px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 10px 34px rgba(8, 42, 29, .055);
+}
+.promotion-bulk-controls {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.4fr) repeat(3, minmax(150px, .8fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.promotion-bulk-controls > label,
+.promotion-bulk-percent {
+  display: grid;
+  gap: 7px;
+}
+.promotion-bulk-controls > label > span,
+.promotion-bulk-percent > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.promotion-bulk-controls input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fff;
+  color: var(--ink);
+  padding: 11px 13px;
+  outline: none;
+  font: inherit;
+}
+.promotion-percent-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.promotion-percent-buttons > label {
+  display: grid;
+  grid-template-columns: auto 76px;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 0 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+}
+.promotion-percent-buttons > label > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+.promotion-percent-buttons > label input {
+  min-height: 36px;
+  height: 36px;
+  padding: 6px 10px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0 999px 999px 0;
+}
+.promotion-bulk-selectbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-radius: 13px;
+  background: #f7faf8;
+}
+.promotion-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 850;
+  color: var(--ink);
+}
+.promotion-select-all input {
+  width: 18px;
+  height: 18px;
+}
+.promotion-bulk-selectbar > span {
+  color: var(--muted);
+  font-size: 12px;
+  margin-right: auto;
+}
+.promotion-bulk-products {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  max-height: 420px;
+  overflow: auto;
+  margin-top: 12px;
+  padding-right: 3px;
+}
+.promotion-bulk-product {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 11px;
+  align-items: center;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fbfcfb;
+  cursor: pointer;
+}
+.promotion-bulk-product:hover {
+  border-color: var(--green-2);
+}
+.promotion-bulk-product > input {
+  width: 18px;
+  height: 18px;
+}
+.promotion-bulk-product > div:nth-of-type(1) {
+  min-width: 0;
+}
+.promotion-bulk-product strong,
+.promotion-bulk-product span {
+  display: block;
+}
+.promotion-bulk-product strong {
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.3;
+}
+.promotion-bulk-product span {
+  margin-top: 3px;
+  color: var(--green);
+  font-size: 9px;
+  font-weight: 900;
+}
+.promotion-bulk-price {
+  display: grid;
+  gap: 2px;
+  text-align: right;
+  white-space: nowrap;
+}
+.promotion-bulk-price small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.promotion-bulk-price b {
+  color: #b42318;
+  font-size: 12px;
+}
+.promotion-bulk-product-disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+.promotion-bulk-product-disabled:hover {
+  border-color: var(--line);
+}
+.promotion-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 16px;
+}
+.promotion-bulk-actions small {
+  max-width: 620px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.promotion-success {
+  margin: 14px 0 0;
+  padding: 11px 13px;
+  border: 1px solid #cbe7d9;
+  border-radius: 12px;
+  background: #eef9f3;
+  color: #0e5b3e;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+@media (max-width: 980px) {
+  .promotion-bulk-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 700px) {
+  .promotion-bulk-card {
+    padding: 16px;
+  }
+  .promotion-bulk-controls,
+  .promotion-bulk-products {
+    grid-template-columns: 1fr;
+  }
+  .promotion-bulk-product {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .promotion-bulk-price {
+    grid-column: 2;
+    text-align: left;
+  }
+  .promotion-bulk-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
