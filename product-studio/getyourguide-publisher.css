@@ -1,0 +1,30 @@
+
+.gyg-intro{margin-top:18px;display:grid;grid-template-columns:1.2fr .8fr;gap:16px;align-items:start}
+.gyg-intro p{margin:6px 0 0;color:var(--muted);line-height:1.55}
+.gyg-toolbar{margin-top:20px}
+.gyg-table{min-width:1120px}
+.gyg-actions{align-items:center;flex-wrap:wrap}
+.gyg-state-select{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 9px;font-size:12px}
+.gyg-missing{color:#9a5c00;font-size:12px;line-height:1.35;display:block;max-width:230px}
+.gyg-ok{color:#20752b;font-weight:750;font-size:12px}
+.gyg-pack-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:14px}
+.gyg-pack-head h3{margin:2px 0 0}
+.gyg-ready-box{background:#e8f8ea;color:#1f6a28;border:1px solid #bfe5c3;padding:12px 14px;border-radius:12px;margin-bottom:14px}
+.gyg-copy-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
+.gyg-field{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--soft)}
+.gyg-field.wide{grid-column:1/-1}
+.gyg-field>div{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+.gyg-field textarea{width:100%;min-height:80px;border:1px solid var(--line);border-radius:8px;padding:9px;background:#fff;resize:vertical}
+.gyg-field.wide textarea{min-height:150px}
+.gyg-pack-section{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.gyg-pack-section h2{font-size:16px;margin:0 0 8px}
+.gyg-pack-section ul{margin:8px 0;padding-left:20px}
+.gyg-two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.gyg-options{display:grid;gap:8px}
+.gyg-option{border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:3px}
+.gyg-option span{font-size:12px;color:var(--muted)}
+.gyg-photo-row{display:flex;gap:8px;overflow:auto}
+.gyg-photo-row img{width:130px;height:90px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+.gyg-pack-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+.gyg-pack-actions a{text-decoration:none;display:inline-flex;align-items:center}
+@media(max-width:800px){.gyg-intro,.gyg-copy-grid,.gyg-two{grid-template-columns:1fr}.gyg-field.wide{grid-column:auto}}
