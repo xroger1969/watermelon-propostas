@@ -94,31 +94,31 @@ function chooseStart(mode){
   if(mode==='viator'){openLinkBrief('viator');return}
 }
 function openAIBrief(){
-  showModal(\`<h3>✦ Criar novo programa com IA</h3>
+  showModal(`<h3>✦ Criar novo programa com IA</h3>
     <p>Escreve como falarias comigo. A IA constrói o produto e depois pesquisa preços atuais para o posicionar no mercado.</p>
     <textarea id="aiBrief" style="width:100%;min-height:190px;padding:12px;border:1px solid #dce4df;border-radius:10px;resize:vertical" placeholder="Ex.: Experiência privada Lisboa e Sintra, 8 horas, pickup no hotel em Lisboa, máximo 8 pessoas, Pena, centro de Sintra, Cabo da Roca e Cascais. Transporte e guia incluídos, entradas não incluídas. Premium e descontraída."></textarea>
-    <p class="hint" style="margin-top:10px">O preço sugerido será validado com pesquisa online sempre que existirem comparáveis credíveis.</p>\`,
+    <p class="hint" style="margin-top:10px">O preço sugerido será validado com pesquisa online sempre que existirem comparáveis credíveis.</p>`,
     [{label:'Cancelar',action:'closeModal()'},{label:'Criar e pesquisar preço',action:'generateWithAI()'}]
   )
 }
 function openLinkBrief(mode){
   const isViator=mode==='viator';
-  showModal(\`<h3>\${isViator?'⇩ Importar produto Viator':'🔗 Criar a partir de um link'}</h3>
-    <p>\${isViator?'Cola o link ou referência do produto Viator.':'Cola o endereço de uma experiência, programa ou operador.'}</p>
-    <input id="sourceUrl" style="width:100%;padding:12px;border:1px solid #dce4df;border-radius:10px" placeholder="\${isViator?'https://www.viator.com/... ou código do produto':'https://...'}">
+  showModal(`<h3>${isViator?'⇩ Importar produto Viator':'🔗 Criar a partir de um link'}</h3>
+    <p>${isViator?'Cola o link ou referência do produto Viator.':'Cola o endereço de uma experiência, programa ou operador.'}</p>
+    <input id="sourceUrl" style="width:100%;padding:12px;border:1px solid #dce4df;border-radius:10px" placeholder="${isViator?'https://www.viator.com/... ou código do produto':'https://...'}">
     <textarea id="sourceNote" style="width:100%;min-height:90px;margin-top:10px;padding:12px;border:1px solid #dce4df;border-radius:10px" placeholder="Nota opcional: o que queres manter, alterar ou evitar?"></textarea>
-    <p class="hint">A IA extrai factos e estrutura, mas escreve copy Watermelon original. Não copia o texto comercial do outro operador.</p>\`,
-    [{label:'Cancelar',action:'closeModal()'},{label:'Importar e criar',action:\`runLinkIntake('\${mode}')\`}]
+    <p class="hint">A IA extrai factos e estrutura, mas escreve copy Watermelon original. Não copia o texto comercial do outro operador.</p>`,
+    [{label:'Cancelar',action:'closeModal()'},{label:'Importar e criar',action:`runLinkIntake('${mode}')`}]
   )
 }
 function openFileBrief(mode){
   const image=mode==='image';
-  showModal(\`<h3>\${image?'📷 Criar a partir de fotografia':'📄 Criar a partir de ficheiro'}</h3>
-    <p>\${image?'Escolhe uma fotografia, captura de ecrã ou folheto.':'Escolhe PDF, Word, PowerPoint ou ficheiro de texto com o programa.'}</p>
-    <input id="sourceFile" type="file" accept="\${image?'image/*':'.pdf,.doc,.docx,.ppt,.pptx,.txt,.md,.rtf'}" style="width:100%">
+  showModal(`<h3>${image?'📷 Criar a partir de fotografia':'📄 Criar a partir de ficheiro'}</h3>
+    <p>${image?'Escolhe uma fotografia, captura de ecrã ou folheto.':'Escolhe PDF, Word, PowerPoint ou ficheiro de texto com o programa.'}</p>
+    <input id="sourceFile" type="file" accept="${image?'image/*':'.pdf,.doc,.docx,.ppt,.pptx,.txt,.md,.rtf'}" style="width:100%">
     <textarea id="fileNote" style="width:100%;min-height:90px;margin-top:12px;padding:12px;border:1px solid #dce4df;border-radius:10px" placeholder="Nota opcional para orientar a IA"></textarea>
-    <p class="hint">\${image?'A imagem é otimizada antes do envio.':'Nesta versão, ficheiros até cerca de 3 MB são enviados diretamente para análise.'}</p>\`,
-    [{label:'Cancelar',action:'closeModal()'},{label:'Analisar e criar',action:\`runFileIntake('\${mode}')\`}]
+    <p class="hint">${image?'A imagem é otimizada antes do envio.':'Nesta versão, ficheiros até cerca de 3 MB são enviados diretamente para análise.'}</p>`,
+    [{label:'Cancelar',action:'closeModal()'},{label:'Analisar e criar',action:`runFileIntake('${mode}')`}]
   )
 }
 let voiceRecorder=null,voiceChunks=[],voiceStream=null,voiceTimer=null;
@@ -131,12 +131,12 @@ async function openVoiceBrief(){
     voiceRecorder.onstop=finishVoiceBrief;
     voiceRecorder.start();
     let sec=0;
-    showModal(\`<h3>🎙 A ouvir o teu briefing</h3><p>Explica a experiência naturalmente: destino, duração, percurso, o que inclui, nº de pessoas e o posicionamento que pretendes.</p><div class="notice"><b id="voiceClock">00:00</b> · gravação em curso</div><p class="hint">A gravação termina automaticamente aos 90 segundos.</p>\`,
+    showModal(`<h3>🎙 A ouvir o teu briefing</h3><p>Explica a experiência naturalmente: destino, duração, percurso, o que inclui, nº de pessoas e o posicionamento que pretendes.</p><div class="notice"><b id="voiceClock">00:00</b> · gravação em curso</div><p class="hint">A gravação termina automaticamente aos 90 segundos.</p>`,
       [{label:'Parar e criar programa',action:'stopVoiceBrief()'}]
     );
-    voiceTimer=setInterval(()=>{sec++;const m=document.querySelector('#voiceClock');if(m)m.textContent=\`00:\${String(sec).padStart(2,'0')}\`;if(sec>=90)stopVoiceBrief()},1000);
+    voiceTimer=setInterval(()=>{sec++;const m=document.querySelector('#voiceClock');if(m)m.textContent=`00:${String(sec).padStart(2,'0')}`;if(sec>=90)stopVoiceBrief()},1000);
   }catch(e){
-    showModal(\`<h3>Microfone indisponível</h3><p>\${esc(e.message||String(e))}</p>\`,[{label:'Fechar',action:'closeModal()'}]);
+    showModal(`<h3>Microfone indisponível</h3><p>${esc(e.message||String(e))}</p>`,[{label:'Fechar',action:'closeModal()'}]);
   }
 }
 function stopVoiceBrief(){
@@ -149,7 +149,7 @@ async function finishVoiceBrief(){
     const blob=new Blob(voiceChunks,{type:voiceRecorder?.mimeType||'audio/webm'});
     const dataUrl=await blobToDataURL(blob);
     const modal=document.querySelector('#modal');
-    modal.innerHTML=\`<div class="box"><h3>🎙 A transcrever…</h3><p>Primeiro transformo a tua voz em briefing e depois crio o programa.</p></div>\`;
+    modal.innerHTML=`<div class="box"><h3>🎙 A transcrever…</h3><p>Primeiro transformo a tua voz em briefing e depois crio o programa.</p></div>`;
     const tr=await fetch('/api/transcribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dataUrl,fileName:'watermelon-brief.webm'})});
     const td=await tr.json();
     if(!tr.ok)throw new Error(td.error||'Falha na transcrição');
@@ -175,9 +175,9 @@ async function runFileIntake(mode){
   if(mode==='file'&&file.size>3.1*1024*1024){toast('Ficheiro demasiado grande nesta versão (máx. ~3 MB)');return}
   try{
     const modal=document.querySelector('#modal');
-    modal.innerHTML=\`<div class="box"><h3>✦ A analisar a fonte…</h3><p>A IA está a extrair factos, criar copy Watermelon original e depois vai pesquisar o preço de mercado.</p></div>\`;
+    modal.innerHTML=`<div class="box"><h3>✦ A analisar a fonte…</h3><p>A IA está a extrair factos, criar copy Watermelon original e depois vai pesquisar o preço de mercado.</p></div>`;
     const dataUrl=mode==='image'?await imageToDataURL(file):await blobToDataURL(file);
-    await runIntake({mode,dataUrl,fileName:file.name,mimeType:file.type,brief:note},\`\${mode==='image'?'Fotografia':'Ficheiro'}: \${file.name}\`);
+    await runIntake({mode,dataUrl,fileName:file.name,mimeType:file.type,brief:note},`${mode==='image'?'Fotografia':'Ficheiro'}: ${file.name}`);
   }catch(e){showIntakeError(e,()=>openFileBrief(mode))}
 }
 async function runLinkIntake(mode){
@@ -185,16 +185,16 @@ async function runLinkIntake(mode){
   const note=(document.querySelector('#sourceNote')?.value||'').trim();
   if(!url){toast('Cola o link ou referência');return}
   const modal=document.querySelector('#modal');
-  modal.innerHTML=\`<div class="box"><h3>✦ A analisar e pesquisar…</h3><p>A IA está a verificar a experiência, a criar a versão Watermelon e a procurar comparáveis atuais.</p></div>\`;
+  modal.innerHTML=`<div class="box"><h3>✦ A analisar e pesquisar…</h3><p>A IA está a verificar a experiência, a criar a versão Watermelon e a procurar comparáveis atuais.</p></div>`;
   try{
-    await runIntake(mode==='viator'?{mode:'viator',reference:url,brief:note}:{mode:'url',url,brief:note},\`\${mode==='viator'?'Viator':'Link'}: \${url}\`);
+    await runIntake(mode==='viator'?{mode:'viator',reference:url,brief:note}:{mode:'url',url,brief:note},`${mode==='viator'?'Viator':'Link'}: ${url}`);
   }catch(e){showIntakeError(e,()=>openLinkBrief(mode))}
 }
 function aiLines(v){return Array.isArray(v)?v.join('\\n'):(v||'')}
 function marketHtml(m){
   if(!m)return '<div class="notice">Pesquisa de mercado não disponível; preço provisório.</div>';
-  const comps=(m.comparables||[]).slice(0,5).map(c=>\`<div class="comp"><a href="\${esc(c.url)}" target="_blank" rel="noopener">\${esc(c.provider)} · \${esc(c.title)}</a><br><b>\${esc(String(c.observedPrice))} \${esc(c.currency)}</b> · \${esc(c.priceBasis)} · \${esc(c.duration||'')}</div>\`).join('');
-  return \`<div class="market-panel"><div class="market-head"><div><b>Pesquisa de mercado</b><div class="hint">\${esc(m.pricedComparableCount||0)} comparáveis com preço · confiança \${esc(m.confidence||'low')}</div></div><span class="badge \${m.method==='market_researched'?'live':'paused'}">\${m.method==='market_researched'?'Preço pesquisado':'Provisório'}</span></div><div class="market-grid"><div><span class="hint">Faixa baixa</span><br><b>\${esc(String(m.lowMarketPrice||0))} \${esc(m.currency||'EUR')}</b></div><div><span class="hint">Mediana</span><br><b>\${esc(String(m.medianMarketPrice||0))} \${esc(m.currency||'EUR')}</b></div><div><span class="hint">Watermelon</span><br><b>\${esc(String(m.recommendedPrice||0))} \${esc(m.currency||'EUR')}</b></div></div><p style="font-size:12px">\${esc(m.rationale||'')}</p>\${comps?'<div class="comp-list">'+comps+'</div>':''}</div>\`;
+  const comps=(m.comparables||[]).slice(0,5).map(c=>`<div class="comp"><a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.provider)} · ${esc(c.title)}</a><br><b>${esc(String(c.observedPrice))} ${esc(c.currency)}</b> · ${esc(c.priceBasis)} · ${esc(c.duration||'')}</div>`).join('');
+  return `<div class="market-panel"><div class="market-head"><div><b>Pesquisa de mercado</b><div class="hint">${esc(m.pricedComparableCount||0)} comparáveis com preço · confiança ${esc(m.confidence||'low')}</div></div><span class="badge ${m.method==='market_researched'?'live':'paused'}">${m.method==='market_researched'?'Preço pesquisado':'Provisório'}</span></div><div class="market-grid"><div><span class="hint">Faixa baixa</span><br><b>${esc(String(m.lowMarketPrice||0))} ${esc(m.currency||'EUR')}</b></div><div><span class="hint">Mediana</span><br><b>${esc(String(m.medianMarketPrice||0))} ${esc(m.currency||'EUR')}</b></div><div><span class="hint">Watermelon</span><br><b>${esc(String(m.recommendedPrice||0))} ${esc(m.currency||'EUR')}</b></div></div><p style="font-size:12px">${esc(m.rationale||'')}</p>${comps?'<div class="comp-list">'+comps+'</div>':''}</div>`;
 }
 function marketReview(p){return p?.marketResearch?marketHtml(p.marketResearch):''}
 function applyGenerated(data,briefLabel){
@@ -223,13 +223,13 @@ function applyGenerated(data,briefLabel){
     marketResearch:m
   };
   editingId=null;currentStep=1;
-  const missing=(p.missingInformation||[]).map(x=>\`<li>\${esc(x)}</li>\`).join('');
-  const assumptions=(p.assumptions||[]).map(x=>\`<li>\${esc(x)}</li>\`).join('');
-  showModal(\`<h3>Programa criado ✓</h3><p><b>\${esc(p.title||'Novo produto')}</b></p>
-    <div class="quality" style="grid-template-columns:90px 1fr"><div class="score" style="width:78px;height:78px;--score:\${p.qualityScore||0}"><span style="font-size:20px">\${p.qualityScore||0}%</span></div><div><b>Rascunho gerado pela IA</b><p class="hint">Revê os campos antes de marcar como Ready.</p></div></div>
-    \${marketHtml(m)}
-    \${assumptions?\`<h4>Suposições propostas</h4><ul style="font-size:13px">\${assumptions}</ul>\`:''}
-    \${missing?\`<h4>Falta confirmar</h4><ul style="font-size:13px">\${missing}</ul>\`:'<p class="hint">A IA não sinalizou informação crítica em falta.</p>'}\`,
+  const missing=(p.missingInformation||[]).map(x=>`<li>${esc(x)}</li>`).join('');
+  const assumptions=(p.assumptions||[]).map(x=>`<li>${esc(x)}</li>`).join('');
+  showModal(`<h3>Programa criado ✓</h3><p><b>${esc(p.title||'Novo produto')}</b></p>
+    <div class="quality" style="grid-template-columns:90px 1fr"><div class="score" style="width:78px;height:78px;--score:${p.qualityScore||0}"><span style="font-size:20px">${p.qualityScore||0}%</span></div><div><b>Rascunho gerado pela IA</b><p class="hint">Revê os campos antes de marcar como Ready.</p></div></div>
+    ${marketHtml(m)}
+    ${assumptions?`<h4>Suposições propostas</h4><ul style="font-size:13px">${assumptions}</ul>`:''}
+    ${missing?`<h4>Falta confirmar</h4><ul style="font-size:13px">${missing}</ul>`:'<p class="hint">A IA não sinalizou informação crítica em falta.</p>'}`,
     [{label:'Rever e editar',action:'closeModal();renderWizard()'}]
   );
 }
@@ -241,13 +241,13 @@ async function runIntake(payload,briefLabel){
 }
 function showIntakeError(e,retry){
   window.__intakeRetry=retry;
-  showModal(\`<h3>Não consegui criar o programa</h3><p>\${esc(e.message||String(e))}</p><p class="hint">Nenhum produto foi publicado.</p>\`,[{label:'Voltar',action:'closeModal();window.__intakeRetry&&window.__intakeRetry()'}]);
+  showModal(`<h3>Não consegui criar o programa</h3><p>${esc(e.message||String(e))}</p><p class="hint">Nenhum produto foi publicado.</p>`,[{label:'Voltar',action:'closeModal();window.__intakeRetry&&window.__intakeRetry()'}]);
 }
 async function generateWithAI(){
   const brief=(document.querySelector('#aiBrief')?.value||'').trim();
   if(brief.length<20){toast('Descreve um pouco melhor a experiência');return}
   const modal=document.querySelector('#modal');
-  modal.innerHTML=\`<div class="box"><h3>✦ A criar e pesquisar…</h3><p>A IA está a estruturar a experiência e a pesquisar preços atuais em experiências comparáveis.</p><div class="notice">Só será tratado como preço de mercado se houver fontes verificáveis.</div></div>\`;
+  modal.innerHTML=`<div class="box"><h3>✦ A criar e pesquisar…</h3><p>A IA está a estruturar a experiência e a pesquisar preços atuais em experiências comparáveis.</p><div class="notice">Só será tratado como preço de mercado se houver fontes verificáveis.</div></div>`;
   try{await runIntake({mode:'text',brief},brief)}catch(e){showIntakeError(e,()=>openAIBrief())}
 }
 async function saveCloud(product){
