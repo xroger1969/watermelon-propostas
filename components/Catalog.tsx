@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { experiences } from "@/data/products";
 import { viatorListings } from "@/data/viator";
+import { guestLimitLabel, inferProductRules, type PricingMode } from "@/lib/product-rules";
 
 type ProposalItem = {
   code: string;
@@ -11,6 +12,9 @@ type ProposalItem = {
   optionName: string;
   price: string;
   notes: string;
+  description?: string;
+  pricingMode?: PricingMode;
+  maxGuests?: number | null;
 };
 
 type BookingSelection = {
@@ -32,6 +36,8 @@ type BookingSelection = {
   duration: string;
   location: string;
   description?: string;
+  pricingMode: PricingMode;
+  maxGuests: number | null;
 };
 
 type LivePrice = {
@@ -385,6 +391,13 @@ export default function Catalog() {
   function startBooking(product: (typeof products)[number]) {
     const option = product.options[0];
     const currentPrice = priceFor(product.code);
+    const rules = inferProductRules({
+      code: product.code,
+      title: product.viator.title,
+      description: product.description,
+      optionName: option?.optionName,
+      optionDescription: option?.optionDescription,
+    });
     const selection: BookingSelection = {
       code: product.code,
       title: product.viator.title,
@@ -407,6 +420,8 @@ export default function Catalog() {
       duration: product.viator.duration,
       location: product.location,
       description: product.description || "",
+      pricingMode: rules.pricingMode,
+      maxGuests: rules.maxGuests,
     };
 
     localStorage.setItem(BOOKING_STORAGE_KEY, JSON.stringify(selection));
@@ -416,6 +431,13 @@ export default function Catalog() {
   function addToProposal(product: (typeof products)[number]) {
     const option = product.options[0];
     const currentPrice = priceFor(product.code);
+    const rules = inferProductRules({
+      code: product.code,
+      title: product.viator.title,
+      description: product.description,
+      optionName: option?.optionName,
+      optionDescription: option?.optionDescription,
+    });
     const existing = readProposal();
     const already = existing.some((item) => item.code === product.code);
 
@@ -427,6 +449,9 @@ export default function Catalog() {
         optionName: option?.optionName || "Standard option",
         price: currentPrice.price === null ? "" : String(currentPrice.price),
         notes: "",
+        description: product.description || "",
+        pricingMode: rules.pricingMode,
+        maxGuests: rules.maxGuests,
       });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
     }
@@ -485,6 +510,13 @@ export default function Catalog() {
       <div className="product-grid">
         {filtered.map((product) => {
           const currentPrice = priceFor(product.code);
+          const rules = inferProductRules({
+            code: product.code,
+            title: product.viator.title,
+            description: product.description,
+            optionName: product.options[0]?.optionName,
+            optionDescription: product.options[0]?.optionDescription,
+          });
 
           return (
             <article className="product-card catalog-card" key={product.code}>
@@ -540,13 +572,25 @@ export default function Catalog() {
                         <span>{currentPrice.promotionLabel}</span>
                         <small className="promo-before">Before <del>{money(currentPrice.beforePrice as number, currentPrice.currency)}</del></small>
                         <strong>Now {money(currentPrice.price as number, currentPrice.currency)}</strong>
-                        <small>Website-only offer</small>
+                        <small>
+                          {rules.pricingMode === "group"
+                            ? `Website-only offer · per group${rules.maxGuests ? ` · ${guestLimitLabel(rules.maxGuests)}` : ""}`
+                            : "Website-only offer"}
+                        </small>
                       </>
                     ) : (
                       <>
                         <span>From</span>
                         <strong>{currentPrice.price === null ? "On request" : money(currentPrice.price, currentPrice.currency)}</strong>
-                        <small>{currentPrice.price === null ? "price confirmed on request" : currentPrice.isLive ? "price updated automatically" : "Viator price"}</small>
+                        <small>
+                          {currentPrice.price === null
+                            ? "price confirmed on request"
+                            : rules.pricingMode === "group"
+                              ? `Private group price${rules.maxGuests ? ` · ${guestLimitLabel(rules.maxGuests)}` : ""}`
+                              : currentPrice.isLive
+                                ? "price updated automatically"
+                                : "Viator price"}
+                        </small>
                       </>
                     )}
                   </div>
@@ -590,9 +634,11 @@ export default function Catalog() {
       </div>
 
       <p className="catalog-note">
-        Prices shown are “from” prices. The final price may vary depending on the date,
-        number of guests, selected option and availability. Website promotions apply only
-        to direct Watermelon bookings and do not change prices or offers on Viator.
+        Prices shown are “from” prices. Experiences identified as private-group products are
+        priced for the whole group, not per person, and their stated group-size limit is enforced
+        in direct booking and proposal requests. Other prices may vary by date, number of guests,
+        selected option and availability. Website promotions apply only to direct Watermelon
+        bookings and do not change prices or offers on Viator.
       </p>
 
       {filtered.length === 0 && (
@@ -606,6 +652,13 @@ export default function Catalog() {
         const product = products.find((item) => item.code === detailCode);
         if (!product) return null;
         const currentPrice = priceFor(product.code);
+        const rules = inferProductRules({
+          code: product.code,
+          title: product.viator.title,
+          description: product.description,
+          optionName: product.options[0]?.optionName,
+          optionDescription: product.options[0]?.optionDescription,
+        });
         return (
           <div className="experience-modal-backdrop" role="presentation" onClick={() => setDetailCode(null)}>
             <section
@@ -695,13 +748,25 @@ export default function Catalog() {
                         <span>{currentPrice.promotionLabel}</span>
                         <small className="promo-before">Before <del>{money(currentPrice.beforePrice as number, currentPrice.currency)}</del></small>
                         <strong>Now {money(currentPrice.price as number, currentPrice.currency)}</strong>
-                        <small>Exclusive to direct booking on watermelonexperiences.pt</small>
+                        <small>
+                          {rules.pricingMode === "group"
+                            ? `Exclusive to direct booking · per group${rules.maxGuests ? ` · ${guestLimitLabel(rules.maxGuests)}` : ""}`
+                            : "Exclusive to direct booking on watermelonexperiences.pt"}
+                        </small>
                       </>
                     ) : (
                       <>
                         <span>From</span>
                         <strong>{currentPrice.price === null ? "On request" : money(currentPrice.price, currentPrice.currency)}</strong>
-                        <small>{currentPrice.price === null ? "price confirmed on request" : currentPrice.isLive ? "price updated automatically" : "Viator price"}</small>
+                        <small>
+                          {currentPrice.price === null
+                            ? "price confirmed on request"
+                            : rules.pricingMode === "group"
+                              ? `Private group price${rules.maxGuests ? ` · ${guestLimitLabel(rules.maxGuests)}` : ""}`
+                              : currentPrice.isLive
+                                ? "price updated automatically"
+                                : "Viator price"}
+                        </small>
                       </>
                     )}
                   </div>

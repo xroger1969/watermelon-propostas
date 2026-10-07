@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { CreateBookingRequestInput } from "@/types/booking";
+import { inferProductRules } from "@/lib/product-rules";
 import {
   SUPABASE_BOOKING_PUBLISHABLE_KEY,
   SUPABASE_BOOKING_URL,
@@ -56,6 +57,21 @@ export async function POST(request: Request) {
     );
   }
 
+  const productRules = inferProductRules({
+    code: productCode,
+    title: experienceTitle,
+    optionName: clean(input.optionName, 200),
+  });
+
+  if (productRules.maxGuests && guests > productRules.maxGuests) {
+    return NextResponse.json(
+      {
+        error: `This experience accepts a maximum of ${productRules.maxGuests} guests per group.`,
+      },
+      { status: 400 }
+    );
+  }
+
   const reference = referenceCode();
 
   const supabase = createClient(SUPABASE_BOOKING_URL, SUPABASE_BOOKING_PUBLISHABLE_KEY, {
@@ -94,7 +110,16 @@ export async function POST(request: Request) {
   const currency = promotionApplied
     ? clean(promotion?.currency, 3).toUpperCase() || "EUR"
     : clean(input.currency, 3).toUpperCase() || "EUR";
-  const estimatedTotal = unitPrice === null ? null : Number((unitPrice * guests).toFixed(2));
+  const estimatedTotal =
+    unitPrice === null
+      ? null
+      : Number(
+          (
+            productRules.pricingMode === "group"
+              ? unitPrice
+              : unitPrice * guests
+          ).toFixed(2)
+        );
 
   const { error } = await supabase
     .from("watermelon_booking_requests")

@@ -4,6 +4,7 @@ import {
   SUPABASE_BOOKING_PUBLISHABLE_KEY,
   SUPABASE_BOOKING_URL,
 } from "@/lib/supabase/config";
+import { inferProductRules } from "@/lib/product-rules";
 
 export const runtime = "nodejs";
 
@@ -79,25 +80,62 @@ export async function POST(request: Request) {
     );
   }
 
-  const items = rawItems.map((item, index) => {
+  const preparedItems = rawItems.map((item, index) => {
     const guests = Math.max(1, Math.min(50, Number(item.guests) || 1));
     const unitPrice =
       item.unitPrice === null || item.unitPrice === undefined
         ? null
         : Math.max(0, Number(item.unitPrice) || 0);
+    const productCode = clean(item.code, 80);
+    const experienceTitle = clean(item.title, 250) || "Experience";
+    const optionName = clean(item.optionName, 200);
+    const rules = inferProductRules({
+      code: productCode,
+      title: experienceTitle,
+      optionName,
+    });
 
     return {
+      item,
+      index,
+      guests,
+      unitPrice,
+      productCode,
+      experienceTitle,
+      optionName,
+      rules,
+    };
+  });
+
+  const overCapacity = preparedItems.find(
+    (entry) => entry.rules.maxGuests && entry.guests > entry.rules.maxGuests
+  );
+
+  if (overCapacity) {
+    return NextResponse.json(
+      {
+        error: `${overCapacity.experienceTitle} accepts a maximum of ${overCapacity.rules.maxGuests} guests per group.`,
+      },
+      { status: 400 }
+    );
+  }
+
+  const items = preparedItems.map(
+    ({ item, index, guests, unitPrice, productCode, experienceTitle, optionName, rules }) => ({
       position: index,
-      product_code: clean(item.code, 80) || null,
-      experience_title: clean(item.title, 250) || "Experience",
+      product_code: productCode || null,
+      experience_title: experienceTitle,
       option_code: clean(item.optionCode, 80) || null,
-      option_name: clean(item.optionName, 200) || null,
+      option_name: optionName || null,
       requested_date: clean(item.date, 10) || null,
       preferred_time: clean(item.preferredTime, 80) || "Flexible",
       date_flexibility: clean(item.dateFlexibility, 80) || "Exact date",
       guests,
       unit_price: unitPrice,
-      subtotal: unitPrice === null ? null : Number((unitPrice * guests).toFixed(2)),
+      subtotal:
+        unitPrice === null
+          ? null
+          : Number((rules.pricingMode === "group" ? unitPrice : unitPrice * guests).toFixed(2)),
       pickup_location: clean(item.pickupLocation, 500) || null,
       guide_language: clean(item.language, 80) || null,
       special_request: clean(item.notes, 2000) || null,
@@ -105,8 +143,8 @@ export async function POST(request: Request) {
       accessibility: clean(item.accessibility, 1000) || null,
       dietary: clean(item.dietary, 1000) || null,
       occasion: clean(item.occasion, 500) || null,
-    };
-  });
+    })
+  );
 
   const estimatedTotal = items.reduce(
     (sum, item) => sum + (item.subtotal === null ? 0 : item.subtotal),

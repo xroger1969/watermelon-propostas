@@ -1,6 +1,7 @@
 "use client";
 
 import { trackLeadConversion } from "@/lib/marketing";
+import { guestLimitLabel, inferProductRules, type PricingMode } from "@/lib/product-rules";
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -23,6 +24,8 @@ type BookingSelection = {
   duration: string;
   location: string;
   description?: string;
+  pricingMode?: PricingMode;
+  maxGuests?: number | null;
 };
 
 type BookingForm = {
@@ -109,10 +112,27 @@ export default function BookingRequest() {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as BookingSelection;
-      setSelection(parsed);
+      const firstOption = parsed.options?.[0];
+      const inferredRules = inferProductRules({
+        code: parsed.code,
+        title: parsed.title,
+        description: parsed.description,
+        optionName: firstOption?.optionName || parsed.optionName,
+        optionDescription: firstOption?.optionDescription,
+      });
+      const normalized: BookingSelection = {
+        ...parsed,
+        pricingMode: parsed.pricingMode || inferredRules.pricingMode,
+        maxGuests: parsed.maxGuests ?? inferredRules.maxGuests,
+      };
+      setSelection(normalized);
       setForm((current) => ({
         ...current,
-        optionCode: parsed.optionCode || parsed.options?.[0]?.optionCode || "DEFAULT",
+        guests:
+          normalized.maxGuests && Number.parseInt(current.guests, 10) > normalized.maxGuests
+            ? String(normalized.maxGuests)
+            : current.guests,
+        optionCode: normalized.optionCode || normalized.options?.[0]?.optionCode || "DEFAULT",
       }));
     } catch {
       setSelection(null);
@@ -145,21 +165,39 @@ export default function BookingRequest() {
     return selection.options.find((option) => option.optionCode === form.optionCode) || selection.options[0] || null;
   }, [selection, form.optionCode]);
 
+  const inferredRules = useMemo(
+    () =>
+      selection
+        ? inferProductRules({
+            code: selection.code,
+            title: selection.title,
+            description: selection.description,
+            optionName: selectedOption?.optionName || selection.optionName,
+            optionDescription: selectedOption?.optionDescription,
+          })
+        : { pricingMode: "per_person" as PricingMode, maxGuests: null },
+    [selection, selectedOption]
+  );
+  const pricingMode = selection?.pricingMode || inferredRules.pricingMode;
+  const maxGuests = selection?.maxGuests ?? inferredRules.maxGuests;
   const unitPrice = Number.parseFloat(selection?.price || "") || 0;
   const originalUnitPrice = Number.parseFloat(selection?.originalPrice || "") || 0;
   const websitePromotion = Boolean(
     selection?.websitePromotion && originalUnitPrice > unitPrice && unitPrice > 0
   );
   const guests = Math.max(1, Number.parseInt(form.guests, 10) || 1);
-  const estimatedTotal = unitPrice * guests;
-  const originalEstimatedTotal = originalUnitPrice * guests;
+  const guestsWithinLimit = maxGuests === null || guests <= maxGuests;
+  const estimatedTotal = pricingMode === "group" ? unitPrice : unitPrice * guests;
+  const originalEstimatedTotal =
+    pricingMode === "group" ? originalUnitPrice : originalUnitPrice * guests;
 
   const canSend = Boolean(
     selection &&
     form.name.trim() &&
     form.phone.trim() &&
     form.date &&
-    guests > 0
+    guests > 0 &&
+    guestsWithinLimit
   );
 
   async function sendRequest() {
@@ -228,18 +266,37 @@ export default function BookingRequest() {
         form.notes.trim() ? "Notes: " + form.notes.trim() : "",
         "",
         websitePromotion
-          ? (selection.promotionLabel || "Website offer") +
-            ": Before " +
-            money(originalUnitPrice, selection.currency) +
-            " → Now " +
-            money(unitPrice, selection.currency) +
-            " per person × " +
-            guests +
-            " = " +
-            money(estimatedTotal, selection.currency) +
-            " (Watermelon website only)"
+          ? pricingMode === "group"
+            ? (selection.promotionLabel || "Website offer") +
+              ": Before " +
+              money(originalUnitPrice, selection.currency) +
+              " → Now " +
+              money(unitPrice, selection.currency) +
+              " per private group" +
+              (maxGuests ? " (" + guestLimitLabel(maxGuests) + ")" : "") +
+              " (Watermelon website only)"
+            : (selection.promotionLabel || "Website offer") +
+              ": Before " +
+              money(originalUnitPrice, selection.currency) +
+              " → Now " +
+              money(unitPrice, selection.currency) +
+              " per person × " +
+              guests +
+              " = " +
+              money(estimatedTotal, selection.currency) +
+              " (Watermelon website only)"
           : unitPrice
-            ? "Guide price: " + money(unitPrice, selection.currency) + " per person × " + guests + " = " + money(estimatedTotal, selection.currency)
+            ? pricingMode === "group"
+              ? "Guide price: " +
+                money(unitPrice, selection.currency) +
+                " per private group" +
+                (maxGuests ? " (" + guestLimitLabel(maxGuests) + ")" : "")
+              : "Guide price: " +
+                money(unitPrice, selection.currency) +
+                " per person × " +
+                guests +
+                " = " +
+                money(estimatedTotal, selection.currency)
             : "Price: to be confirmed",
         "",
         "Please confirm availability before I consider this booking confirmed.",
@@ -291,7 +348,12 @@ export default function BookingRequest() {
                   <span>{selection.promotionLabel || "Website offer"}</span>
                   <small>Before <del>{money(originalUnitPrice, selection.currency)}</del></small>
                   <strong>Now {money(unitPrice, selection.currency)}</strong>
-                  <em>Exclusive to direct booking on watermelonexperiences.pt</em>
+                  <em>
+                    Exclusive to direct booking on watermelonexperiences.pt
+                    {pricingMode === "group"
+                      ? ` · Group price${maxGuests ? ` · ${guestLimitLabel(maxGuests)}` : ""}`
+                      : ""}
+                  </em>
                 </div>
               )}
               <div className="booking-status-note">
@@ -434,11 +496,27 @@ export default function BookingRequest() {
                 type="number"
                 required
                 min="1"
+                max={maxGuests || undefined}
                 step="1"
                 inputMode="numeric"
                 value={form.guests}
-                onChange={(event) => setForm({ ...form, guests: event.target.value })}
+                onChange={(event) => {
+                  const raw = event.target.value;
+                  if (!raw) {
+                    setForm({ ...form, guests: raw });
+                    return;
+                  }
+                  const parsed = Math.max(1, Number.parseInt(raw, 10) || 1);
+                  const limited = maxGuests ? Math.min(parsed, maxGuests) : parsed;
+                  setForm({ ...form, guests: String(limited) });
+                }}
               />
+              {maxGuests && (
+                <small>
+                  Maximum {maxGuests} guests for this experience.
+                  {pricingMode === "group" ? " The displayed price is for the whole private group." : ""}
+                </small>
+              )}
             </label>
 
             <label>
@@ -572,13 +650,22 @@ export default function BookingRequest() {
           </div>
 
           <div className={websitePromotion ? "summary-total summary-total-promo" : "summary-total"}>
-            <span>{websitePromotion ? "Website offer total" : "Guide total"}</span>
+            <span>
+              {websitePromotion
+                ? "Website offer total"
+                : pricingMode === "group"
+                  ? "Private group price"
+                  : "Guide total"}
+            </span>
             {websitePromotion && (
               <small>Before <del>{money(originalEstimatedTotal, selection.currency)}</del></small>
             )}
             <strong>{unitPrice ? money(estimatedTotal, selection.currency) : "On request"}</strong>
             {websitePromotion && (
               <em>Direct Watermelon booking only · Viator is not changed</em>
+            )}
+            {pricingMode === "group" && (
+              <em>{maxGuests ? `Price for the whole group · ${guestLimitLabel(maxGuests)}` : "Price for the whole group"}</em>
             )}
           </div>
 

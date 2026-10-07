@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { trackLeadConversion } from "@/lib/marketing";
+import { guestLimitLabel, inferProductRules, type PricingMode } from "@/lib/product-rules";
 
 type ProposalItem = {
   code: string;
@@ -21,6 +22,9 @@ type ProposalItem = {
   accessibility: string;
   dietary: string;
   occasion: string;
+  description: string;
+  pricingMode: PricingMode;
+  maxGuests: number | null;
 };
 
 type ClientData = {
@@ -44,6 +48,16 @@ function displayDate(value: string) {
 }
 
 function normalizeItem(item: Partial<ProposalItem>): ProposalItem {
+  const inferredRules = inferProductRules({
+    code: item.code,
+    title: item.title,
+    description: item.description,
+    optionName: item.optionName,
+  });
+  const maxGuests = item.maxGuests ?? inferredRules.maxGuests;
+  const rawGuests = Math.max(1, Number.parseInt(item.guests || "1", 10) || 1);
+  const guests = maxGuests ? Math.min(rawGuests, maxGuests) : rawGuests;
+
   return {
     code: item.code || "",
     title: item.title || "",
@@ -52,7 +66,7 @@ function normalizeItem(item: Partial<ProposalItem>): ProposalItem {
     price: item.price || "",
     notes: item.notes || "",
     date: item.date || "",
-    guests: item.guests || "1",
+    guests: String(guests),
     preferredTime: item.preferredTime || "Flexible",
     specificTime: item.specificTime || "",
     dateFlexibility: item.dateFlexibility || "Exact date",
@@ -62,6 +76,9 @@ function normalizeItem(item: Partial<ProposalItem>): ProposalItem {
     accessibility: item.accessibility || "",
     dietary: item.dietary || "",
     occasion: item.occasion || "",
+    description: item.description || "",
+    pricingMode: item.pricingMode || inferredRules.pricingMode,
+    maxGuests,
   };
 }
 
@@ -69,12 +86,29 @@ function unitPrice(item: ProposalItem) {
   return Number.parseFloat(item.price.replace(",", ".")) || 0;
 }
 
+function itemRules(item: ProposalItem) {
+  const inferredRules = inferProductRules({
+    code: item.code,
+    title: item.title,
+    description: item.description,
+    optionName: item.optionName,
+  });
+
+  return {
+    pricingMode: item.pricingMode || inferredRules.pricingMode,
+    maxGuests: item.maxGuests ?? inferredRules.maxGuests,
+  };
+}
+
 function itemGuests(item: ProposalItem) {
-  return Math.max(1, Number.parseInt(item.guests, 10) || 1);
+  const requested = Math.max(1, Number.parseInt(item.guests, 10) || 1);
+  const { maxGuests } = itemRules(item);
+  return maxGuests ? Math.min(requested, maxGuests) : requested;
 }
 
 function itemSubtotal(item: ProposalItem) {
-  return unitPrice(item) * itemGuests(item);
+  const base = unitPrice(item);
+  return itemRules(item).pricingMode === "group" ? base : base * itemGuests(item);
 }
 
 function timeLabel(item: ProposalItem) {
@@ -155,7 +189,19 @@ export default function ProposalBuilder() {
           item.accessibility ? "   Accessibility / mobility: " + item.accessibility : "",
           item.dietary ? "   Dietary requirements: " + item.dietary : "",
           item.occasion ? "   Special occasion: " + item.occasion : "",
-          base ? "   Guide price: " + money(base) + " per person × " + itemGuests(item) + " = " + money(subtotal) : "   Price: on request",
+          base
+            ? itemRules(item).pricingMode === "group"
+              ? "   Guide price: " +
+                money(base) +
+                " per private group" +
+                (itemRules(item).maxGuests ? " (" + guestLimitLabel(itemRules(item).maxGuests) + ")" : "")
+              : "   Guide price: " +
+                money(base) +
+                " per person × " +
+                itemGuests(item) +
+                " = " +
+                money(subtotal)
+            : "   Price: on request",
           item.notes ? "   Special request: " + item.notes : "",
           "",
         ];
@@ -284,6 +330,7 @@ export default function ProposalBuilder() {
                 const base = unitPrice(item);
                 const guests = itemGuests(item);
                 const subtotal = itemSubtotal(item);
+                const rules = itemRules(item);
 
                 return (
                   <article className="proposal-item" key={item.code + "-" + item.optionCode + "-" + index}>
@@ -303,7 +350,30 @@ export default function ProposalBuilder() {
                       </label>
                       <label>
                         <span>Guests</span>
-                        <input type="number" min="1" step="1" inputMode="numeric" value={item.guests} onChange={(e) => updateItem(index, { guests: e.target.value })} />
+                        <input
+                          type="number"
+                          min="1"
+                          max={rules.maxGuests || undefined}
+                          step="1"
+                          inputMode="numeric"
+                          value={item.guests}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            if (!raw) {
+                              updateItem(index, { guests: raw });
+                              return;
+                            }
+                            const parsed = Math.max(1, Number.parseInt(raw, 10) || 1);
+                            const limited = rules.maxGuests ? Math.min(parsed, rules.maxGuests) : parsed;
+                            updateItem(index, { guests: String(limited) });
+                          }}
+                        />
+                        {rules.maxGuests && (
+                          <small>
+                            Maximum {rules.maxGuests} guests.
+                            {rules.pricingMode === "group" ? " The price is for the whole group." : ""}
+                          </small>
+                        )}
                       </label>
                       <label>
                         <span>Preferred time</span>
@@ -350,7 +420,15 @@ export default function ProposalBuilder() {
                       <div className="proposal-price-breakdown">
                         <span>Estimated subtotal</span>
                         <strong>{base ? money(subtotal) : "On request"}</strong>
-                        <small>{base ? money(base) + " per person × " + guests + " guests" : "Final price to be confirmed"}</small>
+                        <small>
+                          {base
+                            ? rules.pricingMode === "group"
+                              ? money(base) +
+                                " per private group" +
+                                (rules.maxGuests ? " · " + guestLimitLabel(rules.maxGuests) : "")
+                              : money(base) + " per person × " + guests + " guests"
+                            : "Final price to be confirmed"}
+                        </small>
                       </div>
                       <label>
                         <span>Special request</span>
