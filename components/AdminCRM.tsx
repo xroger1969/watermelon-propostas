@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { SUPABASE_BOOKING_URL } from "@/lib/supabase/config";
 import ProposalEditor from "@/components/ProposalEditor";
 import WhatsAppConversation from "@/components/WhatsAppConversation";
+import EmailConversation from "@/components/EmailConversation";
 import CRMAnalytics from "@/components/CRMAnalytics";
 import CRMMarketingPerformance from "@/components/CRMMarketingPerformance";
 
@@ -62,6 +63,7 @@ type CRMActivity = {
   created_at: string;
   activity_type: string;
   summary: string;
+  metadata?: Record<string, unknown> | null;
 };
 
 type CRMMessage = {
@@ -2604,7 +2606,7 @@ export default function AdminCRM() {
                     <section className="crm-review-note">
                       <strong>Request still under review</strong>
                       <span>
-                        You can ask the customer questions and continue the WhatsApp conversation as long as needed. Nothing is accepted and no payment is requested until you choose <b>Accept booking request</b>.
+                        You can ask the customer questions and continue by WhatsApp or email as long as needed. Nothing is accepted and no payment is requested until you choose <b>Accept booking request</b>.
                       </span>
                     </section>
                   )}
@@ -2754,6 +2756,13 @@ export default function AdminCRM() {
 
                 {request.contact?.phone && (
                   <WhatsAppConversation
+                    request={request}
+                    onChanged={() => void loadCRM()}
+                  />
+                )}
+
+                {request.contact?.email && (
+                  <EmailConversation
                     request={request}
                     onChanged={() => void loadCRM()}
                   />
