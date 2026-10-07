@@ -183,14 +183,17 @@ async function runBundleIntake(){
     let done=0;
     for(const file of files){
       modal.innerHTML=`<div class="box"><h3>☁️ A carregar fontes…</h3><p>A enviar ${esc(file.name)} para a área privada.</p><div class="notice">${done} de ${files.length} ficheiros concluídos</div></div>`;
-      const ticket=await uploadPrivateFile(file);
+      const isImage=file.type.startsWith('image/');
+      const uploadFile=isImage?await prepareBundleImage(file):file;
+      const ticket=await uploadPrivateFile(uploadFile);
       sources.push({
-        kind:file.type.startsWith('image/')?'image':'file',
+        kind:isImage?'image':'file',
         label:file.name,
         storagePath:ticket.path,
-        fileName:file.name,
-        mimeType:file.type||'application/octet-stream',
-        size:file.size
+        fileName:uploadFile.name,
+        mimeType:uploadFile.type||'application/octet-stream',
+        size:uploadFile.size,
+        originalFileName:file.name
       });
       done++;
     }
@@ -274,6 +277,12 @@ async function imageToDataURL(file){
     c.getContext('2d').drawImage(img,0,0,c.width,c.height);
     return c.toDataURL('image/jpeg',0.84);
   }finally{URL.revokeObjectURL(url)}
+}
+async function prepareBundleImage(file){
+  const dataUrl=await imageToDataURL(file);
+  const blob=await (await fetch(dataUrl)).blob();
+  const base=(file.name||'photo').replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_-]+/g,'-')||'photo';
+  return new File([blob],base+'.jpg',{type:'image/jpeg',lastModified:Date.now()});
 }
 async function uploadPrivateFile(file){
   const ticketRes=await fetch('/api/upload-ticket',{
