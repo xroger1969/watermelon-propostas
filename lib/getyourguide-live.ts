@@ -2,6 +2,7 @@ import type { MarketplaceCatalogProduct } from "@/types/marketplace";
 
 const GETYOURGUIDE_BASE_URL = "https://api.getyourguide.com/1";
 const REQUEST_TIMEOUT_MS = 8000;
+const DEFAULT_PARTNER_CONTACT_EMAIL = "info@watermelonexperiences.pt";
 
 type GetYourGuidePicture = {
   url?: string;
@@ -49,6 +50,10 @@ type GetYourGuideTourResponse = {
 
 function token() {
   return process.env.GETYOURGUIDE_PARTNER_API_TOKEN?.trim() || "";
+}
+
+function partnerContactEmail() {
+  return process.env.GETYOURGUIDE_PARTNER_CONTACT_EMAIL?.trim() || DEFAULT_PARTNER_CONTACT_EMAIL;
 }
 
 function configuredTourIds() {
@@ -145,7 +150,7 @@ export function getGetYourGuideIntegrationStatus() {
     enabled: Boolean(token()) && ids.length > 0,
     mode: ids.length > 0 ? "configured-tour-ids" : "awaiting-tour-ids",
     productCount: ids.length,
-    contactEmail: "info@watermelonexperiences.pt",
+    contactEmail: partnerContactEmail(),
   };
 }
 
