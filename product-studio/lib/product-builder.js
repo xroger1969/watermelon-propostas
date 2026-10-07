@@ -231,19 +231,30 @@ export async function draftProduct(source) {
   } else if (mode === 'url' || mode === 'viator') {
     const ref = String(source?.url || source?.reference || '').trim();
     if (!ref) throw new Error('Ligação ou referência em falta.');
-    const domain = domainFromUrl(ref);
-    const allowed = mode === 'viator'
-      ? ['viator.com','tripadvisor.com']
-      : (domain ? [domain] : undefined);
-    tools = [{
-      type:'web_search',
-      search_context_size:'high',
-      ...(allowed ? {filters:{allowed_domains:allowed}} : {})
-    }];
-    input = mode === 'viator'
-      ? `Find and analyse this Viator experience/reference: ${ref}. Extract its factual structure, logistics, inclusions, duration and options where available. Then create an original Watermelon draft inspired by those facts; do not copy the source wording. If the exact product cannot be verified, say so through missingInformation rather than guessing.`
-      : `Open and analyse this experience/programme URL: ${ref}. Extract factual details that are actually supported by the page. Create an original Watermelon product draft from those facts; do not copy the source wording. If the URL cannot be verified, flag that in missingInformation.`;
-    sourceLabel = ref;
+    const directText = String(source?.pageText || '').trim();
+    if (directText) {
+      input = [
+        mode === 'viator'
+          ? `Create a new Watermelon draft from the factual content extracted directly from this Viator/reference page. Do not copy marketing prose. Source URL: ${source?.resolvedUrl || ref}`
+          : `Create a new Watermelon draft from the factual content extracted directly from this public experience page. Do not copy marketing prose. Source URL: ${source?.resolvedUrl || ref}`,
+        'DIRECT PAGE CONTENT:',
+        directText
+      ].join('\n\n');
+    } else {
+      const domain = domainFromUrl(ref);
+      const allowed = mode === 'viator'
+        ? ['viator.com','tripadvisor.com']
+        : (domain ? [domain] : undefined);
+      tools = [{
+        type:'web_search',
+        search_context_size:'high',
+        ...(allowed ? {filters:{allowed_domains:allowed}} : {})
+      }];
+      input = mode === 'viator'
+        ? `Find and analyse this Viator experience/reference: ${ref}. Extract its factual structure, logistics, inclusions, duration and options where available. Then create an original Watermelon draft inspired by those facts; do not copy the source wording. If the exact product cannot be verified, say so through missingInformation rather than guessing.`
+        : `Open and analyse this experience/programme URL: ${ref}. Extract factual details that are actually supported by the page. Create an original Watermelon product draft from those facts; do not copy the source wording. If the URL cannot be verified, flag that in missingInformation.`;
+    }
+    sourceLabel = source?.resolvedUrl || ref;
   } else {
     throw new Error('Tipo de entrada não suportado.');
   }
@@ -327,14 +338,22 @@ export async function draftProductBundle(bundle) {
     if (s.kind === 'url' || s.kind === 'viator') {
       const url = String(s.url || '').trim();
       if (!url) continue;
-      urlRefs.push({kind:s.kind,url,label});
-      content.push({
-        type:'input_text',
-        text:s.kind === 'viator'
-          ? `SOURCE ${index+1} [VIATOR REFERENCE] — ${url}. Verify the exact experience where possible and use factual structure only; do not copy marketing prose.`
-          : `SOURCE ${index+1} [WEB REFERENCE] — ${url}. Verify factual details from the page where possible.`
-      });
-      sourceReferences.push({type:s.kind,url,label});
+      const directText = String(s.pageText || '').trim();
+      if (directText) {
+        content.push({
+          type:'input_text',
+          text:`SOURCE ${index+1} [${s.kind === 'viator' ? 'VIATOR' : 'WEB'} — DIRECTLY EXTRACTED] — ${s.resolvedUrl || url}\nUse factual details only and do not copy marketing prose.\n\n${directText}`
+        });
+      } else {
+        urlRefs.push({kind:s.kind,url,label});
+        content.push({
+          type:'input_text',
+          text:s.kind === 'viator'
+            ? `SOURCE ${index+1} [VIATOR REFERENCE] — ${url}. Verify the exact experience where possible and use factual structure only; do not copy marketing prose.`
+            : `SOURCE ${index+1} [WEB REFERENCE] — ${url}. Verify factual details from the page where possible.`
+        });
+      }
+      sourceReferences.push({type:s.kind,url:s.resolvedUrl || url,label});
     }
   }
 
@@ -428,6 +447,15 @@ export async function buildProductFromSource(source) {
   const drafted = source?.mode === 'bundle'
     ? await draftProductBundle(source)
     : await draftProduct(source);
+
+  const title = String(drafted?.product?.title || '');
+  const q = Number(drafted?.product?.qualityScore || 0);
+  const unverifiable = /pending source verification|source verification|placeholder/i.test(title) ||
+    ((source?.mode === 'url' || source?.mode === 'viator') && q < 15);
+  if (unverifiable) {
+    throw new Error('Não consegui verificar informação suficiente nesta página para criar um produto fiável. Nenhum rascunho foi criado.');
+  }
+
   let marketResearch = null;
   let marketModel = null;
   try {
