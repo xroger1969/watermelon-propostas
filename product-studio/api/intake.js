@@ -26,6 +26,25 @@ export default async function handler(req,res){
       const signed=await storageAction('read-url',{path:source.storagePath});
       source.fileUrl=signed.signedUrl;
     }
+    if(source.mode==='bundle'){
+      const items=Array.isArray(source.sources)?source.sources:[];
+      if(!items.length) throw new Error('O conjunto não tem fontes.');
+      if(items.length>12) throw new Error('Usa no máximo 12 fontes por produto.');
+      let combinedFileBytes=0;
+      source.sources=[];
+      for(const item of items){
+        const next={...item};
+        if(next.kind==='file'||next.kind==='image'){
+          if(!next.storagePath) throw new Error('Uma das fontes privadas não tem caminho de armazenamento.');
+          const size=Number(next.size||0);
+          if(next.kind==='file') combinedFileBytes+=size;
+          const signed=await storageAction('read-url',{path:next.storagePath});
+          next.fileUrl=signed.signedUrl;
+        }
+        source.sources.push(next);
+      }
+      if(combinedFileBytes>48*1024*1024) throw new Error('Os documentos do conjunto ultrapassam 48 MB no total.');
+    }
     const result=await buildProductFromSource(source);
     if(source.mode==='storage_file'){
       result.sourceLabel=source.fileName||source.storagePath;
