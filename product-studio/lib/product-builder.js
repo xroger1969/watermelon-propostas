@@ -269,6 +269,107 @@ export async function draftProduct(source) {
   });
 }
 
+
+export async function draftProductBundle(bundle) {
+  if (!process.env.OPENAI_API_KEY) throw new Error('A chave OpenAI do Product Studio ainda não está configurada.');
+
+  const sources = Array.isArray(bundle?.sources) ? bundle.sources : [];
+  if (!sources.length) throw new Error('Adiciona pelo menos uma fonte ao produto.');
+
+  const content = [{
+    type:'input_text',
+    text:[
+      'Build ONE Watermelon experience by reconciling all the supplied sources.',
+      'Treat operator notes and explicit user instructions as higher priority than third-party pages.',
+      'When sources conflict, do not silently choose: use the most explicit/reliable fact and record the conflict in assumptions or missingInformation.',
+      'Use facts from third-party sources but write entirely original Watermelon commercial copy.',
+      bundle?.brief ? 'Operator master note: '+String(bundle.brief) : ''
+    ].filter(Boolean).join('\n')
+  }];
+
+  const urlRefs = [];
+  const sourceReferences = [];
+  let fileBytes = 0;
+
+  for (let index=0; index<sources.length; index++) {
+    const s = sources[index] || {};
+    const label = String(s.label || s.fileName || s.url || `Source ${index+1}`);
+    if (s.kind === 'text' || s.kind === 'voice_text') {
+      const text = String(s.text || '').trim();
+      if (!text) continue;
+      content.push({
+        type:'input_text',
+        text:`SOURCE ${index+1} [${s.kind === 'voice_text' ? 'VOICE TRANSCRIPT' : 'OPERATOR NOTE'}] — ${label}\n${text}`
+      });
+      sourceReferences.push({type:s.kind,label});
+      continue;
+    }
+
+    if (s.kind === 'file') {
+      if (!s.fileUrl) throw new Error(`Ficheiro privado em falta: ${label}`);
+      fileBytes += Number(s.size || 0);
+      const part = {type:'input_file',file_url:s.fileUrl};
+      if (String(s.mimeType || '').includes('pdf')) part.detail = 'high';
+      content.push({type:'input_text',text:`SOURCE ${index+1} [DOCUMENT] — ${label}`});
+      content.push(part);
+      sourceReferences.push({type:'private_storage',path:s.storagePath||'',fileName:s.fileName||label,mimeType:s.mimeType||'',size:Number(s.size||0)});
+      continue;
+    }
+
+    if (s.kind === 'image') {
+      if (!s.fileUrl) throw new Error(`Imagem privada em falta: ${label}`);
+      content.push({type:'input_text',text:`SOURCE ${index+1} [IMAGE] — ${label}. Use only visual facts that are actually supported by this image.`});
+      content.push({type:'input_image',image_url:s.fileUrl,detail:'high'});
+      sourceReferences.push({type:'private_image',path:s.storagePath||'',fileName:s.fileName||label,mimeType:s.mimeType||'',size:Number(s.size||0)});
+      continue;
+    }
+
+    if (s.kind === 'url' || s.kind === 'viator') {
+      const url = String(s.url || '').trim();
+      if (!url) continue;
+      urlRefs.push({kind:s.kind,url,label});
+      content.push({
+        type:'input_text',
+        text:s.kind === 'viator'
+          ? `SOURCE ${index+1} [VIATOR REFERENCE] — ${url}. Verify the exact experience where possible and use factual structure only; do not copy marketing prose.`
+          : `SOURCE ${index+1} [WEB REFERENCE] — ${url}. Verify factual details from the page where possible.`
+      });
+      sourceReferences.push({type:s.kind,url,label});
+    }
+  }
+
+  if (fileBytes > 48 * 1024 * 1024) {
+    throw new Error('Os documentos do conjunto ultrapassam o limite combinado de 48 MB.');
+  }
+
+  if (content.length < 2) throw new Error('As fontes fornecidas não contêm informação utilizável.');
+
+  const tools = urlRefs.length ? [{type:'web_search',search_context_size:'high'}] : undefined;
+
+  return await withModelFallback(async model => {
+    const r = await callStructured({
+      model,
+      input:[{role:'user',content}],
+      schema:productSchema,
+      schemaName:'watermelon_product_bundle',
+      instructions:baseInstructions + '\nAdditional multi-source rule: reconcile all sources into a single coherent product. Never duplicate itinerary items just because two sources mention the same stop.',
+      tools,
+      include:tools ? ['web_search_call.action.sources'] : undefined
+    });
+    return {
+      product:r.object,
+      model:r.model,
+      usage:r.usage,
+      sourceLabel:`${sources.length} combined sources`,
+      sourceMode:'bundle',
+      sourceReferences:[
+        ...sourceReferences,
+        ...(tools ? webSources(r.raw) : [])
+      ]
+    };
+  });
+}
+
 export async function researchMarket(product) {
   const snapshot = {
     title:product.title,
@@ -324,7 +425,9 @@ Research rules:
 }
 
 export async function buildProductFromSource(source) {
-  const drafted = await draftProduct(source);
+  const drafted = source?.mode === 'bundle'
+    ? await draftProductBundle(source)
+    : await draftProduct(source);
   let marketResearch = null;
   let marketModel = null;
   try {
