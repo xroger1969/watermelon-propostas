@@ -4,9 +4,11 @@ import { getGetYourGuideIntegrationStatus } from "@/lib/getyourguide-live";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const getYourGuide = getGetYourGuideIntegrationStatus();
+
   return NextResponse.json(
     {
-      contactEmail: "info@watermelonexperiences.pt",
+      contactEmail: getYourGuide.contactEmail,
       providers: [
         {
           provider: "watermelon",
@@ -20,7 +22,7 @@ export async function GET() {
           enabled: Boolean(process.env.VIATOR_PARTNER_API_KEY),
           mode: "partner-api",
         },
-        getGetYourGuideIntegrationStatus(),
+        getYourGuide,
       ],
     },
     {
