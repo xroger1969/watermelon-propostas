@@ -14,13 +14,35 @@ O catálogo foi migrado do ficheiro `productList.csv` exportado do Viator Suppli
 - partilhar a proposta por WhatsApp;
 - imprimir ou guardar em PDF.
 
-## Preços Viator em produção
+## Marketplaces e reservas
 
-A aplicação usa `VIATOR_PARTNER_API_KEY` na Vercel para atualizar automaticamente os preços públicos através da Viator Partner API.
+A arquitetura mantém três canais separados:
+
+- **Watermelon Direct** — pedidos e propostas diretamente no site;
+- **Viator** — integração atual através da Partner API;
+- **GetYourGuide** — adaptador preparado para ativação quando a conta de parceiro e os produtos/IDs estiverem aprovados.
+
+A Viator continua a usar `VIATOR_PARTNER_API_KEY` para atualizar automaticamente catálogo e preços públicos.
+
+A preparação GetYourGuide usa:
+
+```
+GETYOURGUIDE_PARTNER_API_TOKEN=
+GETYOURGUIDE_TOUR_IDS=
+GETYOURGUIDE_PARTNER_CONTACT_EMAIL=info@watermelonexperiences.pt
+```
+
+A chave da GetYourGuide deve permanecer apenas no servidor/Vercel. O catálogo GetYourGuide fica desativado enquanto não existir token e uma lista explícita de IDs, evitando mostrar produtos alheios por engano.
+
+Endpoints de preparação:
+
+- `/api/getyourguide-catalog`
+- `/api/getyourguide-product?tourId=...`
+- `/api/integrations/status`
 
 ## Segurança
 
-A chave API da Viator/Bókun **não está no código**. Uma integração futura deverá guardar credenciais apenas em variáveis de ambiente da Vercel.
+Chaves de marketplace e outras credenciais **não devem ser guardadas no código**. Devem ficar exclusivamente em variáveis de ambiente da Vercel.
 
 ## Desenvolvimento
 
@@ -33,15 +55,15 @@ Abrir `http://localhost:3000`.
 
 ## Fonte do catálogo
 
-Exportação do Supplier Center (`productList.csv`) fornecida pelo operador. A aplicação não publica preços automáticos enquanto não existir uma integração segura de disponibilidade/preço.
-
+A base atual parte do catálogo Watermelon/Viator. A camada GetYourGuide foi preparada como fornecedor adicional, sem substituir a Viator nem alterar o fluxo de reserva direta.
 
 ## Watermelon AI Concierge
 
 The public site includes a server-side AI travel concierge grounded in the
 Watermelon Experiences catalogue. It can recommend relevant Watermelon
-products, check current Viator guide prices when available, add a shortlist to
-the existing proposal flow and hand the traveller over to WhatsApp.
+products, check current connected-marketplace guide prices when available, add
+a shortlist to the existing proposal flow and hand the traveller over to
+WhatsApp.
 
 Required Vercel environment variable:
 
@@ -58,5 +80,4 @@ OPENAI_CONCIERGE_MODEL=gpt-5.6-terra
 The OpenAI API key must remain server-side and must never be exposed through a
 `NEXT_PUBLIC_*` variable.
 
-
-> Deployment note: AI Concierge environment changes require a fresh Vercel deployment.
+> Deployment note: environment changes require a fresh Vercel deployment.
