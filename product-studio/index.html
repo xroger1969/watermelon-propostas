@@ -168,16 +168,58 @@ async function imageToDataURL(file){
     return c.toDataURL('image/jpeg',0.84);
   }finally{URL.revokeObjectURL(url)}
 }
+async function uploadPrivateFile(file){
+  const ticketRes=await fetch('/api/upload-ticket',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      fileName:file.name,
+      mimeType:file.type||'application/octet-stream',
+      size:file.size
+    })
+  });
+  const ticket=await ticketRes.json();
+  if(!ticketRes.ok)throw new Error(ticket.error||'Não foi possível preparar o upload');
+
+  const form=new FormData();
+  form.append('cacheControl','3600');
+  form.append('',file,file.name);
+  const upload=await fetch(ticket.signedUrl,{
+    method:'PUT',
+    headers:{'x-upsert':'false'},
+    body:form
+  });
+  if(!upload.ok){
+    let msg='Falha no upload privado';
+    try{const data=await upload.json();msg=data?.message||data?.error||msg}catch{}
+    throw new Error(msg);
+  }
+  return ticket;
+}
 async function runFileIntake(mode){
   const file=document.querySelector('#sourceFile')?.files?.[0];
   const note=(document.querySelector('#fileNote')?.value||'').trim();
   if(!file){toast('Escolhe um ficheiro');return}
-  if(mode==='file'&&file.size>3.1*1024*1024){toast('Ficheiro demasiado grande nesta versão (máx. ~3 MB)');return}
+  if(mode==='file'&&file.size>48*1024*1024){toast('O ficheiro deve ter no máximo 48 MB');return}
   try{
     const modal=document.querySelector('#modal');
-    modal.innerHTML=`<div class="box"><h3>✦ A analisar a fonte…</h3><p>A IA está a extrair factos, criar copy Watermelon original e depois vai pesquisar o preço de mercado.</p></div>`;
-    const dataUrl=mode==='image'?await imageToDataURL(file):await blobToDataURL(file);
-    await runIntake({mode,dataUrl,fileName:file.name,mimeType:file.type,brief:note},`${mode==='image'?'Fotografia':'Ficheiro'}: ${file.name}`);
+    if(mode==='image'){
+      modal.innerHTML=`<div class="box"><h3>✦ A analisar a imagem…</h3><p>A IA está a interpretar a fotografia e a criar o programa.</p></div>`;
+      const dataUrl=await imageToDataURL(file);
+      await runIntake({mode:'image',dataUrl,fileName:file.name,mimeType:file.type,brief:note},`Fotografia: ${file.name}`);
+      return;
+    }
+
+    modal.innerHTML=`<div class="box"><h3>☁️ A enviar para a cloud privada…</h3><p>O ficheiro vai diretamente para a área privada do Product Studio.</p><div class="notice">Depois do upload, a IA analisa o documento sem o tornar público.</div></div>`;
+    const ticket=await uploadPrivateFile(file);
+    modal.innerHTML=`<div class="box"><h3>✦ A analisar o documento…</h3><p>Upload concluído. A IA está a extrair factos, criar copy Watermelon original e pesquisar o preço de mercado.</p></div>`;
+    await runIntake({
+      mode:'storage_file',
+      storagePath:ticket.path,
+      fileName:file.name,
+      mimeType:file.type||'application/octet-stream',
+      brief:note
+    },`Ficheiro cloud: ${file.name}`);
   }catch(e){showIntakeError(e,()=>openFileBrief(mode))}
 }
 async function runLinkIntake(mode){
