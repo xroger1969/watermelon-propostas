@@ -93,6 +93,7 @@ export default function BookingRequest() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
+  const [guestLimitNotice, setGuestLimitNotice] = useState("");
   const [form, setForm] = useState<BookingForm>({
     name: "",
     email: "",
@@ -503,15 +504,36 @@ export default function BookingRequest() {
                 onChange={(event) => {
                   const raw = event.target.value;
                   if (!raw) {
+                    setGuestLimitNotice("");
                     setForm({ ...form, guests: raw });
                     return;
                   }
+
                   const parsed = Math.max(1, Number.parseInt(raw, 10) || 1);
-                  const limited = maxGuests ? Math.min(parsed, maxGuests) : parsed;
-                  setForm({ ...form, guests: String(limited) });
+
+                  if (maxGuests && parsed > maxGuests) {
+                    setGuestLimitNotice(
+                      "Maximum " +
+                        maxGuests +
+                        " guests for this experience. We adjusted the number to " +
+                        maxGuests +
+                        "."
+                    );
+                    setForm({ ...form, guests: String(maxGuests) });
+                    return;
+                  }
+
+                  setGuestLimitNotice("");
+                  setForm({ ...form, guests: String(parsed) });
                 }}
               />
-              {maxGuests && (
+              {guestLimitNotice && (
+                <div className="booking-guest-limit-notice" role="status" aria-live="polite">
+                  <strong>Guest limit</strong>
+                  <span>{guestLimitNotice}</span>
+                </div>
+              )}
+              {maxGuests && !guestLimitNotice && (
                 <small>
                   Maximum {maxGuests} guests for this experience.
                   {pricingMode === "group" ? " The displayed price is for the whole private group." : ""}
