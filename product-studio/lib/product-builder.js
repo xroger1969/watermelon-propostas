@@ -210,15 +210,13 @@ export async function draftProduct(source) {
     }];
     sourceLabel = source?.fileName || 'photo';
   } else if (mode === 'file' || mode === 'storage_file') {
-    const part = {
-      type:'input_file',
-      filename:source?.fileName || 'source-file'
-    };
+    const part = { type:'input_file' };
     if (mode === 'storage_file') {
       if (!source?.fileUrl) throw new Error('URL privado do ficheiro em falta.');
       part.file_url = source.fileUrl;
     } else {
       if (!source?.dataUrl) throw new Error('Ficheiro em falta.');
+      part.filename = source?.fileName || 'source-file';
       part.file_data = source.dataUrl;
     }
     if ((source?.mimeType || '').includes('pdf')) part.detail = 'high';
