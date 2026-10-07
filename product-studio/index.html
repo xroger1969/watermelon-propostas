@@ -61,6 +61,7 @@ function duplicateProduct(id){let p=products.find(p=>p.id===id);if(!p)return;cur
 function renderWizard(){document.querySelector('#newView').innerHTML=`<div class="topbar"><div><h1>${editingId?'Editar produto':'Novo produto'}</h1><p>${editingId?esc(current.id):'Criação estruturada ao estilo Viator, mas com a Watermelon como master.'}</p></div><div class="actions"><button class="btn" onclick="saveDraft()">Guardar rascunho</button></div></div><div class="wizard"><div class="steps">${steps.map((s,i)=>`<div class="step ${i===currentStep?'active':''} ${i<currentStep?'done':''}" onclick="jump(${i})">${i+1}. ${s}</div>`).join('')}</div><div class="panel" id="stepPanel"></div></div>`;renderStep()}
 function jump(i){syncForm();currentStep=i;renderWizard()}
 function renderStep(){let el=document.querySelector('#stepPanel');if(currentStep===0){el.innerHTML=`<h3>Criar novo programa</h3><p>A IA pode começar praticamente por qualquer material que já tenhas.</p><div class="start-grid">
+<div class="start-card ai-main" style="grid-column:1/-1;background:linear-gradient(135deg,#effff0,#fff2f5);border-color:#63c96a" onclick="chooseStart('bundle')"><b>🧩 Combinar várias fontes com IA</b><span>Junta texto, voz, fotografias, PDF/Word/PowerPoint, links e Viator no mesmo produto. A IA cruza tudo antes de criar o programa.</span></div>
 <div class="start-card ai-main" onclick="chooseStart('ai')"><b>✦ Texto / ideia</b><span>Descreve a experiência e a IA cria o programa completo.</span></div>
 <div class="start-card ai-main" onclick="chooseStart('voice')"><b>🎙 Voz</b><span>Explica a ideia a falar; a IA transcreve e constrói o produto.</span></div>
 <div class="start-card ai-main" onclick="chooseStart('image')"><b>📷 Fotografia</b><span>Envia uma foto, folheto ou captura e a IA interpreta os dados.</span></div>
@@ -86,12 +87,118 @@ function prevStep(){syncForm();currentStep=Math.max(0,currentStep-1);renderWizar
 function chooseStart(mode){
   if(mode==='manual'){current.source='WATERMELON';currentStep=1;renderWizard();return}
   if(mode==='duplicate'){go('products');return}
+  if(mode==='bundle'){openBundleIntake();return}
   if(mode==='ai'){openAIBrief();return}
   if(mode==='voice'){openVoiceBrief();return}
   if(mode==='image'){openFileBrief('image');return}
   if(mode==='file'){openFileBrief('file');return}
   if(mode==='url'){openLinkBrief('url');return}
   if(mode==='viator'){openLinkBrief('viator');return}
+}
+
+let bundleVoiceText='',bundleVoiceRecorder=null,bundleVoiceChunks=[],bundleVoiceStream=null,bundleVoiceTimer=null;
+function openBundleIntake(){
+  bundleVoiceText='';
+  showModal(`<h3>🧩 Criar a partir de várias fontes</h3>
+    <p>Junta tudo o que tens sobre a experiência. A IA vai cruzar as fontes e criar um único produto Watermelon.</p>
+    <div class="field"><label>Instruções / ideia principal</label><textarea id="bundleNote" style="min-height:110px" placeholder="Ex.: Quero manter este percurso, mas torná-lo privado, premium e com pickup em Lisboa. O máximo são 8 pessoas."></textarea></div>
+    <div class="field" style="margin-top:12px"><label>Ficheiros e fotografias</label><input id="bundleFiles" type="file" multiple accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.md,.rtf,image/*"><span class="hint">Podes selecionar vários. Os documentos, em conjunto, podem ocupar até 48 MB.</span></div>
+    <div class="field" style="margin-top:12px"><label>Links / Viator — um por linha</label><textarea id="bundleLinks" style="min-height:90px" placeholder="https://www.viator.com/...
+https://outro-operador.com/experiencia"></textarea></div>
+    <div class="notice" style="margin-top:12px"><b>🎙 Voz opcional</b><br><span id="bundleVoiceState">Ainda não adicionaste uma gravação.</span><br><button class="btn" style="margin-top:8px" type="button" onclick="startBundleVoice()">Gravar briefing</button></div>
+    <p class="hint" style="margin-top:12px">Máximo de 12 fontes no total. As tuas notas e voz têm prioridade sobre páginas de terceiros quando houver conflito.</p>`,
+    [{label:'Cancelar',action:'cancelBundleIntake()'},{label:'Cruzar fontes e criar',action:'runBundleIntake()'}]
+  );
+  const box=document.querySelector('#modal .box');if(box)box.style.maxWidth='760px';
+}
+function cancelBundleIntake(){
+  if(bundleVoiceTimer){clearInterval(bundleVoiceTimer);bundleVoiceTimer=null}
+  if(bundleVoiceRecorder&&bundleVoiceRecorder.state!=='inactive')bundleVoiceRecorder.stop();
+  bundleVoiceStream?.getTracks?.().forEach(t=>t.stop());
+  closeModal();
+}
+async function startBundleVoice(){
+  try{
+    bundleVoiceStream=await navigator.mediaDevices.getUserMedia({audio:true});
+    bundleVoiceChunks=[];
+    bundleVoiceRecorder=new MediaRecorder(bundleVoiceStream);
+    bundleVoiceRecorder.ondataavailable=e=>{if(e.data?.size)bundleVoiceChunks.push(e.data)};
+    bundleVoiceRecorder.onstop=finishBundleVoice;
+    bundleVoiceRecorder.start();
+    let sec=0;
+    const state=document.querySelector('#bundleVoiceState');
+    if(state)state.textContent='00:00 · gravação em curso';
+    bundleVoiceTimer=setInterval(()=>{
+      sec++;
+      const el=document.querySelector('#bundleVoiceState');
+      if(el)el.textContent=`00:${String(sec).padStart(2,'0')} · gravação em curso`;
+      if(sec>=90)stopBundleVoice();
+    },1000);
+    const btn=[...document.querySelectorAll('#modal button')].find(b=>b.textContent==='Gravar briefing');
+    if(btn){btn.textContent='Parar gravação';btn.onclick=stopBundleVoice}
+  }catch(e){
+    const state=document.querySelector('#bundleVoiceState');if(state)state.textContent='Microfone indisponível: '+(e.message||String(e));
+  }
+}
+function stopBundleVoice(){
+  if(bundleVoiceTimer){clearInterval(bundleVoiceTimer);bundleVoiceTimer=null}
+  if(bundleVoiceRecorder&&bundleVoiceRecorder.state!=='inactive')bundleVoiceRecorder.stop();
+  bundleVoiceStream?.getTracks?.().forEach(t=>t.stop());
+  const state=document.querySelector('#bundleVoiceState');if(state)state.textContent='A transcrever a gravação…';
+}
+async function finishBundleVoice(){
+  try{
+    const blob=new Blob(bundleVoiceChunks,{type:bundleVoiceRecorder?.mimeType||'audio/webm'});
+    const dataUrl=await blobToDataURL(blob);
+    const tr=await fetch('/api/transcribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dataUrl,fileName:'multi-source-brief.webm'})});
+    const td=await tr.json();
+    if(!tr.ok)throw new Error(td.error||'Falha na transcrição');
+    bundleVoiceText=(td.text||'').trim();
+    const state=document.querySelector('#bundleVoiceState');
+    if(state)state.innerHTML=bundleVoiceText?`Voz adicionada ✓<br><span class="hint">${esc(bundleVoiceText.slice(0,240))}${bundleVoiceText.length>240?'…':''}</span>`:'A gravação não continha texto reconhecível.';
+    const btn=[...document.querySelectorAll('#modal button')].find(b=>b.textContent==='Parar gravação');
+    if(btn){btn.textContent='Gravar novamente';btn.onclick=startBundleVoice}
+  }catch(e){
+    const state=document.querySelector('#bundleVoiceState');if(state)state.textContent='Não consegui transcrever: '+(e.message||String(e));
+  }
+}
+async function runBundleIntake(){
+  const note=(document.querySelector('#bundleNote')?.value||'').trim();
+  const links=(document.querySelector('#bundleLinks')?.value||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  const files=[...(document.querySelector('#bundleFiles')?.files||[])];
+  const documentBytes=files.filter(f=>!f.type.startsWith('image/')).reduce((a,f)=>a+f.size,0);
+  if(documentBytes>48*1024*1024){toast('Os documentos selecionados ultrapassam 48 MB no total');return}
+  const anticipated=(note?1:0)+(bundleVoiceText?1:0)+links.length+files.length;
+  if(!anticipated){toast('Adiciona pelo menos uma fonte');return}
+  if(anticipated>12){toast('Usa no máximo 12 fontes por produto');return}
+  try{
+    const modal=document.querySelector('#modal');
+    const sources=[];
+    if(note)sources.push({kind:'text',label:'Instruções do operador',text:note});
+    if(bundleVoiceText)sources.push({kind:'voice_text',label:'Briefing por voz',text:bundleVoiceText});
+    for(const url of links){
+      const lower=url.toLowerCase();
+      sources.push({kind:(lower.includes('viator.com')||lower.includes('tripadvisor.'))?'viator':'url',label:url,url});
+    }
+    let done=0;
+    for(const file of files){
+      modal.innerHTML=`<div class="box"><h3>☁️ A carregar fontes…</h3><p>A enviar ${esc(file.name)} para a área privada.</p><div class="notice">${done} de ${files.length} ficheiros concluídos</div></div>`;
+      const ticket=await uploadPrivateFile(file);
+      sources.push({
+        kind:file.type.startsWith('image/')?'image':'file',
+        label:file.name,
+        storagePath:ticket.path,
+        fileName:file.name,
+        mimeType:file.type||'application/octet-stream',
+        size:file.size
+      });
+      done++;
+    }
+    modal.innerHTML=`<div class="box"><h3>🧩 A cruzar ${sources.length} fontes…</h3><p>A IA está a reconciliar factos, detetar conflitos, criar um único produto Watermelon e pesquisar o preço de mercado.</p><div class="notice">Notas e voz do operador têm prioridade sobre material de terceiros.</div></div>`;
+    await runIntake({mode:'bundle',brief:note,sources},`Conjunto de ${sources.length} fontes`);
+  }catch(e){
+    showIntakeError(e,()=>openBundleIntake());
+  }
 }
 function openAIBrief(){
   showModal(`<h3>✦ Criar novo programa com IA</h3>
