@@ -1,41 +1,50 @@
-import { generateText, Output } from 'ai';
-import { z } from 'zod';
-
-const ProductSchema = z.object({
-  title: z.string(),
-  shortTitle: z.string(),
-  destination: z.string(),
-  category: z.enum(['Private Tour','Day Trip','Walking Tour','Food & Drink','Boat Tour','Transfer','Attraction','Custom Experience']),
-  duration: z.string(),
-  summary: z.string(),
-  description: z.string(),
-  highlights: z.array(z.string()),
-  itinerary: z.array(z.string()),
-  meetingPoint: z.string(),
-  pickup: z.string(),
-  dropoff: z.string(),
-  included: z.array(z.string()),
-  excluded: z.array(z.string()),
-  language: z.enum(['English','Portuguese','Spanish','French','Multilingual']),
-  groupType: z.enum(['Private','Shared','Private / Shared options']),
-  maxGuests: z.number().int().min(1).max(99),
-  optionTitle: z.string(),
-  optionCode: z.string(),
-  priceType: z.enum(['Per person','Per group','Per vehicle','Fixed']),
-  suggestedPrice: z.number().min(0),
-  childPrice: z.number().min(0),
-  currency: z.enum(['EUR','USD','GBP']),
-  days: z.array(z.enum(['Mon','Tue','Wed','Thu','Fri','Sat','Sun'])),
-  startTimes: z.array(z.string()),
-  capacity: z.number().int().min(1).max(99),
-  cutoffHours: z.number().int().min(0).max(168),
-  cancellation: z.string(),
-  questions: z.array(z.string()),
-  assumptions: z.array(z.string()),
-  missingInformation: z.array(z.string()),
-  priceRationale: z.string(),
-  qualityScore: z.number().int().min(0).max(100)
-});
+const schema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    title: { type: 'string' },
+    shortTitle: { type: 'string' },
+    destination: { type: 'string' },
+    category: { type: 'string', enum: ['Private Tour','Day Trip','Walking Tour','Food & Drink','Boat Tour','Transfer','Attraction','Custom Experience'] },
+    duration: { type: 'string' },
+    summary: { type: 'string' },
+    description: { type: 'string' },
+    highlights: { type: 'array', items: { type: 'string' } },
+    itinerary: { type: 'array', items: { type: 'string' } },
+    meetingPoint: { type: 'string' },
+    pickup: { type: 'string' },
+    dropoff: { type: 'string' },
+    included: { type: 'array', items: { type: 'string' } },
+    excluded: { type: 'array', items: { type: 'string' } },
+    language: { type: 'string', enum: ['English','Portuguese','Spanish','French','Multilingual'] },
+    groupType: { type: 'string', enum: ['Private','Shared','Private / Shared options'] },
+    maxGuests: { type: 'integer', minimum: 1, maximum: 99 },
+    optionTitle: { type: 'string' },
+    optionCode: { type: 'string' },
+    priceType: { type: 'string', enum: ['Per person','Per group','Per vehicle','Fixed'] },
+    suggestedPrice: { type: 'number', minimum: 0 },
+    childPrice: { type: 'number', minimum: 0 },
+    currency: { type: 'string', enum: ['EUR','USD','GBP'] },
+    days: { type: 'array', items: { type: 'string', enum: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] } },
+    startTimes: { type: 'array', items: { type: 'string' } },
+    capacity: { type: 'integer', minimum: 1, maximum: 99 },
+    cutoffHours: { type: 'integer', minimum: 0, maximum: 168 },
+    cancellation: { type: 'string' },
+    questions: { type: 'array', items: { type: 'string' } },
+    assumptions: { type: 'array', items: { type: 'string' } },
+    missingInformation: { type: 'array', items: { type: 'string' } },
+    priceRationale: { type: 'string' },
+    qualityScore: { type: 'integer', minimum: 0, maximum: 100 }
+  },
+  required: [
+    'title','shortTitle','destination','category','duration','summary','description',
+    'highlights','itinerary','meetingPoint','pickup','dropoff','included','excluded',
+    'language','groupType','maxGuests','optionTitle','optionCode','priceType',
+    'suggestedPrice','childPrice','currency','days','startTimes','capacity',
+    'cutoffHours','cancellation','questions','assumptions','missingInformation',
+    'priceRationale','qualityScore'
+  ]
+};
 
 const instructions = `
 You are Watermelon Experiences Product Builder, a senior tour-product manager.
@@ -56,24 +65,73 @@ Rules:
 - The result is always a draft and must never imply it is published.
 `;
 
+function outputText(data) {
+  if (typeof data?.output_text === 'string' && data.output_text.trim()) return data.output_text;
+  for (const item of data?.output || []) {
+    for (const part of item?.content || []) {
+      if (part?.type === 'output_text' && typeof part.text === 'string') return part.text;
+    }
+  }
+  return '';
+}
+
+async function requestModel(model, brief) {
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      instructions,
+      input: brief,
+      reasoning: { effort: 'medium' },
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'watermelon_product',
+          strict: true,
+          schema
+        }
+      }
+    })
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    const err = new Error(data?.error?.message || `OpenAI request failed (${response.status})`);
+    err.status = response.status;
+    err.code = data?.error?.code || data?.error?.type || '';
+    throw err;
+  }
+
+  const text = outputText(data);
+  if (!text) throw new Error('A IA respondeu sem o produto estruturado.');
+
+  return {
+    product: JSON.parse(text),
+    model: data.model || model,
+    usage: data.usage || null
+  };
+}
+
 export async function buildProduct(brief) {
   const cleanBrief = String(brief || '').trim();
   if (cleanBrief.length < 20) {
     throw new Error('Descreve um pouco melhor a experiência para a IA conseguir criar um produto útil.');
   }
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('A chave OpenAI do Product Studio ainda não está configurada.');
+  }
 
-  const model = 'openai/gpt-5.6-sol';
-
-  const result = await generateText({
-    model,
-    instructions,
-    prompt: cleanBrief,
-    output: Output.object({ schema: ProductSchema })
-  });
-
-  return {
-    product: result.output,
-    model,
-    usage: result.usage ?? null
-  };
+  const primary = process.env.OPENAI_PRODUCT_MODEL || 'gpt-6.1-sol';
+  try {
+    return await requestModel(primary, cleanBrief);
+  } catch (error) {
+    const fallbackable = [400, 403, 404].includes(error?.status) &&
+      /model|access|permission|not found|does not exist/i.test(error?.message || '');
+    if (!fallbackable || primary === 'gpt-5.6-terra') throw error;
+    return await requestModel('gpt-5.6-terra', cleanBrief);
+  }
 }
