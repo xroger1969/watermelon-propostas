@@ -117,7 +117,7 @@ function openFileBrief(mode){
     <p>${image?'Escolhe uma fotografia, captura de ecrã ou folheto.':'Escolhe PDF, Word, PowerPoint ou ficheiro de texto com o programa.'}</p>
     <input id="sourceFile" type="file" accept="${image?'image/*':'.pdf,.doc,.docx,.ppt,.pptx,.txt,.md,.rtf'}" style="width:100%">
     <textarea id="fileNote" style="width:100%;min-height:90px;margin-top:12px;padding:12px;border:1px solid #dce4df;border-radius:10px" placeholder="Nota opcional para orientar a IA"></textarea>
-    <p class="hint">${image?'A imagem é otimizada antes do envio.':'Nesta versão, ficheiros até cerca de 3 MB são enviados diretamente para análise.'}</p>`,
+    <p class="hint">${image?'A imagem é otimizada antes do envio.':'O ficheiro é enviado diretamente para uma área privada na cloud. Limite: 48 MB.'}</p>`,
     [{label:'Cancelar',action:'closeModal()'},{label:'Analisar e criar',action:`runFileIntake('${mode}')`}]
   )
 }
