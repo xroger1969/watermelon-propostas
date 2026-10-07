@@ -20,7 +20,7 @@ export default function Home() {
           <h1>Discover Portugal from a different perspective.</h1>
           <p className="hero-copy">
             Private tours, sea, beach, food and horseback riding experiences.
-            Explore photos, duration and the current price shown on Viator.
+            Explore photos, duration and current prices from our connected booking partners.
           </p>
 
           <div className="hero-actions">
