@@ -60,7 +60,7 @@ function editProduct(id){current=JSON.parse(JSON.stringify(products.find(p=>p.id
 function duplicateProduct(id){let p=products.find(p=>p.id===id);if(!p)return;current={...JSON.parse(JSON.stringify(p)),id:'WM-'+Date.now(),title:(p.title||'Produto')+' — Copy',status:'Draft',viatorCode:'',source:'WATERMELON',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};editingId=null;currentStep=1;go('new')}
 function renderWizard(){document.querySelector('#newView').innerHTML=`<div class="topbar"><div><h1>${editingId?'Editar produto':'Novo produto'}</h1><p>${editingId?esc(current.id):'Criação estruturada ao estilo Viator, mas com a Watermelon como master.'}</p></div><div class="actions"><button class="btn" onclick="saveDraft()">Guardar rascunho</button></div></div><div class="wizard"><div class="steps">${steps.map((s,i)=>`<div class="step ${i===currentStep?'active':''} ${i<currentStep?'done':''}" onclick="jump(${i})">${i+1}. ${s}</div>`).join('')}</div><div class="panel" id="stepPanel"></div></div>`;renderStep()}
 function jump(i){syncForm();currentStep=i;renderWizard()}
-function renderStep(){let el=document.querySelector('#stepPanel');if(currentStep===0){el.innerHTML=`<h3>Como queres começar?</h3><p>O objetivo é reduzir trabalho manual sem perder controlo editorial.</p><div class="start-grid"><div class="start-card" onclick="chooseStart('manual')"><b>✍ Manual</b><span>Começar uma experiência de raiz.</span></div><div class="start-card" onclick="chooseStart('ai')"><b>✦ Criar com IA</b><span>Estruturar um briefing. API será ligada na fase backend.</span></div><div class="start-card" onclick="chooseStart('duplicate')"><b>⧉ Duplicar</b><span>Partir de um produto já existente.</span></div><div class="start-card" onclick="chooseStart('viator')"><b>⇩ Importar Viator</b><span>Guardar o código externo sem o usar como ID principal.</span></div></div><div class="notice">Nesta primeira versão o Studio grava localmente neste browser. Não escreve na Viator, Supabase nem no site atual.</div>${footer(false,true)}`}
+function renderStep(){let el=document.querySelector('#stepPanel');if(currentStep===0){el.innerHTML=`<h3>Como queres começar?</h3><p>O objetivo é reduzir trabalho manual sem perder controlo editorial.</p><div class="start-grid"><div class="start-card" onclick="chooseStart('manual')"><b>✍ Manual</b><span>Começar uma experiência de raiz.</span></div><div class="start-card" onclick="chooseStart('ai')"><b>✦ Criar com IA</b><span>Descreve a ideia e a IA cria o programa completo para revisão.</span></div><div class="start-card" onclick="chooseStart('duplicate')"><b>⧉ Duplicar</b><span>Partir de um produto já existente.</span></div><div class="start-card" onclick="chooseStart('viator')"><b>⇩ Importar Viator</b><span>Guardar o código externo sem o usar como ID principal.</span></div></div><div class="notice">Nesta primeira versão o Studio grava localmente neste browser. Não escreve na Viator, Supabase nem no site atual.</div>${footer(false,true)}`}
 if(currentStep===1)el.innerHTML=`<h3>Informação principal</h3><p>Identidade comercial da experiência.</p><div class="form-grid">${field('title','Título público',current.title,'full')}${field('shortTitle','Título curto',current.shortTitle)}${field('destination','Destino',current.destination)}${select('category','Categoria',current.category,['Private Tour','Day Trip','Walking Tour','Food & Drink','Boat Tour','Transfer','Attraction','Custom Experience'])}${field('duration','Duração',current.duration,'','Ex.: 8 hours')}${select('groupType','Tipo de grupo',current.groupType,['Private','Shared','Private / Shared options'])}${field('maxGuests','Máximo de participantes',current.maxGuests)}${field('viatorCode','Código Viator (opcional)',current.viatorCode,'','Nunca substitui o ID Watermelon')}${select('source','Origem inicial',current.source,['WATERMELON','VIATOR'])}</div>${footer()}`
 if(currentStep===2)el.innerHTML=`<h3>Conteúdo comercial</h3><p>Texto que poderá alimentar o site e outros canais.</p><div class="form-grid">${textarea('summary','Resumo curto',current.summary,'full')}${textarea('description','Descrição completa',current.description,'full')}${textarea('highlights','Highlights — um por linha',current.highlights)}${textarea('itinerary','Itinerário — uma etapa por linha',current.itinerary)}${textarea('included','Incluído — um por linha',current.included)}${textarea('excluded','Não incluído — um por linha',current.excluded)}</div>${footer()}`
 if(currentStep===3)el.innerHTML=`<h3>Logística</h3><p>Pontos de encontro, recolhas e requisitos operacionais.</p><div class="form-grid">${field('meetingPoint','Meeting point',current.meetingPoint,'full')}${field('pickup','Pickup',current.pickup)}${field('dropoff','Drop-off',current.dropoff)}${select('language','Idioma principal',current.language,['English','Portuguese','Spanish','French','Multilingual'])}${textarea('questions','Perguntas ao cliente',current.questions,'full')}</div>${footer()}`
@@ -74,7 +74,70 @@ function footer(back=true,next=true){return `<div class="wizard-footer">${back?'
 function syncForm(){document.querySelectorAll('#stepPanel [name]').forEach(e=>current[e.name]=e.value);current.updatedAt=new Date().toISOString()}
 function nextStep(){syncForm();currentStep=Math.min(6,currentStep+1);renderWizard()}
 function prevStep(){syncForm();currentStep=Math.max(0,currentStep-1);renderWizard()}
-function chooseStart(mode){if(mode==='manual'){current.source='WATERMELON';currentStep=1;renderWizard()}if(mode==='viator'){current.source='VIATOR';current.pricingProvider='VIATOR';current.availabilityProvider='VIATOR';currentStep=1;renderWizard()}if(mode==='duplicate'){go('products')}if(mode==='ai'){showModal(`<h3>Briefing com IA</h3><p>Este fluxo está desenhado, mas a API ainda não está ligada neste protótipo isolado.</p><p class="hint">Na fase backend, o briefing será transformado em título, descrição, itinerário, inclusões, logística e perguntas, sempre para revisão antes de publicar.</p>`,[{label:'Continuar manualmente',action:"closeModal();chooseStart('manual')"}])}}
+function chooseStart(mode){
+  if(mode==='manual'){current.source='WATERMELON';currentStep=1;renderWizard()}
+  if(mode==='viator'){current.source='VIATOR';current.pricingProvider='VIATOR';current.availabilityProvider='VIATOR';currentStep=1;renderWizard()}
+  if(mode==='duplicate'){go('products')}
+  if(mode==='ai'){openAIBrief()}
+}
+function openAIBrief(){
+  showModal(`<h3>✦ Criar novo programa com IA</h3>
+    <p>Escreve como falarias comigo. Não precisas de preencher um formulário.</p>
+    <textarea id="aiBrief" style="width:100%;min-height:190px;padding:12px;border:1px solid #dce4df;border-radius:10px;resize:vertical" placeholder="Ex.: Quero uma experiência privada de Lisboa e Sintra, cerca de 8 horas, recolha no hotel em Lisboa, máximo 8 pessoas. Quero passar pela Pena, centro histórico de Sintra, Cabo da Roca e Cascais. Inclui transporte e guia, mas não entradas. Quero uma experiência premium e descontraída."></textarea>
+    <p class="hint" style="margin-top:10px">A IA criará título, descrição, highlights, itinerário, logística, inclusões, preço de trabalho, disponibilidade, cancelamento e perguntas de reserva. Nada será publicado automaticamente.</p>`,
+    [{label:'Cancelar',action:'closeModal()'},{label:'Gerar programa com IA',action:'generateWithAI()'}]
+  )
+}
+function aiLines(v){return Array.isArray(v)?v.join('\n'):(v||'')}
+async function generateWithAI(){
+  const briefEl=document.querySelector('#aiBrief');
+  const brief=(briefEl?.value||'').trim();
+  if(brief.length<20){toast('Descreve um pouco melhor a experiência');return}
+  const modal=document.querySelector('#modal');
+  modal.innerHTML=`<div class="box"><h3>✦ A criar o programa…</h3><p>A IA está a estruturar a experiência Watermelon e a identificar o que precisa de confirmação.</p><div class="notice">O resultado será sempre um rascunho para revisão humana.</div></div>`;
+  try{
+    const r=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brief})});
+    const data=await r.json();
+    if(!r.ok)throw new Error(data.error||'Não foi possível gerar o produto');
+    const p=data.product||{};
+    current={...emptyProduct(),
+      title:p.title||'',shortTitle:p.shortTitle||'',destination:p.destination||'',
+      category:p.category||'Custom Experience',duration:p.duration||'',
+      summary:p.summary||'',description:p.description||'',
+      highlights:aiLines(p.highlights),itinerary:aiLines(p.itinerary),
+      meetingPoint:p.meetingPoint||'',pickup:p.pickup||'',dropoff:p.dropoff||'',
+      included:aiLines(p.included),excluded:aiLines(p.excluded),
+      language:p.language||'English',groupType:p.groupType||'Private',
+      maxGuests:String(p.maxGuests||8),optionTitle:p.optionTitle||'Standard',
+      optionCode:p.optionCode||'OPT-1',priceType:p.priceType||'Per group',
+      adultPrice:p.suggestedPrice===0?'':String(p.suggestedPrice??''),
+      childPrice:p.childPrice===0?'0':String(p.childPrice??''),
+      currency:p.currency||'EUR',days:aiLines(p.days).replace(/\n/g,','),
+      startTimes:aiLines(p.startTimes).replace(/\n/g,', '),
+      capacity:String(p.capacity||p.maxGuests||8),cutoffHours:String(p.cutoffHours??12),
+      cancellation:p.cancellation||'',questions:aiLines(p.questions),
+      source:'WATERMELON',pricingProvider:'WATERMELON',availabilityProvider:'WATERMELON',
+      aiAssumptions:p.assumptions||[],aiMissing:p.missingInformation||[],
+      aiPriceRationale:p.priceRationale||'',aiQualityScore:p.qualityScore||0,
+      aiModel:data.model||''
+    };
+    editingId=null;currentStep=1;
+    const missing=(p.missingInformation||[]).map(x=>`<li>${esc(x)}</li>`).join('');
+    const assumptions=(p.assumptions||[]).map(x=>`<li>${esc(x)}</li>`).join('');
+    showModal(`<h3>Programa criado ✓</h3>
+      <p><b>${esc(p.title||'Novo produto')}</b></p>
+      <div class="quality" style="grid-template-columns:90px 1fr"><div class="score" style="width:78px;height:78px;--score:${p.qualityScore||0}"><span style="font-size:20px">${p.qualityScore||0}%</span></div><div><b>Rascunho gerado pela IA</b><p class="hint">Revê os campos antes de marcar como Ready.</p></div></div>
+      ${assumptions?`<h4>Suposições propostas</h4><ul style="font-size:13px">${assumptions}</ul>`:''}
+      ${missing?`<h4>Falta confirmar</h4><ul style="font-size:13px">${missing}</ul>`:'<p class="hint">A IA não sinalizou informação crítica em falta.</p>'}
+      ${p.priceRationale?`<div class="notice"><b>Preço sugerido:</b> ${esc(String(p.suggestedPrice))} ${esc(p.currency||'EUR')}<br>${esc(p.priceRationale)}</div>`:''}`,
+      [{label:'Rever e editar',action:'closeModal();renderWizard()'}]
+    );
+  }catch(e){
+    showModal(`<h3>Não consegui gerar o programa</h3><p>${esc(e.message||String(e))}</p><p class="hint">O teu briefing não foi perdido. Volta a tentar.</p>`,
+      [{label:'Voltar',action:'closeModal();openAIBrief()'}]
+    )
+  }
+}
 function upsert(status){syncForm();current.status=status;current.updatedAt=new Date().toISOString();let i=products.findIndex(p=>p.id===current.id);if(i>=0)products[i]=JSON.parse(JSON.stringify(current));else products.unshift(JSON.parse(JSON.stringify(current)));save();editingId=current.id;toast(status==='Ready'?'Produto marcado Ready':'Rascunho guardado');renderWizard()}
 function saveDraft(){upsert('Draft')}function saveReady(){upsert('Ready')}
 function setStatus(id,status){let p=products.find(x=>x.id===id);if(p){p.status=status;p.updatedAt=new Date().toISOString();save();renderProducts()}}
