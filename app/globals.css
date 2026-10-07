@@ -5399,3 +5399,26 @@ button { cursor: pointer; }
     flex-direction: column;
   }
 }
+
+
+.booking-guest-limit-notice {
+  display: grid;
+  gap: 2px;
+  margin-top: 7px;
+  padding: 9px 11px;
+  border: 1px solid #f0d4a4;
+  border-radius: 10px;
+  background: #fff8e8;
+  color: #7a4d00;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.booking-guest-limit-notice strong {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+.booking-guest-limit-notice span {
+  color: #5e4b2b;
+}
