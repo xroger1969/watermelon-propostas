@@ -1,0 +1,34 @@
+name: CRM regression checks
+
+on:
+  push:
+    branches:
+      - audit-crm-ui-20261008
+  pull_request:
+    paths:
+      - "components/AdminCRM.tsx"
+      - "components/CRMAnalytics.tsx"
+      - "components/CRMMarketingPerformance.tsx"
+      - "app/globals.css"
+      - "lib/**"
+      - "tests/**"
+      - "package.json"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run pricing and CRM tests
+        run: npm test
+      - name: Verify TypeScript
+        run: npm run typecheck
