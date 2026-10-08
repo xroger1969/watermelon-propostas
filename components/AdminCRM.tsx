@@ -1439,20 +1439,53 @@ export default function AdminCRM() {
       "The booking becomes confirmed once the payment is received and validated by Watermelon.",
     ].filter(Boolean);
 
-    await loadCRM();
-    setEditing(null);
+    const paymentMessage = lines.join("\n");
+    let deliveryFeedback = "";
 
-    if (phone) {
+    if (phone && request.contact?.phone) {
+      try {
+        const delivery = await sendCRMText(request, paymentMessage, "payment");
+        const submitted = delivery.mode === "text" || delivery.mode === "payment_template";
+        const { error: historyError } = await supabase.from("watermelon_activities").insert({
+          request_id: request.id,
+          contact_id: request.contact?.id || null,
+          activity_type: submitted ? "payment_link_sent" : "payment_link_queued",
+          summary: submitted
+            ? "Direct booking payment link submitted via CRM WhatsApp"
+            : "Direct booking payment link awaiting customer reply",
+          metadata: { mode: delivery.mode, payment_link: paymentUrl },
+          actor_email: actorEmail || null,
+        });
+        deliveryFeedback = submitted
+          ? "Payment link submitted through CRM WhatsApp. Delivery/read confirmations will appear in the conversation."
+          : delivery.mode === "template"
+            ? "A WhatsApp template was submitted. The payment link is queued until the customer replies."
+            : "Payment link prepared, but not yet sent. WhatsApp is waiting for the customer to reply.";
+        if (historyError) {
+          deliveryFeedback += " The CRM could not save the communication activity: " + historyError.message;
+        }
+      } catch (sendError) {
+        deliveryFeedback = "Payment prepared but NOT sent automatically. Use the WhatsApp conversation to send the link manually. " +
+          (sendError instanceof Error ? sendError.message : "");
+      }
+    } else if (phone) {
+      // The booking has a phone number but the CRM contact does not.
+      // Never present a manually opened WhatsApp composer as a delivered message.
+      deliveryFeedback = "Payment prepared. Open WhatsApp and press Send; this is a manual message, not a confirmed CRM delivery.";
       window.location.href =
-        "https://wa.me/" + phone + "?text=" + encodeURIComponent(lines.join("\n"));
+        "https://wa.me/" + phone + "?text=" + encodeURIComponent(paymentMessage);
     } else {
       try {
         await navigator.clipboard.writeText(paymentUrl);
-        setMessage("Payment link copied. This contact has no phone number.");
+        deliveryFeedback = "Payment link copied. This booking has no WhatsApp phone number.";
       } catch {
-        setMessage("Payment request prepared. This contact has no phone number.");
+        deliveryFeedback = "Payment prepared. This booking has no WhatsApp phone number.";
       }
     }
+
+    await loadCRM();
+    setEditing(null);
+    if (deliveryFeedback) setMessage(deliveryFeedback);
   }
 
   async function markDirectBookingPaid(request: CRMRequest) {
