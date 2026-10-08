@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import PrivateAreaNav from "@/components/PrivateAreaNav";
 import { SUPABASE_BOOKING_URL } from "@/lib/supabase/config";
 import { requireWhatsAppDeliveryMode, wasWhatsAppMessageSubmitted } from "@/lib/whatsapp-delivery";
 import type {
@@ -734,6 +735,7 @@ export default function AdminBookings() {
           </button>
         </div>
       </div>
+      <PrivateAreaNav active="bookings" />
 
       <details className="admin-payment-settings">
         <summary>
