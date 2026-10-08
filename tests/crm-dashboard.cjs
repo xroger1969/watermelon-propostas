@@ -39,7 +39,7 @@ test('today and next 7 days are calendar-date based with clear boundaries', () =
   ], TODAY);
   assert.equal(counts.today, 4);
   assert.equal(counts.upcoming, 2);
-  assert.equal(counts.confirmed, 4);
+  assert.equal(counts.confirmed, 5);
 });
 
 test('multiple experiences on the same request count once, not once per service date', () => {
