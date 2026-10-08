@@ -35,6 +35,16 @@ type LivePriceResponse = {
   prices?: Array<{ code: string; price: number; currency: string }>;
 };
 
+type StudioCatalogResponse = {
+  products?: Array<{
+    code: string;
+    title: string;
+    price: number | null;
+    currency: string;
+  }>;
+  source?: string;
+};
+
 const EMPTY_FORM = {
   code: "",
   label: "Website offer",
@@ -114,9 +124,10 @@ export default function AdminPromotions() {
     });
 
     try {
-      const [catalogResponse, pricesResponse] = await Promise.all([
+      const [catalogResponse, pricesResponse, studioResponse] = await Promise.all([
         fetch("/api/viator-catalog", { cache: "no-store" }),
         fetch("/api/viator-prices", { cache: "no-store" }),
+        fetch("/api/watermelon-catalog", { cache: "no-store" }),
       ]);
 
       const catalog = catalogResponse.ok
@@ -124,6 +135,9 @@ export default function AdminPromotions() {
         : {};
       const prices = pricesResponse.ok
         ? ((await pricesResponse.json()) as LivePriceResponse)
+        : {};
+      const studio = studioResponse.ok
+        ? ((await studioResponse.json()) as StudioCatalogResponse)
         : {};
 
       const livePrices = new Map(
@@ -154,6 +168,18 @@ export default function AdminPromotions() {
           });
         }
       });
+
+      if (studio.source === "watermelon-product-studio") {
+        (studio.products || []).forEach((item) => {
+          const current = merged.get(item.code);
+          merged.set(item.code, {
+            code: item.code,
+            title: item.title || current?.title || item.code,
+            price: item.price ?? current?.price ?? null,
+            currency: item.currency || current?.currency || "EUR",
+          });
+        });
+      }
 
       setProducts(
         Array.from(merged.values()).sort((a, b) =>
@@ -513,6 +539,12 @@ export default function AdminPromotions() {
         </div>
         <div className="admin-topbar-actions">
           <a className="button button-ghost" href="/crm">CRM</a>
+          <a
+            className="button button-outline"
+            href="https://watermelon-product-studio.vercel.app/"
+          >
+            Product Studio
+          </a>
           <a className="button button-ghost" href="/">Website</a>
         </div>
       </div>
