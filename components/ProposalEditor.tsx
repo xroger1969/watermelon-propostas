@@ -449,19 +449,22 @@ export default function ProposalEditor({
             row.version +
             " is ready. The 24-hour WhatsApp window is closed, so the CRM sent an approved Watermelon template first. The full proposal will be sent automatically from the CRM as soon as the customer replies."
         );
+      } else if (delivery.mode === "pending") {
+        setFeedback(
+          "Proposal v" + row.version +
+          " has been prepared, but the WhatsApp message has not been delivered. The message is queued until the customer replies. No duplicate template was sent."
+        );
       } else {
         setFeedback(
-          "Proposal v" +
-            row.version +
-            " submitted from the CRM to WhatsApp. Delivery/read status will update automatically in the conversation."
+          "Proposal v" + row.version +
+          " submitted from the CRM to WhatsApp. Delivery/read status will update automatically in the conversation."
         );
       }
       await onChanged();
     } catch (error) {
       setFeedback(
-        error instanceof Error
-          ? error.message
-          : "The proposal could not be submitted from the CRM."
+        "Proposal prepared, but the WhatsApp message was not sent. " +
+        (error instanceof Error ? error.message : "Please retry the delivery from the CRM.")
       );
     }
 
@@ -506,18 +509,6 @@ export default function ProposalEditor({
     setSending(true);
     setFeedback("");
 
-    await supabase.from("watermelon_activities").insert({
-      request_id: request.id,
-      contact_id: request.contact?.id || null,
-      activity_type: "proposal_resent",
-      summary: "Proposal v" + latest.version + " queued for CRM WhatsApp delivery",
-      metadata: {
-        proposal_id: latest.id,
-        version: latest.version,
-        link,
-      },
-    });
-
     if (!phone) {
       try {
         await navigator.clipboard.writeText(link);
@@ -531,17 +522,36 @@ export default function ProposalEditor({
 
     try {
       const delivery = await sendViaCRM(lines.join("\n"));
-      setFeedback(
+      const queued = delivery.mode === "template" || delivery.mode === "pending";
+      const { error: activityError } = await supabase.from("watermelon_activities").insert({
+        request_id: request.id,
+        contact_id: request.contact?.id || null,
+        activity_type: queued ? "proposal_queued" : "proposal_resent",
+        summary: queued
+          ? "Proposal v" + latest.version + " queued for WhatsApp after customer reply"
+          : "Proposal v" + latest.version + " submitted to WhatsApp",
+        metadata: {
+          proposal_id: latest.id,
+          version: latest.version,
+          link,
+          delivery_mode: delivery.mode || "text",
+        },
+      });
+      const deliveryFeedback =
         delivery.mode === "template"
-          ? "The WhatsApp 24-hour window is closed. The CRM sent the approved Watermelon template and will resend the proposal automatically when the customer replies."
-          : "Proposal resubmitted from the CRM to WhatsApp."
+          ? "The WhatsApp 24-hour window is closed. An approved Watermelon template was sent; the proposal will follow when the customer replies."
+          : delivery.mode === "pending"
+            ? "The WhatsApp 24-hour window is closed and a template was already sent. The proposal remains queued; no duplicate template was sent."
+            : "Proposal resubmitted from the CRM to WhatsApp. Delivery confirmation is pending.";
+      setFeedback(
+        deliveryFeedback +
+        (activityError ? " The message action was not recorded in the CRM history: " + activityError.message : "")
       );
       await onChanged();
     } catch (error) {
       setFeedback(
-        error instanceof Error
-          ? error.message
-          : "The proposal could not be resubmitted from the CRM."
+        "The proposal was not resubmitted to WhatsApp. " +
+        (error instanceof Error ? error.message : "Please try again.")
       );
     } finally {
       setSending(false);
