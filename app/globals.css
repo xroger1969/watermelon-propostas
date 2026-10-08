@@ -5702,3 +5702,55 @@ button { cursor: pointer; }
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+
+.crm-filter-set {
+  min-width: 0;
+}
+.crm-filter-set .crm-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.crm-more-filters {
+  margin-top: 10px;
+}
+.crm-more-filters summary,
+.crm-danger-zone summary {
+  width: fit-content;
+  padding: 7px 4px;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.crm-more-filters summary:focus-visible,
+.crm-danger-zone summary:focus-visible {
+  outline: 3px solid #8ad6b6;
+  outline-offset: 2px;
+}
+.crm-more-filters > .crm-filters {
+  margin-top: 10px;
+}
+.crm-danger-zone {
+  display: block;
+}
+.crm-danger-zone > .button {
+  margin: 10px 0 0;
+}
+.crm-danger-zone-request {
+  margin-left: auto;
+  align-self: center;
+}
+.crm-danger-zone-request .crm-danger-button {
+  white-space: nowrap;
+}
+@media (max-width: 650px) {
+  .crm-danger-zone-request {
+    margin-left: 0;
+    width: 100%;
+  }
+  .crm-danger-zone-request .crm-danger-button {
+    width: 100%;
+  }
+}
