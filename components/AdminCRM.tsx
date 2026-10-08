@@ -1323,18 +1323,20 @@ export default function AdminCRM() {
       patch.first_response_at = now;
     }
 
-    const { error } = await supabase
+    const { data: updatedRow, error } = await supabase
       .from("watermelon_requests")
       .update(patch)
-      .eq("id", request.id);
+      .eq("id", request.id)
+      .select("id")
+      .maybeSingle();
 
-    if (error) {
-      setMessage(error.message);
+    if (error || !updatedRow) {
+      setMessage(error?.message || "The request could not be updated. Please refresh and try again.");
       setEditing(null);
       return;
     }
 
-    await supabase.from("watermelon_activities").insert({
+    const { error: activityError } = await supabase.from("watermelon_activities").insert({
       request_id: request.id,
       contact_id: request.contact?.id || null,
       activity_type: "status_changed",
@@ -1352,7 +1354,12 @@ export default function AdminCRM() {
     }
 
     await loadCRM();
-    if (statusFeedback) setMessage(statusFeedback);
+    const activityWarning = activityError
+      ? "Status updated, but the change could not be recorded in the activity history: " + activityError.message
+      : "";
+    if (statusFeedback || activityWarning) {
+      setMessage([statusFeedback, activityWarning].filter(Boolean).join(" "));
+    }
     setEditing(null);
   }
 
