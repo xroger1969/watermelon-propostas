@@ -86,6 +86,7 @@ export default function AdminBookings() {
   const [savingPaymentSettings, setSavingPaymentSettings] = useState(false);
   const [paymentSaved, setPaymentSaved] = useState(false);
   const [message, setMessage] = useState("");
+  const [manualPaymentHref, setManualPaymentHref] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
 
   const supabase = useMemo(() => {
