@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { SUPABASE_BOOKING_URL } from "@/lib/supabase/config";
+import { requireWhatsAppDeliveryMode, wasWhatsAppMessageSubmitted } from "@/lib/whatsapp-delivery";
 import type {
   BookingRequestRecord,
   BookingStatus,
@@ -454,7 +455,8 @@ export default function AdminBookings() {
       if (!response.ok || !result.ok) {
         throw new Error([result.error, result.hint].filter(Boolean).join(" ") || "WhatsApp API failed.");
       }
-      const sent = result.mode === "text" || result.mode === "payment_template";
+      const deliveryMode = requireWhatsAppDeliveryMode(result.mode);
+      const sent = wasWhatsAppMessageSubmitted(deliveryMode);
       const { error: activityError } = await supabase.from("watermelon_activities").insert({
         request_id: requestId,
         activity_type: sent ? "payment_link_sent" : "payment_link_queued",
