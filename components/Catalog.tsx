@@ -88,6 +88,12 @@ type StudioCatalogProduct = {
   id: string;
   code: string;
   viatorCode?: string;
+  getYourGuide?: {
+    status?: string;
+    externalProductId?: string;
+    publicUrl?: string;
+    available?: boolean;
+  };
   title: string;
   shortTitle?: string;
   destination: string;
@@ -168,6 +174,12 @@ type UnifiedCatalogProduct = {
     meetingPoint: string;
     pickup: string;
     cancellation: string;
+    getYourGuide?: {
+      status: string;
+      externalProductId: string;
+      publicUrl: string;
+      available: boolean;
+    };
   };
 };
 
@@ -265,6 +277,12 @@ function studioToProduct(
       meetingPoint: product.meetingPoint || "",
       pickup: product.pickup || "",
       cancellation: product.cancellation || "",
+      getYourGuide: {
+        status: product.getYourGuide?.status || "not_prepared",
+        externalProductId: product.getYourGuide?.externalProductId || "",
+        publicUrl: product.getYourGuide?.publicUrl || "",
+        available: Boolean(product.getYourGuide?.available),
+      },
     },
   };
 }
@@ -375,6 +393,7 @@ export default function Catalog() {
   const [category, setCategory] = useState("All");
   const [addedCode, setAddedCode] = useState<string | null>(null);
   const [detailCode, setDetailCode] = useState<string | null>(null);
+  const [partnerCode, setPartnerCode] = useState<string | null>(null);
   const [galleryImages, setGalleryImages] = useState<Record<string, string[]>>({});
   const [productDetails, setProductDetails] = useState<Record<string, LiveProductDetails>>({});
   const [galleryIndex, setGalleryIndex] = useState(0);
@@ -812,15 +831,14 @@ export default function Catalog() {
                   Request booking directly
                 </button>
 
-                {product.viator.url && (
-                  <a
+                {(product.viator.url || product.studio) && (
+                  <button
                     className="button button-card viator-button"
-                    href={affiliateUrl(product.viator.url)}
-                    target="_blank"
-                    rel="sponsored noreferrer"
+                    type="button"
+                    onClick={() => setPartnerCode(product.code)}
                   >
                     Book with a partner
-                  </a>
+                  </button>
                 )}
 
                 <button
@@ -850,6 +868,55 @@ export default function Catalog() {
           <p>Try another search or choose a different category.</p>
         </div>
       )}
+
+      {partnerCode && (() => {
+        const product = products.find((item) => item.code === partnerCode);
+        if (!product) return null;
+        const gyg = product.studio?.getYourGuide;
+        const gygAvailable = Boolean(gyg?.available && gyg.publicUrl);
+        return (
+          <div className="partner-modal-backdrop" role="presentation" onClick={() => setPartnerCode(null)}>
+            <section className="partner-modal" role="dialog" aria-modal="true" aria-label="Choose booking partner" onClick={(event) => event.stopPropagation()}>
+              <button className="experience-modal-close" type="button" aria-label="Close" onClick={() => setPartnerCode(null)}>×</button>
+              <p className="eyebrow dark">BOOKING PARTNERS</p>
+              <h2>Choose where to book</h2>
+              <p className="partner-modal-copy">You can book directly with Watermelon or continue with an external distribution partner.</p>
+
+              <div className="partner-channel-list">
+                <div className="partner-channel-card">
+                  <div>
+                    <strong>Viator</strong>
+                    <span>{product.viator.url ? "Available now" : "Not available for this experience"}</span>
+                  </div>
+                  {product.viator.url ? (
+                    <a className="button button-outline" href={affiliateUrl(product.viator.url)} target="_blank" rel="sponsored noreferrer">
+                      Continue to Viator
+                    </a>
+                  ) : (
+                    <button className="button button-ghost" type="button" disabled>Not available</button>
+                  )}
+                </div>
+
+                <div className="partner-channel-card">
+                  <div>
+                    <strong>GetYourGuide</strong>
+                    <span>{gygAvailable ? "Available now" : "Channel prepared · bookings opening soon"}</span>
+                  </div>
+                  {gygAvailable ? (
+                    <a className="button button-outline" href={gyg!.publicUrl} target="_blank" rel="sponsored noreferrer">
+                      Continue to GetYourGuide
+                    </a>
+                  ) : (
+                    <button className="button button-ghost" type="button" disabled>Not yet available</button>
+                  )}
+                </div>
+              </div>
+
+              <p className="partner-channel-note">Partner availability is shown per experience and updates automatically when a channel is published.</p>
+            </section>
+          </div>
+        );
+      })()}
 
       {detailCode && (() => {
         const product = products.find((item) => item.code === detailCode);
@@ -977,10 +1044,10 @@ export default function Catalog() {
                 <button className="button button-card direct-booking-button" type="button" onClick={() => startBooking(product)}>
                   Request booking directly
                 </button>
-                {product.viator.url && (
-                  <a className="button button-card viator-button" href={affiliateUrl(product.viator.url)} target="_blank" rel="sponsored noreferrer">
+                {(product.viator.url || product.studio) && (
+                  <button className="button button-card viator-button" type="button" onClick={() => setPartnerCode(product.code)}>
                     Book with a partner
-                  </a>
+                  </button>
                 )}
                 <button className="proposal-secondary" type="button" onClick={() => addToProposal(product)}>
                   {addedCode === product.code ? "Added to proposal ✓" : "Add to my tailor-made proposal"}
