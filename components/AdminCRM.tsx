@@ -9,6 +9,7 @@ import EmailConversation from "@/components/EmailConversation";
 import CRMAnalytics from "@/components/CRMAnalytics";
 import CRMMarketingPerformance from "@/components/CRMMarketingPerformance";
 import { countCRMRequests, IN_PROGRESS_STATUSES, type CRMStatus } from "@/lib/crm-dashboard";
+import { requireWhatsAppDeliveryMode, wasWhatsAppMessageSubmitted } from "@/lib/whatsapp-delivery";
 
 type CRMContact = {
   id: string;
@@ -1071,7 +1072,7 @@ export default function AdminCRM() {
       );
     }
 
-    return { mode: data.mode || "text" };
+    return { mode: requireWhatsAppDeliveryMode(data.mode) };
   }
 
   async function acceptProposalRequest(
@@ -1445,7 +1446,7 @@ export default function AdminCRM() {
     if (phone && request.contact?.phone) {
       try {
         const delivery = await sendCRMText(request, paymentMessage, "payment");
-        const submitted = delivery.mode === "text" || delivery.mode === "payment_template";
+        const submitted = delivery.mode !== "copy" && wasWhatsAppMessageSubmitted(delivery.mode);
         const { error: historyError } = await supabase.from("watermelon_activities").insert({
           request_id: request.id,
           contact_id: request.contact?.id || null,
