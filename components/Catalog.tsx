@@ -819,7 +819,7 @@ export default function Catalog() {
                     target="_blank"
                     rel="sponsored noreferrer"
                   >
-                    Book on Viator
+                    Book with a partner
                   </a>
                 )}
 
@@ -979,7 +979,7 @@ export default function Catalog() {
                 </button>
                 {product.viator.url && (
                   <a className="button button-card viator-button" href={affiliateUrl(product.viator.url)} target="_blank" rel="sponsored noreferrer">
-                    Book on Viator
+                    Book with a partner
                   </a>
                 )}
                 <button className="proposal-secondary" type="button" onClick={() => addToProposal(product)}>
