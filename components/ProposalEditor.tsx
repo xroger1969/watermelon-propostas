@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { SUPABASE_BOOKING_URL } from "@/lib/supabase/config";
+import { requireWhatsAppDeliveryMode } from "@/lib/whatsapp-delivery";
 
 type RequestItem = {
   id: string;
@@ -217,7 +218,7 @@ export default function ProposalEditor({
       );
     }
 
-    return data;
+    return { ...data, mode: requireWhatsAppDeliveryMode(data.mode) };
   }
 
   useEffect(() => {
