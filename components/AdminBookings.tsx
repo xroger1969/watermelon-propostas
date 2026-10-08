@@ -719,7 +719,6 @@ export default function AdminBookings() {
           <h1>Bookings</h1>
         </div>
         <div className="admin-topbar-actions">
-          <a className="button button-ghost" href="/admin">CRM</a>
           <button
             className="button button-ghost"
             type="button"
