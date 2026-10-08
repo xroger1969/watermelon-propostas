@@ -84,6 +84,93 @@ type CatalogResponse = {
   updatedAt?: string;
 };
 
+type StudioCatalogProduct = {
+  id: string;
+  code: string;
+  viatorCode?: string;
+  title: string;
+  shortTitle?: string;
+  destination: string;
+  category: string;
+  duration: string;
+  summary?: string;
+  description: string;
+  highlights?: string[];
+  itinerary?: string[];
+  meetingPoint?: string;
+  pickup?: string;
+  dropoff?: string;
+  included?: string[];
+  excluded?: string[];
+  languages?: string[];
+  groupType?: string;
+  maxGuests?: number | null;
+  cancellation?: string;
+  image?: string;
+  gallery?: string[];
+  price?: number | null;
+  currency?: string;
+  priceType?: string;
+  options?: Array<{
+    optionCode: string;
+    optionName: string;
+    optionDescription?: string;
+    price?: number | null;
+    childPrice?: number | null;
+    currency?: string;
+    priceType?: string;
+    startTimes?: string[];
+    activeDays?: string[];
+    capacity?: number | null;
+    cutoffHours?: number;
+  }>;
+};
+
+type StudioCatalogResponse = {
+  products?: StudioCatalogProduct[];
+  source?: string;
+  updatedAt?: string;
+};
+
+type UnifiedCatalogProduct = {
+  code: string;
+  category: string;
+  location: string;
+  description: string;
+  apiEnabled: boolean;
+  options: Array<{
+    optionCode: string;
+    optionName: string;
+    optionDescription: string;
+    startTimes: string;
+    pickup: boolean;
+  }>;
+  viator: {
+    code: string;
+    title: string;
+    price: number;
+    currency: string;
+    image: string;
+    url: string;
+    duration: string;
+    rating?: number;
+    reviews?: number;
+  };
+  studio?: {
+    id: string;
+    price: number | null;
+    currency: string;
+    priceType: string;
+    maxGuests: number | null;
+    gallery: string[];
+    inclusions: string[];
+    exclusions: string[];
+    meetingPoint: string;
+    pickup: string;
+    cancellation: string;
+  };
+};
+
 type SitePromotion = {
   product_code: string;
   title: string;
@@ -132,19 +219,71 @@ function affiliateUrl(url: string) {
   }
 }
 
+function studioToProduct(
+  product: StudioCatalogProduct,
+  legacy?: UnifiedCatalogProduct
+): UnifiedCatalogProduct {
+  const gallery = (product.gallery || []).filter(Boolean);
+  const options = (product.options?.length
+    ? product.options
+    : [{ optionCode: "DEFAULT", optionName: "Standard option", optionDescription: "" }]
+  ).map((option) => ({
+    optionCode: option.optionCode || "DEFAULT",
+    optionName: option.optionName || "Standard option",
+    optionDescription: option.optionDescription || "",
+    startTimes: (option.startTimes || []).join(" "),
+    pickup: Boolean(product.pickup),
+  }));
+
+  return {
+    code: product.code,
+    category: product.category || legacy?.category || "Private Tours",
+    location: product.destination || legacy?.location || "Portugal",
+    description: product.description || product.summary || legacy?.description || "",
+    apiEnabled: true,
+    options,
+    viator: {
+      code: product.viatorCode || product.code,
+      title: product.title || legacy?.viator.title || "Watermelon Experience",
+      price: product.price ?? legacy?.viator.price ?? 0,
+      currency: product.currency || legacy?.viator.currency || "EUR",
+      image: product.image || gallery[0] || legacy?.viator.image || "/logo-full.jpg",
+      url: legacy?.viator.url || "",
+      duration: product.duration || legacy?.viator.duration || "Duration on request",
+      rating: legacy?.viator.rating,
+      reviews: legacy?.viator.reviews,
+    },
+    studio: {
+      id: product.id,
+      price: product.price ?? null,
+      currency: product.currency || "EUR",
+      priceType: product.priceType || "Per group",
+      maxGuests: product.maxGuests ?? null,
+      gallery,
+      inclusions: product.included || [],
+      exclusions: product.excluded || [],
+      meetingPoint: product.meetingPoint || "",
+      pickup: product.pickup || "",
+      cancellation: product.cancellation || "",
+    },
+  };
+}
+
 export default function Catalog() {
-  const staticProducts = useMemo(
+  const staticProducts = useMemo<UnifiedCatalogProduct[]>(
     () =>
       experiences
         .filter((product) => Boolean(viatorListings[product.code]))
-        .map((product) => ({ ...product, viator: viatorListings[product.code] })),
+        .map((product) => ({ ...product, viator: viatorListings[product.code] } as UnifiedCatalogProduct)),
     []
   );
 
   const [liveCatalogProducts, setLiveCatalogProducts] = useState<LiveCatalogProduct[] | null>(null);
   const [catalogSyncActive, setCatalogSyncActive] = useState(false);
+  const [studioCatalogProducts, setStudioCatalogProducts] = useState<StudioCatalogProduct[]>([]);
+  const [studioCatalogActive, setStudioCatalogActive] = useState(false);
 
-  const products = useMemo(() => {
+  const legacyProducts = useMemo<UnifiedCatalogProduct[]>(() => {
     if (liveCatalogProducts === null) return staticProducts;
 
     const liveByCode = new Map(liveCatalogProducts.map((product) => [product.code, product]));
@@ -208,8 +347,24 @@ export default function Catalog() {
         },
       }));
 
-    return [...known, ...newcomers];
+    return [...known, ...newcomers] as UnifiedCatalogProduct[];
   }, [liveCatalogProducts, staticProducts]);
+
+  const products = useMemo<UnifiedCatalogProduct[]>(() => {
+    if (!studioCatalogProducts.length) return legacyProducts;
+
+    const studioByCode = new Map(studioCatalogProducts.map((product) => [product.code, product]));
+    const merged = legacyProducts.map((legacy) => {
+      const studio = studioByCode.get(legacy.code);
+      return studio ? studioToProduct(studio, legacy) : legacy;
+    });
+    const existingCodes = new Set(merged.map((product) => product.code));
+    const independent = studioCatalogProducts
+      .filter((product) => !existingCodes.has(product.code))
+      .map((product) => studioToProduct(product));
+
+    return [...merged, ...independent];
+  }, [legacyProducts, studioCatalogProducts]);
 
   const categories = useMemo(
     () => ["All", ...Array.from(new Set(products.map((p) => p.category)))],
@@ -227,6 +382,33 @@ export default function Catalog() {
   const [livePrices, setLivePrices] = useState<Record<string, LivePrice>>({});
   const [livePricingActive, setLivePricingActive] = useState(false);
   const [sitePromotions, setSitePromotions] = useState<Record<string, SitePromotion>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshStudioCatalog() {
+      try {
+        const response = await fetch("/api/watermelon-catalog", { cache: "no-store" });
+        if (!response.ok) return;
+
+        const data = (await response.json()) as StudioCatalogResponse;
+        if (cancelled || data.source !== "watermelon-product-studio" || !Array.isArray(data.products)) return;
+
+        setStudioCatalogProducts(data.products);
+        setStudioCatalogActive(true);
+      } catch {
+        // Keep the legacy catalogue if the Product Studio feed is temporarily unavailable.
+      }
+    }
+
+    refreshStudioCatalog();
+    const timer = window.setInterval(refreshStudioCatalog, 60_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -259,7 +441,24 @@ export default function Catalog() {
     if (!detailCode) return;
     setGalleryIndex(0);
 
-    if (!galleryImages[detailCode]) {
+    const selected = products.find((item) => item.code === detailCode);
+    if (selected?.studio) {
+      if (!galleryImages[detailCode] && selected.studio.gallery.length) {
+        setGalleryImages((current) => ({ ...current, [detailCode]: selected.studio!.gallery }));
+      }
+      if (!productDetails[detailCode]) {
+        setProductDetails((current) => ({
+          ...current,
+          [detailCode]: {
+            images: selected.studio!.gallery,
+            inclusions: selected.studio!.inclusions,
+            exclusions: selected.studio!.exclusions,
+            meetingPoint: selected.studio!.meetingPoint,
+            pickup: selected.studio!.pickup,
+          },
+        }));
+      }
+    } else if (!galleryImages[detailCode]) {
       fetch(`/api/viator-product?code=${encodeURIComponent(detailCode)}`)
         .then((response) => response.ok ? response.json() : null)
         .then((data) => {
@@ -285,7 +484,7 @@ export default function Catalog() {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [detailCode, galleryImages]);
+  }, [detailCode, galleryImages, productDetails, products]);
 
   useEffect(() => {
     let cancelled = false;
@@ -358,19 +557,37 @@ export default function Catalog() {
     });
   }, [products, query, category]);
 
+  function rulesFor(product: UnifiedCatalogProduct) {
+    if (product.studio) {
+      return {
+        pricingMode: product.studio.priceType === "Per person" ? ("per_person" as PricingMode) : ("group" as PricingMode),
+        maxGuests: product.studio.maxGuests,
+      };
+    }
+    const option = product.options[0];
+    return inferProductRules({
+      code: product.code,
+      title: product.viator.title,
+      description: product.description,
+      optionName: option?.optionName,
+      optionDescription: option?.optionDescription,
+    });
+  }
+
   function priceFor(code: string) {
+    const studio = studioCatalogProducts.find((product) => product.code === code);
     const live = livePrices[code];
     const fallback = viatorListings[code];
     const promotion = sitePromotions[code];
-    const basePrice = live?.price ?? fallback?.price ?? null;
-    const baseCurrency = live?.currency ?? fallback?.currency ?? "EUR";
+    const basePrice = studio ? (studio.price ?? null) : (live?.price ?? fallback?.price ?? null);
+    const baseCurrency = studio?.currency || live?.currency || fallback?.currency || "EUR";
 
     if (promotion) {
       return {
         price: Number(promotion.now_price),
         beforePrice: Number(promotion.before_price),
         currency: promotion.currency || baseCurrency,
-        isLive: Boolean(live),
+        isLive: Boolean(studio || live),
         isPromotion: true,
         promotionLabel: promotion.label || "Website offer",
         viatorPrice: basePrice,
@@ -381,7 +598,7 @@ export default function Catalog() {
       price: basePrice,
       beforePrice: null,
       currency: baseCurrency,
-      isLive: Boolean(live),
+      isLive: Boolean(studio || live),
       isPromotion: false,
       promotionLabel: "",
       viatorPrice: basePrice,
@@ -391,13 +608,7 @@ export default function Catalog() {
   function startBooking(product: (typeof products)[number]) {
     const option = product.options[0];
     const currentPrice = priceFor(product.code);
-    const rules = inferProductRules({
-      code: product.code,
-      title: product.viator.title,
-      description: product.description,
-      optionName: option?.optionName,
-      optionDescription: option?.optionDescription,
-    });
+    const rules = rulesFor(product);
     const selection: BookingSelection = {
       code: product.code,
       title: product.viator.title,
@@ -431,13 +642,7 @@ export default function Catalog() {
   function addToProposal(product: (typeof products)[number]) {
     const option = product.options[0];
     const currentPrice = priceFor(product.code);
-    const rules = inferProductRules({
-      code: product.code,
-      title: product.viator.title,
-      description: product.description,
-      optionName: option?.optionName,
-      optionDescription: option?.optionDescription,
-    });
+    const rules = rulesFor(product);
     const existing = readProposal();
     const already = existing.some((item) => item.code === product.code);
 
@@ -470,9 +675,11 @@ export default function Catalog() {
           <h2>Watermelon Experiences</h2>
         </div>
         <span className="price-check">
-          {Object.keys(sitePromotions).length
-            ? "Website offers available · Viator catalogue stays independent"
-            : catalogSyncActive && livePricingActive
+          {studioCatalogActive && studioCatalogProducts.length
+            ? "Watermelon Product Studio · Live catalogue"
+            : Object.keys(sitePromotions).length
+              ? "Website offers available · Viator catalogue stays independent"
+              : catalogSyncActive && livePricingActive
               ? "Catalogue & prices updated automatically"
               : livePricingActive
                 ? "Prices updated automatically"
@@ -510,13 +717,7 @@ export default function Catalog() {
       <div className="product-grid">
         {filtered.map((product) => {
           const currentPrice = priceFor(product.code);
-          const rules = inferProductRules({
-            code: product.code,
-            title: product.viator.title,
-            description: product.description,
-            optionName: product.options[0]?.optionName,
-            optionDescription: product.options[0]?.optionDescription,
-          });
+          const rules = rulesFor(product);
 
           return (
             <article className="product-card catalog-card" key={product.code}>
@@ -611,14 +812,16 @@ export default function Catalog() {
                   Request booking directly
                 </button>
 
-                <a
-                  className="button button-card viator-button"
-                  href={affiliateUrl(product.viator.url)}
-                  target="_blank"
-                  rel="sponsored noreferrer"
-                >
-                  Book on Viator
-                </a>
+                {product.viator.url && (
+                  <a
+                    className="button button-card viator-button"
+                    href={affiliateUrl(product.viator.url)}
+                    target="_blank"
+                    rel="sponsored noreferrer"
+                  >
+                    Book on Viator
+                  </a>
+                )}
 
                 <button
                   className="proposal-secondary"
@@ -652,13 +855,7 @@ export default function Catalog() {
         const product = products.find((item) => item.code === detailCode);
         if (!product) return null;
         const currentPrice = priceFor(product.code);
-        const rules = inferProductRules({
-          code: product.code,
-          title: product.viator.title,
-          description: product.description,
-          optionName: product.options[0]?.optionName,
-          optionDescription: product.options[0]?.optionDescription,
-        });
+        const rules = rulesFor(product);
         return (
           <div className="experience-modal-backdrop" role="presentation" onClick={() => setDetailCode(null)}>
             <section
@@ -780,9 +977,11 @@ export default function Catalog() {
                 <button className="button button-card direct-booking-button" type="button" onClick={() => startBooking(product)}>
                   Request booking directly
                 </button>
-                <a className="button button-card viator-button" href={affiliateUrl(product.viator.url)} target="_blank" rel="sponsored noreferrer">
-                  Book on Viator
-                </a>
+                {product.viator.url && (
+                  <a className="button button-card viator-button" href={affiliateUrl(product.viator.url)} target="_blank" rel="sponsored noreferrer">
+                    Book on Viator
+                  </a>
+                )}
                 <button className="proposal-secondary" type="button" onClick={() => addToProposal(product)}>
                   {addedCode === product.code ? "Added to proposal ✓" : "Add to my tailor-made proposal"}
                 </button>
