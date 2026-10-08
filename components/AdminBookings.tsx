@@ -403,6 +403,7 @@ export default function AdminBookings() {
 
     setEditing(booking.id);
     setMessage("");
+    setManualPaymentHref("");
 
     const { data, error } = await supabase.rpc(
       "watermelon_prepare_direct_booking_payment",
@@ -478,7 +479,8 @@ export default function AdminBookings() {
       // Keep the existing manual send option when automatic delivery fails.
       if (phone) {
         const url = "https://wa.me/" + phone + "?text=" + encodeURIComponent(messageText);
-        window.location.href = url;
+        setManualPaymentHref(url);
+        feedback += " Use the manual WhatsApp link below after checking that the message has not already been sent.";
       } else {
         try {
           await navigator.clipboard.writeText(paymentUrl);
