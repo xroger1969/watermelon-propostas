@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { SUPABASE_BOOKING_URL } from "@/lib/supabase/config";
 import type {
   BookingRequestRecord,
   BookingStatus,
@@ -420,17 +421,74 @@ export default function AdminBookings() {
       "?token=" +
       encodeURIComponent(payload.payment_token);
 
-    await loadBookings();
-    setEditing(null);
-
     const phone = booking.customer_phone.replace(/[^0-9]/g, "");
-    const url =
-      "https://wa.me/" +
-      phone +
-      "?text=" +
-      encodeURIComponent(paymentLinkMessage(booking, paymentUrl));
+    const messageText = paymentLinkMessage(booking, paymentUrl);
+    let feedback = "";
 
-    window.location.href = url;
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("Your CRM session has expired.");
+
+      const response = await fetch(
+        SUPABASE_BOOKING_URL + "/functions/v1/watermelon-whatsapp-send-v2",
+        {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + accessToken,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            request_id: requestId,
+            text: messageText,
+            purpose: "payment",
+          }),
+        }
+      );
+      const result = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        hint?: string;
+        mode?: "text" | "template" | "pending" | "payment_template";
+      };
+      if (!response.ok || !result.ok) {
+        throw new Error([result.error, result.hint].filter(Boolean).join(" ") || "WhatsApp API failed.");
+      }
+      const sent = result.mode === "text" || result.mode === "payment_template";
+      const { error: activityError } = await supabase.from("watermelon_activities").insert({
+        request_id: requestId,
+        activity_type: sent ? "payment_link_sent" : "payment_link_queued",
+        summary: sent
+          ? "Booking payment link submitted via CRM WhatsApp"
+          : "Booking payment link queued for customer reply",
+        metadata: { mode: result.mode || "text", payment_link: paymentUrl },
+      });
+      feedback = sent
+        ? "Payment link submitted through CRM WhatsApp. Check the conversation for delivery status."
+        : result.mode === "template"
+          ? "A WhatsApp template was submitted. The payment link is queued until the customer replies."
+          : "The payment link is prepared but not delivered. WhatsApp is waiting for the customer to reply.";
+      if (activityError) feedback += " Activity history could not be saved: " + activityError.message;
+    } catch (sendError) {
+      feedback = "Payment prepared, but it was not automatically sent. " +
+        (sendError instanceof Error ? sendError.message : "");
+      // Keep the existing manual send option when automatic delivery fails.
+      if (phone) {
+        const url = "https://wa.me/" + phone + "?text=" + encodeURIComponent(messageText);
+        window.location.href = url;
+      } else {
+        try {
+          await navigator.clipboard.writeText(paymentUrl);
+          feedback += " Payment link copied because the customer has no phone number.";
+        } catch {
+          feedback += " The customer has no WhatsApp phone number.";
+        }
+      }
+    } finally {
+      await loadBookings();
+      setEditing(null);
+      setMessage(feedback);
+    }
   }
 
   async function markPaid(booking: BookingRequestRecord) {
