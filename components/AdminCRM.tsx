@@ -355,6 +355,7 @@ export default function AdminCRM() {
   >("default");
   const loadSequenceRef = useRef(0);
   const latestMessageIdRef = useRef("");
+  const crmLoadedRef = useRef(false);
 
   const supabase = useMemo(() => {
     try {
@@ -367,7 +368,8 @@ export default function AdminCRM() {
   const loadCRM = useCallback(async () => {
     if (!supabase) return;
     const loadSequence = ++loadSequenceRef.current;
-    setLoading(true);
+    // Retain the visible list when realtime data refreshes in the background.
+    if (!crmLoadedRef.current) setLoading(true);
 
     const [{ data, error }, contactsResult, messagesResult] = await Promise.all([
       supabase
@@ -392,13 +394,16 @@ export default function AdminCRM() {
         .order("whatsapp_timestamp", { ascending: true, nullsFirst: false }),
     ]);
 
+    // A stale response must never overwrite a newer CRM snapshot.
+    if (loadSequence !== loadSequenceRef.current) return;
+
     if (error) {
       setMessage(
         error.code === "42501"
           ? "This account is not authorized for the Watermelon private area."
           : error.message
       );
-      setRequests([]);
+      // Keep the previously loaded records if this refresh fails.
     } else {
       const allContactMessages = messagesResult.error
         ? null
@@ -433,13 +438,11 @@ export default function AdminCRM() {
       });
       if (loadSequence !== loadSequenceRef.current) return;
 
-      const newestMessage = normalized
-        .flatMap((request) => request.messages || [])
-        .sort(
-          (a, b) =>
-            new Date(b.whatsapp_timestamp || b.created_at).getTime() -
-            new Date(a.whatsapp_timestamp || a.created_at).getTime()
-        )[0];
+      // Include standalone contact messages; compare by database creation time,
+      // as the fallback poll also orders messages by created_at.
+      const newestMessage = (allContactMessages || normalized.flatMap((request) => request.messages || []))
+        .slice()
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
       if (newestMessage?.id) latestMessageIdRef.current = newestMessage.id;
 
       setRequests(normalized);
@@ -451,6 +454,7 @@ export default function AdminCRM() {
       setContacts((contactsResult.data || []) as CRMContact[]);
     }
 
+    crmLoadedRef.current = true;
     setLoading(false);
   }, [supabase]);
 
@@ -472,7 +476,12 @@ export default function AdminCRM() {
       setSignedIn(Boolean(session));
       setActorEmail(session?.user.email || "");
       if (session) void loadCRM();
-      else setRequests([]);
+      else {
+        crmLoadedRef.current = false;
+        latestMessageIdRef.current = "";
+        setRequests([]);
+        setContacts([]);
+      }
     });
 
     return () => listener.subscription.unsubscribe();
