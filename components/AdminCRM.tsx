@@ -2136,6 +2136,12 @@ export default function AdminCRM() {
           <a className="button button-outline" href="/admin/promotions">
             Website promotions
           </a>
+          <a
+            className="button button-outline"
+            href="https://watermelon-product-studio.vercel.app/"
+          >
+            Product Studio
+          </a>
           {pushSupported && (
             <button
               className={pushEnabled ? "button button-outline" : "button button-primary"}
