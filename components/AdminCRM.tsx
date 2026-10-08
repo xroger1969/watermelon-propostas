@@ -566,7 +566,7 @@ export default function AdminCRM() {
 
     const safetyPollInterval = window.setInterval(() => {
       void safetyPoll();
-    }, 2000);
+    }, 10000);
 
     window.addEventListener("focus", scheduleRefresh);
     document.addEventListener("visibilitychange", refreshWhenVisible);
@@ -2106,7 +2106,7 @@ export default function AdminCRM() {
             </button>
           )}
           <button className="button button-ghost" type="button" onClick={() => void loadCRM()}>
-            Refresh
+            Refresh CRM
           </button>
           <button className="button button-ghost" type="button" onClick={() => void signOut()}>
             Sign out
