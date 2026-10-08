@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import PrivateAreaNav from "@/components/PrivateAreaNav";
 import { experiences } from "@/data/products";
 import { viatorListings } from "@/data/viator";
 
@@ -561,6 +562,7 @@ export default function AdminPromotions() {
           </button>
         </div>
       </div>
+      <PrivateAreaNav active="promotions" />
 
       <div className="promotion-safety-note">
         <strong>Website only</strong>
