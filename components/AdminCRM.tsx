@@ -2395,7 +2395,7 @@ export default function AdminCRM() {
           Open WhatsApp to send manually
         </a>
       )}
-      {loading && <p className="admin-loading">Loading CRM…</p>
+      {loading && <p className="admin-loading">Loading CRM…</p>}
 
       <div className="crm-results-heading" id="crm-results">
         <div>
