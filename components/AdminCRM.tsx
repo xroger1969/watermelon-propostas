@@ -2271,29 +2271,53 @@ export default function AdminCRM() {
       ) : (
         <>
       <div className="crm-toolbar">
-        <div className="admin-filters crm-filters">
-          {([
-            ["all", "All requests"],
-            ["in_review", "In review"],
-            ["awaiting_customer", "Waiting for customer"],
-            ["proposal_drafting", "Drafting"],
-            ["customer_replied", "Customer replied"],
-            ["accepted", "Accepted"],
-            ["in_service", "In service"],
-            ["completed", "Completed"],
-            ["no_show", "No-show"],
-            ["declined", "Declined"],
-            ["cancelled", "Cancelled"],
-          ] as Array<[Filter, string]>).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              className={filter === value ? "chip chip-active" : "chip"}
-              onClick={() => setFilter(value)}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="crm-filter-set">
+          <div className="admin-filters crm-filters">
+            {([
+              ["all", "All requests"],
+              ["new", "New"],
+              ["awaiting_customer", "Waiting for customer"],
+              ["customer_replied", "Customer replied"],
+              ["awaiting_payment", "Awaiting payment"],
+            ] as Array<[Filter, string]>).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={filter === value ? "chip chip-active" : "chip"}
+                aria-pressed={filter === value}
+                onClick={() => setFilter(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <details className="crm-more-filters">
+            <summary>More statuses</summary>
+            <div className="admin-filters crm-filters">
+              {([
+                ["in_review", "In review"],
+                ["proposal_drafting", "Drafting"],
+                ["proposal_sent", "Proposal sent"],
+                ["accepted", "Accepted"],
+                ["confirmed", "Confirmed"],
+                ["in_service", "In service"],
+                ["completed", "Completed"],
+                ["no_show", "No-show"],
+                ["declined", "Declined"],
+                ["cancelled", "Cancelled"],
+              ] as Array<[Filter, string]>).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={filter === value ? "chip chip-active" : "chip"}
+                  aria-pressed={filter === value}
+                  onClick={() => setFilter(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </details>
         </div>
         <label className="crm-search">
           <span>Search</span>
@@ -2410,16 +2434,19 @@ export default function AdminCRM() {
                 )}
 
                 <div className="crm-contact-actions">
-                  <button
-                    className="button crm-danger-button"
-                    type="button"
-                    disabled={editing === contact.id}
-                    onClick={() =>
-                      void deleteContactPermanently(contact, relatedRequests.length)
-                    }
-                  >
-                    {editing === contact.id ? "Deleting…" : "Delete contact permanently"}
-                  </button>
+                  <details className="crm-danger-zone">
+                    <summary>Other contact actions</summary>
+                    <button
+                      className="button crm-danger-button"
+                      type="button"
+                      disabled={editing === contact.id}
+                      onClick={() =>
+                        void deleteContactPermanently(contact, relatedRequests.length)
+                      }
+                    >
+                      {editing === contact.id ? "Deleting…" : "Delete contact permanently"}
+                    </button>
+                  </details>
                   {relatedRequests.length > 0 && (
                     <span>Delete the contact's requests first.</span>
                   )}
@@ -2902,20 +2929,17 @@ export default function AdminCRM() {
                     </button>
                   )}
 
-                <button
-                  className="button"
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void deleteRequestPermanently(request)}
-                  style={{
-                    marginLeft: "auto",
-                    border: "1px solid #b42318",
-                    color: "#b42318",
-                    background: "#fff",
-                  }}
-                >
-                  Delete permanently
-                </button>
+                <details className="crm-danger-zone crm-danger-zone-request">
+                  <summary>Other actions</summary>
+                  <button
+                    className="button crm-danger-button"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void deleteRequestPermanently(request)}
+                  >
+                    Delete permanently
+                  </button>
+                </details>
               </footer>
             </article>
           );
