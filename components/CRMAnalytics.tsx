@@ -175,9 +175,9 @@ export default function CRMAnalytics() {
               <small>{compact(summary.last30.views)} page views</small>
             </article>
             <article>
-              <span>Leads · 30 days</span>
+              <span>Lead events · 30 days</span>
               <strong>{compact(summary.last30.leads)}</strong>
-              <small>Proposal, booking or AI lead</small>
+              <small>Tracked proposal, booking or AI events</small>
               <Trend
                 current={summary.last7.leads}
                 previous={summary.previous7.leads}
@@ -187,7 +187,7 @@ export default function CRMAnalytics() {
             <article>
               <span>Conversion · 30 days</span>
               <strong>{Number(summary.last30.conversionRate || 0).toFixed(1)}%</strong>
-              <small>Leads ÷ unique visitors</small>
+              <small>Lead events ÷ unique visitors</small>
               <Trend
                 current={Number(summary.last7.conversionRate || 0)}
                 previous={Number(summary.previous7.conversionRate || 0)}
