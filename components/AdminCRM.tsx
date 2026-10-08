@@ -2171,6 +2171,12 @@ export default function AdminCRM() {
         </div>
       )}
 
+      {workspaceView === "operations" && (
+        <>
+      <div className="crm-dashboard-context" aria-live="polite">
+        <strong>Daily follow-up</strong>
+        <span>{requests.length} current requests · {contactCount} contacts</span>
+      </div>
       <div className="crm-stats">
         <button
           type="button"
@@ -2212,6 +2218,10 @@ export default function AdminCRM() {
         >
           <span>Today</span><strong>{counts.today}</strong>
         </button>
+      </div>
+      <details className="crm-extra-stats">
+        <summary>More indicators · Upcoming trips, confirmed and completed</summary>
+        <div className="crm-stats crm-stats-secondary">
         <button
           type="button"
           className={filter === "upcoming" ? "crm-stat-active" : ""}
@@ -2244,7 +2254,10 @@ export default function AdminCRM() {
         >
           <span>Contacts</span><strong>{contactCount}</strong>
         </button>
-      </div>
+        </div>
+      </details>
+        </>
+      )}
 
       {workspaceView === "marketing" ? (
         <div className="crm-marketing-workspace">
