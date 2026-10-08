@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import PrivateAreaNav from "@/components/PrivateAreaNav";
 import { experiences } from "@/data/products";
 import { viatorListings } from "@/data/viator";
 
@@ -538,29 +539,10 @@ export default function AdminPromotions() {
           </p>
         </div>
         <div className="admin-topbar-actions promotion-nav-actions">
-          <button
-            className="button button-ghost"
-            type="button"
-            onClick={() => window.location.assign("/crm")}
-          >
-            CRM
-          </button>
-          <button
-            className="button button-outline"
-            type="button"
-            onClick={() => window.location.assign("https://watermelon-product-studio.vercel.app/")}
-          >
-            Product Studio
-          </button>
-          <button
-            className="button button-ghost"
-            type="button"
-            onClick={() => window.location.assign("/")}
-          >
-            Website
-          </button>
+          <a className="button button-ghost" href="/">Website</a>
         </div>
       </div>
+      <PrivateAreaNav active="promotions" />
 
       <div className="promotion-safety-note">
         <strong>Website only</strong>

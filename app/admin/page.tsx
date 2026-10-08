@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import AdminCRM from "@/components/AdminCRM";
 
 export const metadata: Metadata = {
-  title: "Watermelon CRM | Watermelon Experiences",
+  title: "Watermelon CRM",
   robots: { index: false, follow: false },
 };
 

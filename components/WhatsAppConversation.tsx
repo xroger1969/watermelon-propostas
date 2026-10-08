@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { SUPABASE_BOOKING_URL } from "@/lib/supabase/config";
+import { requireWhatsAppDeliveryMode } from "@/lib/whatsapp-delivery";
 
 type ThreadItem = {
   id: string;
@@ -205,7 +206,9 @@ export default function WhatsAppConversation({
         );
       }
 
-      if (data.mode === "template") {
+      // Never assume that ok=true means the message was actually submitted.
+      const deliveryMode = requireWhatsAppDeliveryMode(data.mode);
+      if (deliveryMode === "template") {
         setFeedback(
           "The 24-hour WhatsApp service window is closed. One approved Watermelon template was sent and your message is queued. It will be delivered automatically as soon as the customer replies."
         );

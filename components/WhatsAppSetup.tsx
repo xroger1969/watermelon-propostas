@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import PrivateAreaNav from "@/components/PrivateAreaNav";
 
 type WhatsAppTemplate = {
   id: string | null;
@@ -200,12 +201,12 @@ export default function WhatsAppSetup() {
           </p>
         </div>
         <div className="admin-topbar-actions">
-          <a className="button button-ghost" href="/admin">CRM</a>
           <button className="button button-ghost" type="button" onClick={() => void load()}>
             Refresh status
           </button>
         </div>
       </div>
+      <PrivateAreaNav active="whatsapp" />
 
       {loading ? (
         <p className="admin-loading">Loading WhatsApp setup…</p>

@@ -8,22 +8,8 @@ import WhatsAppConversation from "@/components/WhatsAppConversation";
 import EmailConversation from "@/components/EmailConversation";
 import CRMAnalytics from "@/components/CRMAnalytics";
 import CRMMarketingPerformance from "@/components/CRMMarketingPerformance";
-
-type CRMStatus =
-  | "new"
-  | "in_review"
-  | "awaiting_customer"
-  | "proposal_drafting"
-  | "proposal_sent"
-  | "customer_replied"
-  | "accepted"
-  | "awaiting_payment"
-  | "confirmed"
-  | "in_service"
-  | "completed"
-  | "no_show"
-  | "declined"
-  | "cancelled";
+import { countCRMRequests, IN_PROGRESS_STATUSES, type CRMStatus } from "@/lib/crm-dashboard";
+import { requireWhatsAppDeliveryMode, wasWhatsAppMessageSubmitted } from "@/lib/whatsapp-delivery";
 
 type CRMContact = {
   id: string;
@@ -161,14 +147,6 @@ type CRMRequest = {
 };
 
 type Filter = "all" | "in_progress" | "contacts" | "today" | "upcoming" | CRMStatus;
-
-const IN_PROGRESS_STATUSES: CRMStatus[] = [
-  "in_review",
-  "awaiting_customer",
-  "proposal_drafting",
-  "customer_replied",
-  "accepted",
-];
 
 const OWNER_EMAIL = "c.vasconcelos1969@gmail.com";
 
@@ -365,7 +343,9 @@ export default function AdminCRM() {
   const [contacts, setContacts] = useState<CRMContact[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [filter, setFilter] = useState<Filter>("new");
+  const [manualPaymentHref, setManualPaymentHref] = useState("");
+  const [filter, setFilter] = useState<Filter>("in_progress");
+  const [workspaceView, setWorkspaceView] = useState<"operations" | "marketing">("operations");
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [pushSupported, setPushSupported] = useState(false);
@@ -377,6 +357,7 @@ export default function AdminCRM() {
   >("default");
   const loadSequenceRef = useRef(0);
   const latestMessageIdRef = useRef("");
+  const crmLoadedRef = useRef(false);
 
   const supabase = useMemo(() => {
     try {
@@ -389,7 +370,8 @@ export default function AdminCRM() {
   const loadCRM = useCallback(async () => {
     if (!supabase) return;
     const loadSequence = ++loadSequenceRef.current;
-    setLoading(true);
+    // Retain the visible list when realtime data refreshes in the background.
+    if (!crmLoadedRef.current) setLoading(true);
 
     const [{ data, error }, contactsResult, messagesResult] = await Promise.all([
       supabase
@@ -414,13 +396,16 @@ export default function AdminCRM() {
         .order("whatsapp_timestamp", { ascending: true, nullsFirst: false }),
     ]);
 
+    // A stale response must never overwrite a newer CRM snapshot.
+    if (loadSequence !== loadSequenceRef.current) return;
+
     if (error) {
       setMessage(
         error.code === "42501"
           ? "This account is not authorized for the Watermelon private area."
           : error.message
       );
-      setRequests([]);
+      // Keep the previously loaded records if this refresh fails.
     } else {
       const allContactMessages = messagesResult.error
         ? null
@@ -455,13 +440,11 @@ export default function AdminCRM() {
       });
       if (loadSequence !== loadSequenceRef.current) return;
 
-      const newestMessage = normalized
-        .flatMap((request) => request.messages || [])
-        .sort(
-          (a, b) =>
-            new Date(b.whatsapp_timestamp || b.created_at).getTime() -
-            new Date(a.whatsapp_timestamp || a.created_at).getTime()
-        )[0];
+      // Include standalone contact messages; compare by database creation time,
+      // as the fallback poll also orders messages by created_at.
+      const newestMessage = (allContactMessages || normalized.flatMap((request) => request.messages || []))
+        .slice()
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
       if (newestMessage?.id) latestMessageIdRef.current = newestMessage.id;
 
       setRequests(normalized);
@@ -473,6 +456,7 @@ export default function AdminCRM() {
       setContacts((contactsResult.data || []) as CRMContact[]);
     }
 
+    crmLoadedRef.current = true;
     setLoading(false);
   }, [supabase]);
 
@@ -494,7 +478,12 @@ export default function AdminCRM() {
       setSignedIn(Boolean(session));
       setActorEmail(session?.user.email || "");
       if (session) void loadCRM();
-      else setRequests([]);
+      else {
+        crmLoadedRef.current = false;
+        latestMessageIdRef.current = "";
+        setRequests([]);
+        setContacts([]);
+      }
     });
 
     return () => listener.subscription.unsubscribe();
@@ -588,7 +577,7 @@ export default function AdminCRM() {
 
     const safetyPollInterval = window.setInterval(() => {
       void safetyPoll();
-    }, 2000);
+    }, 10000);
 
     window.addEventListener("focus", scheduleRefresh);
     document.addEventListener("visibilitychange", refreshWhenVisible);
@@ -1084,7 +1073,7 @@ export default function AdminCRM() {
       );
     }
 
-    return { mode: data.mode || "text" };
+    return { mode: requireWhatsAppDeliveryMode(data.mode) };
   }
 
   async function acceptProposalRequest(
@@ -1336,18 +1325,20 @@ export default function AdminCRM() {
       patch.first_response_at = now;
     }
 
-    const { error } = await supabase
+    const { data: updatedRow, error } = await supabase
       .from("watermelon_requests")
       .update(patch)
-      .eq("id", request.id);
+      .eq("id", request.id)
+      .select("id")
+      .maybeSingle();
 
-    if (error) {
-      setMessage(error.message);
+    if (error || !updatedRow) {
+      setMessage(error?.message || "The request could not be updated. Please refresh and try again.");
       setEditing(null);
       return;
     }
 
-    await supabase.from("watermelon_activities").insert({
+    const { error: activityError } = await supabase.from("watermelon_activities").insert({
       request_id: request.id,
       contact_id: request.contact?.id || null,
       activity_type: "status_changed",
@@ -1365,7 +1356,12 @@ export default function AdminCRM() {
     }
 
     await loadCRM();
-    if (statusFeedback) setMessage(statusFeedback);
+    const activityWarning = activityError
+      ? "Status updated, but the change could not be recorded in the activity history: " + activityError.message
+      : "";
+    if (statusFeedback || activityWarning) {
+      setMessage([statusFeedback, activityWarning].filter(Boolean).join(" "));
+    }
     setEditing(null);
   }
 
@@ -1399,6 +1395,7 @@ export default function AdminCRM() {
 
     setEditing(request.id);
     setMessage("");
+    setManualPaymentHref("");
 
     const { data, error } = await supabase.rpc(
       "watermelon_prepare_direct_booking_payment",
@@ -1445,20 +1442,57 @@ export default function AdminCRM() {
       "The booking becomes confirmed once the payment is received and validated by Watermelon.",
     ].filter(Boolean);
 
-    await loadCRM();
-    setEditing(null);
+    const paymentMessage = lines.join("\n");
+    let deliveryFeedback = "";
 
-    if (phone) {
-      window.location.href =
-        "https://wa.me/" + phone + "?text=" + encodeURIComponent(lines.join("\n"));
+    if (phone && request.contact?.phone) {
+      try {
+        const delivery = await sendCRMText(request, paymentMessage, "payment");
+        const submitted = delivery.mode !== "copy" && wasWhatsAppMessageSubmitted(delivery.mode);
+        const { error: historyError } = await supabase.from("watermelon_activities").insert({
+          request_id: request.id,
+          contact_id: request.contact?.id || null,
+          activity_type: submitted ? "payment_link_sent" : "payment_link_queued",
+          summary: submitted
+            ? "Direct booking payment link submitted via CRM WhatsApp"
+            : "Direct booking payment link awaiting customer reply",
+          metadata: { mode: delivery.mode, payment_link: paymentUrl },
+          actor_email: actorEmail || null,
+        });
+        deliveryFeedback = submitted
+          ? "Payment link submitted through CRM WhatsApp. Delivery/read confirmations will appear in the conversation."
+          : delivery.mode === "template"
+            ? "A WhatsApp template was submitted. The payment link is queued until the customer replies."
+            : "Payment link prepared, but not yet sent. WhatsApp is waiting for the customer to reply.";
+        if (historyError) {
+          deliveryFeedback += " The CRM could not save the communication activity: " + historyError.message;
+        }
+      } catch (sendError) {
+        deliveryFeedback = "Payment prepared, but WhatsApp delivery is unconfirmed. Check the conversation before sending it manually. " +
+          (sendError instanceof Error ? sendError.message : "");
+        setManualPaymentHref(
+          "https://wa.me/" + phone + "?text=" + encodeURIComponent(paymentMessage)
+        );
+      }
+    } else if (phone) {
+      // The booking has a phone number but the CRM contact does not.
+      // Never present a manually opened WhatsApp composer as a delivered message.
+      deliveryFeedback = "Payment prepared. Open WhatsApp and press Send; this is a manual message, not a confirmed CRM delivery.";
+      setManualPaymentHref(
+        "https://wa.me/" + phone + "?text=" + encodeURIComponent(paymentMessage)
+      );
     } else {
       try {
         await navigator.clipboard.writeText(paymentUrl);
-        setMessage("Payment link copied. This contact has no phone number.");
+        deliveryFeedback = "Payment link copied. This booking has no WhatsApp phone number.";
       } catch {
-        setMessage("Payment request prepared. This contact has no phone number.");
+        deliveryFeedback = "Payment prepared. This booking has no WhatsApp phone number.";
       }
     }
+
+    await loadCRM();
+    setEditing(null);
+    if (deliveryFeedback) setMessage(deliveryFeedback);
   }
 
   async function markDirectBookingPaid(request: CRMRequest) {
@@ -1859,6 +1893,7 @@ export default function AdminCRM() {
   }
 
   function openView(nextFilter: Filter) {
+    setWorkspaceView("operations");
     setFilter(nextFilter);
     setQuery("");
     window.setTimeout(() => {
@@ -1898,29 +1933,14 @@ export default function AdminCRM() {
   }
 
   const counts = useMemo(
-    () => ({
-      new: requests.filter((item) => item.status === "new").length,
-      inReview: requests.filter((item) =>
-        IN_PROGRESS_STATUSES.includes(item.status)
-      ).length,
-      proposalSent: requests.filter((item) => item.status === "proposal_sent").length,
-      awaitingPayment: requests.filter((item) => item.status === "awaiting_payment").length,
-      confirmed: requests.filter((item) => item.status === "confirmed").length,
-      today: requests.filter(
-        (item) =>
-          bookedDates(item).includes(localIsoDate()) &&
-          ["confirmed", "in_service", "completed", "no_show"].includes(item.status)
-      ).length,
-      upcoming: requests.filter(
-        (item) =>
-          ["confirmed", "in_service"].includes(item.status) &&
-          bookedDates(item).some((date) => {
-            const days = daysFromToday(date);
-            return days >= 1 && days <= 7;
-          })
-      ).length,
-      completed: requests.filter((item) => item.status === "completed").length,
-    }),
+    () =>
+      countCRMRequests(
+        requests.map((request) => ({
+          status: request.status,
+          dates: bookedDates(request),
+        })),
+        localIsoDate()
+      ),
     [requests]
   );
 
@@ -2125,25 +2145,8 @@ export default function AdminCRM() {
             Contacts, requests and commercial follow-up in one place.
           </p>
         </div>
-        <div className="admin-topbar-actions">
-          <a className="button button-ghost" href="/">
-            Back to website
-          </a>
-          <a className="button button-ghost" href="/admin/whatsapp">
-            WhatsApp CRM
-          </a>
-          <a className="button button-ghost" href="/admin/bookings">
-            Bookings & payments
-          </a>
-          <a className="button button-outline" href="/admin/promotions">
-            Website promotions
-          </a>
-          <a
-            className="button button-outline"
-            href="https://watermelon-product-studio.vercel.app/"
-          >
-            Product Studio
-          </a>
+        <div className="admin-topbar-actions crm-utility-actions">
+          <a className="button button-ghost" href="/">Website</a>
           {pushSupported && (
             <button
               className={pushEnabled ? "button button-outline" : "button button-primary"}
@@ -2155,21 +2158,46 @@ export default function AdminCRM() {
                   : void enablePushNotifications()
               }
             >
-              {pushBusy
-                ? "Notifications…"
-                : pushEnabled
-                  ? "Notifications on"
-                  : "Enable alerts"}
+              {pushBusy ? "Notifications…" : pushEnabled ? "Alerts on" : "Enable alerts"}
             </button>
           )}
           <button className="button button-ghost" type="button" onClick={() => void loadCRM()}>
-            Refresh
+            Refresh CRM
           </button>
           <button className="button button-ghost" type="button" onClick={() => void signOut()}>
             Sign out
           </button>
         </div>
       </div>
+
+      <nav className="crm-workspace-nav" aria-label="CRM main navigation">
+        <button
+          type="button"
+          className={workspaceView === "operations" && filter === "in_progress" ? "crm-nav-active" : ""}
+          onClick={() => openView("in_progress")}
+          aria-current={workspaceView === "operations" && filter === "in_progress" ? "page" : undefined}
+        >Dashboard</button>
+        <button
+          type="button"
+          className={workspaceView === "operations" && filter !== "contacts" && filter !== "in_progress" ? "crm-nav-active" : ""}
+          onClick={() => openView("all")}
+        >Requests</button>
+        <button
+          type="button"
+          className={workspaceView === "operations" && filter === "contacts" ? "crm-nav-active" : ""}
+          onClick={() => openView("contacts")}
+        >Contacts</button>
+        <a href="/admin/whatsapp">WhatsApp</a>
+        <a href="/admin/bookings">Bookings & payments</a>
+        <a href="https://watermelon-product-studio.vercel.app/">Product Studio</a>
+        <button
+          type="button"
+          className={workspaceView === "marketing" ? "crm-nav-active" : ""}
+          aria-pressed={workspaceView === "marketing"}
+          onClick={() => setWorkspaceView("marketing")}
+        >Marketing & analytics</button>
+        <a href="/admin/promotions">Promotions</a>
+      </nav>
 
       {!pushEnabled && pushSupported && (
         <div className="crm-alert-setup">
@@ -2199,6 +2227,12 @@ export default function AdminCRM() {
         </div>
       )}
 
+      {workspaceView === "operations" && (
+        <>
+      <div className="crm-dashboard-context" aria-live="polite">
+        <strong>Daily follow-up</strong>
+        <span>{requests.length} current requests · {contactCount} contacts</span>
+      </div>
       <div className="crm-stats">
         <button
           type="button"
@@ -2240,6 +2274,10 @@ export default function AdminCRM() {
         >
           <span>Today</span><strong>{counts.today}</strong>
         </button>
+      </div>
+      <details className="crm-extra-stats">
+        <summary>More indicators · Upcoming trips, confirmed and completed</summary>
+        <div className="crm-stats crm-stats-secondary">
         <button
           type="button"
           className={filter === "upcoming" ? "crm-stat-active" : ""}
@@ -2272,35 +2310,70 @@ export default function AdminCRM() {
         >
           <span>Contacts</span><strong>{contactCount}</strong>
         </button>
-      </div>
+        </div>
+      </details>
+        </>
+      )}
 
-      <CRMMarketingPerformance />
-      <CRMAnalytics />
-
+      {workspaceView === "marketing" ? (
+        <div className="crm-marketing-workspace">
+          <div className="crm-workspace-heading">
+            <h2>Marketing & analytics</h2>
+            <p>Historical website events and Google Ads conversions are different from active CRM requests.</p>
+          </div>
+          <CRMMarketingPerformance />
+          <CRMAnalytics />
+        </div>
+      ) : (
+        <>
       <div className="crm-toolbar">
-        <div className="admin-filters crm-filters">
-          {([
-            ["all", "All requests"],
-            ["in_review", "In review"],
-            ["awaiting_customer", "Waiting for customer"],
-            ["proposal_drafting", "Drafting"],
-            ["customer_replied", "Customer replied"],
-            ["accepted", "Accepted"],
-            ["in_service", "In service"],
-            ["completed", "Completed"],
-            ["no_show", "No-show"],
-            ["declined", "Declined"],
-            ["cancelled", "Cancelled"],
-          ] as Array<[Filter, string]>).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              className={filter === value ? "chip chip-active" : "chip"}
-              onClick={() => setFilter(value)}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="crm-filter-set">
+          <div className="admin-filters crm-filters">
+            {([
+              ["all", "All requests"],
+              ["new", "New"],
+              ["awaiting_customer", "Waiting for customer"],
+              ["customer_replied", "Customer replied"],
+              ["awaiting_payment", "Awaiting payment"],
+            ] as Array<[Filter, string]>).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={filter === value ? "chip chip-active" : "chip"}
+                aria-pressed={filter === value}
+                onClick={() => setFilter(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <details className="crm-more-filters">
+            <summary>More statuses</summary>
+            <div className="admin-filters crm-filters">
+              {([
+                ["in_review", "In review"],
+                ["proposal_drafting", "Drafting"],
+                ["proposal_sent", "Proposal sent"],
+                ["accepted", "Accepted"],
+                ["confirmed", "Confirmed"],
+                ["in_service", "In service"],
+                ["completed", "Completed"],
+                ["no_show", "No-show"],
+                ["declined", "Declined"],
+                ["cancelled", "Cancelled"],
+              ] as Array<[Filter, string]>).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={filter === value ? "chip chip-active" : "chip"}
+                  aria-pressed={filter === value}
+                  onClick={() => setFilter(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </details>
         </div>
         <label className="crm-search">
           <span>Search</span>
@@ -2317,6 +2390,11 @@ export default function AdminCRM() {
       </div>
 
       {message && <p className="admin-error">{message}</p>}
+      {manualPaymentHref && (
+        <a className="button button-outline" href={manualPaymentHref} target="_blank" rel="noopener noreferrer">
+          Open WhatsApp to send manually
+        </a>
+      )}
       {loading && <p className="admin-loading">Loading CRM…</p>}
 
       <div className="crm-results-heading" id="crm-results">
@@ -2417,16 +2495,19 @@ export default function AdminCRM() {
                 )}
 
                 <div className="crm-contact-actions">
-                  <button
-                    className="button crm-danger-button"
-                    type="button"
-                    disabled={editing === contact.id}
-                    onClick={() =>
-                      void deleteContactPermanently(contact, relatedRequests.length)
-                    }
-                  >
-                    {editing === contact.id ? "Deleting…" : "Delete contact permanently"}
-                  </button>
+                  <details className="crm-danger-zone">
+                    <summary>Other contact actions</summary>
+                    <button
+                      className="button crm-danger-button"
+                      type="button"
+                      disabled={editing === contact.id}
+                      onClick={() =>
+                        void deleteContactPermanently(contact, relatedRequests.length)
+                      }
+                    >
+                      {editing === contact.id ? "Deleting…" : "Delete contact permanently"}
+                    </button>
+                  </details>
                   {relatedRequests.length > 0 && (
                     <span>Delete the contact's requests first.</span>
                   )}
@@ -2909,25 +2990,24 @@ export default function AdminCRM() {
                     </button>
                   )}
 
-                <button
-                  className="button"
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void deleteRequestPermanently(request)}
-                  style={{
-                    marginLeft: "auto",
-                    border: "1px solid #b42318",
-                    color: "#b42318",
-                    background: "#fff",
-                  }}
-                >
-                  Delete permanently
-                </button>
+                <details className="crm-danger-zone crm-danger-zone-request">
+                  <summary>Other actions</summary>
+                  <button
+                    className="button crm-danger-button"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void deleteRequestPermanently(request)}
+                  >
+                    Delete permanently
+                  </button>
+                </details>
               </footer>
             </article>
           );
         })}
         </div>
+      )}
+        </>
       )}
     </section>
   );

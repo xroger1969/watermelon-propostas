@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import AdminPromotions from "@/components/AdminPromotions";
 
 export const metadata: Metadata = {
-  title: "Website Promotions | Watermelon Experiences",
+  title: "Website Promotions",
   description: "Watermelon private website promotion manager",
   robots: { index: false, follow: false },
 };

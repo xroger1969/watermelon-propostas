@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import AdminBookings from "@/components/AdminBookings";
 
 export const metadata: Metadata = {
-  title: "Bookings & Payments | Watermelon Experiences",
+  title: "Bookings & Payments",
   robots: { index: false, follow: false },
 };
 
