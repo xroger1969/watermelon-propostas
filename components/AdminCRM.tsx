@@ -343,6 +343,7 @@ export default function AdminCRM() {
   const [contacts, setContacts] = useState<CRMContact[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [manualPaymentHref, setManualPaymentHref] = useState("");
   const [filter, setFilter] = useState<Filter>("in_progress");
   const [workspaceView, setWorkspaceView] = useState<"operations" | "marketing">("operations");
   const [query, setQuery] = useState("");
@@ -1394,6 +1395,7 @@ export default function AdminCRM() {
 
     setEditing(request.id);
     setMessage("");
+    setManualPaymentHref("");
 
     const { data, error } = await supabase.rpc(
       "watermelon_prepare_direct_booking_payment",
@@ -1466,15 +1468,19 @@ export default function AdminCRM() {
           deliveryFeedback += " The CRM could not save the communication activity: " + historyError.message;
         }
       } catch (sendError) {
-        deliveryFeedback = "Payment prepared but NOT sent automatically. Use the WhatsApp conversation to send the link manually. " +
+        deliveryFeedback = "Payment prepared, but WhatsApp delivery is unconfirmed. Check the conversation before sending it manually. " +
           (sendError instanceof Error ? sendError.message : "");
+        setManualPaymentHref(
+          "https://wa.me/" + phone + "?text=" + encodeURIComponent(paymentMessage)
+        );
       }
     } else if (phone) {
       // The booking has a phone number but the CRM contact does not.
       // Never present a manually opened WhatsApp composer as a delivered message.
       deliveryFeedback = "Payment prepared. Open WhatsApp and press Send; this is a manual message, not a confirmed CRM delivery.";
-      window.location.href =
-        "https://wa.me/" + phone + "?text=" + encodeURIComponent(paymentMessage);
+      setManualPaymentHref(
+        "https://wa.me/" + phone + "?text=" + encodeURIComponent(paymentMessage)
+      );
     } else {
       try {
         await navigator.clipboard.writeText(paymentUrl);
@@ -2384,7 +2390,12 @@ export default function AdminCRM() {
       </div>
 
       {message && <p className="admin-error">{message}</p>}
-      {loading && <p className="admin-loading">Loading CRM…</p>}
+      {manualPaymentHref && (
+        <a className="button button-outline" href={manualPaymentHref} target="_blank" rel="noopener noreferrer">
+          Open WhatsApp to send manually
+        </a>
+      )}
+      {loading && <p className="admin-loading">Loading CRM…</p>
 
       <div className="crm-results-heading" id="crm-results">
         <div>
