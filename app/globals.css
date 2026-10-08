@@ -5578,7 +5578,8 @@ button { cursor: pointer; }
 .crm-workspace-nav > button:hover {
   background: var(--mint);
 }
-.crm-workspace-nav > button.crm-nav-active {
+.crm-workspace-nav > button.crm-nav-active,
+.crm-workspace-nav > a.crm-nav-active {
   color: #fff;
   border-color: var(--green);
   background: var(--green);
