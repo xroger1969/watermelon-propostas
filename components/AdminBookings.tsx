@@ -851,6 +851,11 @@ export default function AdminBookings() {
       </div>
 
       {message && <p className="admin-error">{message}</p>}
+      {manualPaymentHref && (
+        <a className="button button-outline" href={manualPaymentHref} target="_blank" rel="noopener noreferrer">
+          Open WhatsApp to send manually
+        </a>
+      )}
       {loading && <p className="admin-loading">Loading bookings…</p>}
 
       <div className="admin-booking-list">
