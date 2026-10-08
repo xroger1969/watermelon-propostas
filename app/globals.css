@@ -5422,3 +5422,20 @@ button { cursor: pointer; }
 .booking-guest-limit-notice span {
   color: #5e4b2b;
 }
+
+/* Keep private-area navigation controls above decorative/admin layers and reliably clickable. */
+.promotion-admin-shell .admin-topbar {
+  position: relative;
+  z-index: 20;
+}
+.promotion-admin-shell .promotion-nav-actions {
+  position: relative;
+  z-index: 21;
+  pointer-events: auto;
+}
+.promotion-admin-shell .promotion-nav-actions .button {
+  position: relative;
+  z-index: 22;
+  pointer-events: auto;
+  cursor: pointer;
+}
