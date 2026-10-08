@@ -19,6 +19,8 @@ type Recommendation = {
   url: string;
   optionCode: string;
   optionName: string;
+  pricingMode?: "group" | "per_person";
+  maxGuests?: number | null;
   price: number | null;
   currency: string;
   livePrice: boolean;
@@ -48,6 +50,8 @@ type ProposalItem = {
   title: string;
   optionCode: string;
   optionName: string;
+  pricingMode?: "group" | "per_person";
+  maxGuests?: number | null;
   price: string;
   notes: string;
 };
@@ -382,6 +386,8 @@ export default function AIConcierge({
         optionCode: item.optionCode || "DEFAULT",
         optionName: item.optionName || "Standard option",
         price: item.price === null ? "" : String(item.price),
+        pricingMode: item.pricingMode,
+        maxGuests: item.maxGuests,
         notes: "Suggested by Watermelon AI Concierge: " + item.reason,
       });
       existingCodes.add(item.code);
@@ -635,7 +641,7 @@ export default function AIConcierge({
                           {item.price === null ? "On request" : money(item.price, item.currency)}
                         </strong>
                         {item.price !== null && (
-                          <em>{item.livePrice ? "live price check" : "guide price"}</em>
+                          <em>{item.pricingMode === "group" ? "per group" : "per person"}{item.maxGuests ? ` · up to ${item.maxGuests} guests` : ""}</em>
                         )}
                       </div>
                       <button

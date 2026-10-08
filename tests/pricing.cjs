@@ -50,3 +50,27 @@ test('booking API uses the server catalogue and stores the group snapshot', asyn
     assert.equal(saved,undefined);
   } finally { Module._load=originalLoad; global.fetch=originalFetch; delete process.env.PRODUCT_STUDIO_PUBLIC_FEED_URL; }
 });
+
+test('AI handoff keeps Studio group pricing and the direct-site offer', async () => {
+  const originalLoad=Module._load, originalFetch=global.fetch;
+  let stored;
+  const db={from:()=>({select:async()=>({data:[{product_code:'9963P3',now_price:882,before_price:980,currency:'EUR'}],error:null})}),rpc:async(name,args)=>{stored=args;return {data:'qa-request',error:null}}};
+  Module._load=function(name,...args){
+    if(name==='@supabase/supabase-js')return {createClient:()=>db};
+    if(name==='@/lib/viator-live')return {getLiveViatorCatalog:async()=>[{code:'LEGACY',title:'Legacy',description:'',category:'Tours',location:'Portugal',duration:'1h',image:'',url:'',options:[]}],getLiveViatorPrices:async()=>[{code:'9963P3',price:999,currency:'EUR'}]};
+    return originalLoad.call(this,name,...args);
+  };
+  process.env.OPENAI_API_KEY='qa-test-only'; process.env.PRODUCT_STUDIO_PUBLIC_FEED_URL='https://catalogue.example.test';
+  const plan={reply:'QA',question:'',intent_summary:'QA',recommendations:[{code:'9963P3',reason:'QA'}],tailor_made_ideas:[],quote_request:{requested:true,ready_to_create:true,customer_name:'QA',customer_phone:'QA',customer_email:'',requested_date:'2026-10-28',guests:12,selected_codes:['9963P3'],tailor_made_titles:[],notes:'',success_message:'QA'}};
+  global.fetch=async url=>new Response(JSON.stringify(url==='https://catalogue.example.test'?{products}:{output_text:JSON.stringify(plan)}),{headers:{'content-type':'application/json'}});
+  try {
+    const {POST}=require('../app/api/ai-concierge/route.ts');
+    const response=await POST(new Request('https://example.test/api/ai-concierge',{method:'POST',body:JSON.stringify({message:'QA request',conversationId:'pricing-qa'})}));
+    assert.equal(response.status,200);
+    assert.equal(stored.p_items[0].pricing_mode,'group');
+    assert.equal(stored.p_items[0].subtotal,882);
+    const body=await response.json();
+    assert.equal(body.recommendations[0].price,882);
+    assert.equal(body.recommendations[0].pricingMode,'group');
+  }finally{Module._load=originalLoad;global.fetch=originalFetch;delete process.env.OPENAI_API_KEY;delete process.env.PRODUCT_STUDIO_PUBLIC_FEED_URL;}
+});

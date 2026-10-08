@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { inferProductRules, priceTotal, type PricingMode } from "@/lib/product-rules";
+import { loadStudioCatalog, resolveCatalogPricing } from "@/lib/studio-pricing";
 import { experiences } from "@/data/products";
 import { viatorListings } from "@/data/viator";
 import {
@@ -66,6 +68,9 @@ type CatalogueItem = {
   url: string;
   optionCode: string;
   optionName: string;
+  pricingMode?: PricingMode;
+  maxGuests?: number | null;
+  studio?: boolean;
   priceFrom: number | null;
   currency: string;
 };
@@ -164,6 +169,8 @@ function compactCatalogue(items: CatalogueItem[]) {
     category: item.category,
     location: item.location,
     duration: item.duration,
+    pricingMode: item.pricingMode,
+    maxGuests: item.maxGuests,
     priceFrom: item.priceFrom,
     currency: item.currency,
     description: item.description.slice(0, 360),
@@ -227,6 +234,7 @@ The supplied WATERMELON CATALOGUE is the complete universe of experiences that y
 - Recommend ONLY product codes that exist in the supplied WATERMELON CATALOGUE.
 - Never describe anything outside that catalogue as currently available from Watermelon.
 - Never invent availability, exact prices, inclusions, pickup, accessibility, child suitability, opening hours or booking confirmation.
+- A pricingMode of group means the entire group price. Never multiply it by guests. Respect maxGuests when recommending or preparing a quote.
 - Do not infer inclusions from category or location. For example, do not infer a tasting from a winery visit, lunch from a food category, transfer from a tour, or a beach stop from a coastal location unless the supplied product data explicitly says so.
 - Explain why a catalogue product fits using only the traveller's stated preferences and facts supplied for that product.
 - If there is no good catalogue match, return zero catalogue recommendations rather than forcing a weak match.
@@ -412,7 +420,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Please write a message." }, { status: 400 });
     }
 
-    const catalogue = await loadCatalogue();
+    const [legacy, studio] = await Promise.all([loadCatalogue(), loadStudioCatalog()]);
+    const catalogue: CatalogueItem[] = legacy.filter(p => !studio.some(s => s.code === p.code)).map(p => ({ ...p, ...inferProductRules({code:p.code,title:p.title,description:p.description,optionName:p.optionName}) }));
+    for (const p of studio) {
+      const option = p.options?.[0];
+      const rules = resolveCatalogPricing(studio, {code:p.code,optionCode:option?.optionCode});
+      catalogue.push({code:p.code,title:p.title,description:p.description || "",category:p.category || "Private Tours",location:p.destination || "Portugal",duration:p.duration || "",image:p.image || "/logo-full.jpg",url:"#experiencias",optionCode:option?.optionCode || "DEFAULT",optionName:option?.optionName || "Standard option",priceFrom:rules.price ?? null,currency:rules.currency || "EUR",pricingMode:rules.pricingMode,maxGuests:rules.maxGuests,studio:true});
+    }
+    const pricingDb = createClient(SUPABASE_BOOKING_URL, SUPABASE_BOOKING_PUBLISHABLE_KEY, {auth:{persistSession:false,autoRefreshToken:false}});
+    const {data:offers,error:offerError} = await pricingDb.from("watermelon_site_promotions").select("product_code,now_price,before_price,currency");
+    if (offerError) throw new Error("Unable to verify current website offers");
+    for (const product of catalogue) {
+      const offer = offers?.find(o => o.product_code === product.code);
+      if (offer && Number(offer.now_price)>0 && Number(offer?.before_price)>Number(offer?.now_price)) {
+        product.priceFrom=Number(offer.now_price);
+        product.currency=offer.currency || product.currency;
+        product.studio=true; // The direct-site offer is authoritative over the partner price.
+      }
+    }
 
     if (!catalogue.length) {
       return NextResponse.json(
@@ -522,7 +547,7 @@ export async function POST(request: NextRequest) {
 
     const recommendations = validRecommendations.map((recommendation) => {
       const product = catalogueByCode.get(recommendation.code)!;
-      const live = livePrices.get(product.code);
+      const live = product.studio ? undefined : livePrices.get(product.code);
 
       return {
         code: product.code,
@@ -538,6 +563,8 @@ export async function POST(request: NextRequest) {
         price: live?.price ?? product.priceFrom,
         currency: live?.currency ?? product.currency,
         livePrice: Boolean(live),
+        pricingMode: product.pricingMode,
+        maxGuests: product.maxGuests,
       };
     });
 
@@ -571,8 +598,10 @@ export async function POST(request: NextRequest) {
 
       const availableItems = selectedCodes.map((code, index) => {
         const product = catalogueByCode.get(code)!;
-        const live = livePrices.get(code);
+        const live = product.studio ? undefined : livePrices.get(code);
         const price = live?.price ?? product.priceFrom;
+        const guests = Math.max(1, Math.min(50, Number(quote.guests) || 1));
+        if (product.maxGuests && guests > product.maxGuests) throw new Error("This experience exceeds its group capacity.");
         const reason =
           planReasonByCode.get(code) ||
           currentReasonByCode.get(code) ||
@@ -589,14 +618,8 @@ export async function POST(request: NextRequest) {
           date_flexibility: "Exact date",
           guests: Math.max(1, Math.min(50, Number(quote.guests) || 1)),
           unit_price: price,
-          subtotal:
-            price === null
-              ? null
-              : Number(
-                  (
-                    price * Math.max(1, Math.min(50, Number(quote.guests) || 1))
-                  ).toFixed(2)
-                ),
+          pricing_mode: product.pricingMode || "per_person",
+          subtotal: price === null ? null : priceTotal(price, guests, product.pricingMode || "per_person"),
           pickup_location: null,
           guide_language: null,
           special_request: cleanText("AI Concierge: " + reason, 2000),

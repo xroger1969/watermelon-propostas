@@ -1,7 +1,7 @@
 import { inferProductRules, pricingModeFor, type ProductRules } from "./product-rules";
 
 type StudioOption = { optionCode: string; optionName: string; price?: number | null; currency?: string; priceType?: string; capacity?: number | null };
-type StudioProduct = { code: string; id?: string; title: string; maxGuests?: number | null; price?: number | null; currency?: string; priceType?: string; options?: StudioOption[] };
+type StudioProduct = { code: string; id?: string; title: string; description?: string; destination?: string; category?: string; duration?: string; image?: string; maxGuests?: number | null; price?: number | null; currency?: string; priceType?: string; options?: StudioOption[] };
 
 // This feed is server-owned. Never derive a Studio price from customer text.
 export async function loadStudioCatalog(): Promise<StudioProduct[]> {
