@@ -265,9 +265,18 @@ async function setGygStatus(id,status){
   if(status==="Ready"&&!pub.preparedAt) pub.preparedAt=now;
   if(["Submitted","In review","Published"].includes(status)&&!pub.submittedAt) pub.submittedAt=now;
   if(status==="Published"&&!pub.publishedAt) pub.publishedAt=now;
-  if(status==="Published"&&!pub.externalProductId){
-    const value=window.prompt("GetYourGuide product ID (optional — you can add it later)","");
-    if(value!==null) pub.externalProductId=value.trim();
+  if(status==="Published"){
+    if(!pub.externalProductId){
+      const value=window.prompt("GetYourGuide product ID (optional — you can add it later)","");
+      if(value!==null) pub.externalProductId=value.trim();
+    }
+    if(!pub.payload) pub.payload=buildGygPayload(product);
+    const existingUrl=String(pub.payload.publicUrl||"");
+    const url=window.prompt("Public GetYourGuide booking URL",existingUrl);
+    if(url!==null) pub.payload.publicUrl=url.trim();
+    if(!String(pub.payload.publicUrl||"").trim()){
+      pub.notes=[pub.notes,"Published status set, but public GetYourGuide URL is still missing."].filter(Boolean).join(" · ");
+    }
   }
   try{
     await persistGygProduct(product);
@@ -433,7 +442,7 @@ function renderGetYourGuide(){
   el.innerHTML=
     '<div class="topbar"><div><h1>GetYourGuide Publisher</h1><p>Prepare the Supplier Portal package from the Watermelon master catalogue.</p></div><div class="actions"><button id="gygPrepareAll" class="btn green" onclick="prepareAllGetYourGuide()">Prepare all products</button><button class="btn" onclick="exportAllGetYourGuide()">Export all JSON</button><a class="btn primary" href="https://supplier.getyourguide.com/home" target="_blank" rel="noopener">Open Supplier Portal →</a></div></div>'+
     '<div class="grid4"><div class="metric"><div class="label">Products</div><div class="value">'+products.length+'</div><div class="sub">Watermelon master catalogue</div></div><div class="metric"><div class="label">Ready</div><div class="value">'+ready+'</div><div class="sub">prepared for submission</div></div><div class="metric"><div class="label">Submitted / review</div><div class="value">'+pipeline+'</div><div class="sub">GetYourGuide pipeline</div></div><div class="metric"><div class="label">Published</div><div class="value">'+published+'</div><div class="sub">live on GetYourGuide</div></div></div>'+
-    '<div class="card gyg-intro"><div><b>How this works</b><p>The Publisher transforms the Watermelon product into the structure requested by GetYourGuide: title, descriptions, 3–5 highlights, locations, keywords, inclusions, itinerary, logistics, options, pricing, availability and photos.</p></div><div class="notice"><b>Important:</b> GetYourGuide still requires the activity to be created in the Supplier Portal before a reservation-system connection can be attached. This Publisher removes the content preparation work and keeps the publication status organised.</div></div>'+
+    '<div class="card gyg-intro"><div><b>Connection prepared — activation pending</b><p>The Studio is already prepared for GetYourGuide. Products can be structured, reviewed and tracked here now. Live API catalogue access remains inactive until GetYourGuide partner credentials and published tour IDs are available.</p></div><div class="notice"><b>Professional status:</b> Until a product is Published and has a public GetYourGuide booking URL, the website shows the channel as <b>Not yet available</b>. Once the URL is saved here, the website can expose the GetYourGuide booking option automatically.</div></div>'+
     '<div class="toolbar gyg-toolbar"><input id="gygQ" class="search" placeholder="Search title, destination or code…" oninput="filterGygProducts()"><select id="gygStatus" class="search" style="max-width:210px" onchange="filterGygProducts()"><option value="">All GetYourGuide statuses</option>'+GYG_STATUS_ORDER.map(s=>'<option>'+esc(s)+'</option>').join("")+'</select></div>'+
     '<div id="gygTableArea"></div>';
   renderGygTable(products);
