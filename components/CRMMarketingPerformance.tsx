@@ -271,7 +271,7 @@ export default function CRMMarketingPerformance() {
                 <strong>{number(siteAttributed.visitors)}</strong>
               </div>
               <div>
-                <span>CRM leads attributed to Google CPC</span>
+                <span>Website lead events attributed to Google CPC</span>
                 <strong>{number(siteAttributed.leads)}</strong>
               </div>
               <p>
