@@ -8,22 +8,7 @@ import WhatsAppConversation from "@/components/WhatsAppConversation";
 import EmailConversation from "@/components/EmailConversation";
 import CRMAnalytics from "@/components/CRMAnalytics";
 import CRMMarketingPerformance from "@/components/CRMMarketingPerformance";
-
-type CRMStatus =
-  | "new"
-  | "in_review"
-  | "awaiting_customer"
-  | "proposal_drafting"
-  | "proposal_sent"
-  | "customer_replied"
-  | "accepted"
-  | "awaiting_payment"
-  | "confirmed"
-  | "in_service"
-  | "completed"
-  | "no_show"
-  | "declined"
-  | "cancelled";
+import { countCRMRequests, IN_PROGRESS_STATUSES, type CRMStatus } from "@/lib/crm-dashboard";
 
 type CRMContact = {
   id: string;
@@ -161,14 +146,6 @@ type CRMRequest = {
 };
 
 type Filter = "all" | "in_progress" | "contacts" | "today" | "upcoming" | CRMStatus;
-
-const IN_PROGRESS_STATUSES: CRMStatus[] = [
-  "in_review",
-  "awaiting_customer",
-  "proposal_drafting",
-  "customer_replied",
-  "accepted",
-];
 
 const OWNER_EMAIL = "c.vasconcelos1969@gmail.com";
 
@@ -365,7 +342,8 @@ export default function AdminCRM() {
   const [contacts, setContacts] = useState<CRMContact[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [filter, setFilter] = useState<Filter>("new");
+  const [filter, setFilter] = useState<Filter>("in_progress");
+  const [workspaceView, setWorkspaceView] = useState<"operations" | "marketing">("operations");
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [pushSupported, setPushSupported] = useState(false);
@@ -1859,6 +1837,7 @@ export default function AdminCRM() {
   }
 
   function openView(nextFilter: Filter) {
+    setWorkspaceView("operations");
     setFilter(nextFilter);
     setQuery("");
     window.setTimeout(() => {
@@ -1898,29 +1877,14 @@ export default function AdminCRM() {
   }
 
   const counts = useMemo(
-    () => ({
-      new: requests.filter((item) => item.status === "new").length,
-      inReview: requests.filter((item) =>
-        IN_PROGRESS_STATUSES.includes(item.status)
-      ).length,
-      proposalSent: requests.filter((item) => item.status === "proposal_sent").length,
-      awaitingPayment: requests.filter((item) => item.status === "awaiting_payment").length,
-      confirmed: requests.filter((item) => item.status === "confirmed").length,
-      today: requests.filter(
-        (item) =>
-          bookedDates(item).includes(localIsoDate()) &&
-          ["confirmed", "in_service", "completed", "no_show"].includes(item.status)
-      ).length,
-      upcoming: requests.filter(
-        (item) =>
-          ["confirmed", "in_service"].includes(item.status) &&
-          bookedDates(item).some((date) => {
-            const days = daysFromToday(date);
-            return days >= 1 && days <= 7;
-          })
-      ).length,
-      completed: requests.filter((item) => item.status === "completed").length,
-    }),
+    () =>
+      countCRMRequests(
+        requests.map((request) => ({
+          status: request.status,
+          dates: bookedDates(request),
+        })),
+        localIsoDate()
+      ),
     [requests]
   );
 
@@ -2125,25 +2089,8 @@ export default function AdminCRM() {
             Contacts, requests and commercial follow-up in one place.
           </p>
         </div>
-        <div className="admin-topbar-actions">
-          <a className="button button-ghost" href="/">
-            Back to website
-          </a>
-          <a className="button button-ghost" href="/admin/whatsapp">
-            WhatsApp CRM
-          </a>
-          <a className="button button-ghost" href="/admin/bookings">
-            Bookings & payments
-          </a>
-          <a className="button button-outline" href="/admin/promotions">
-            Website promotions
-          </a>
-          <a
-            className="button button-outline"
-            href="https://watermelon-product-studio.vercel.app/"
-          >
-            Product Studio
-          </a>
+        <div className="admin-topbar-actions crm-utility-actions">
+          <a className="button button-ghost" href="/">Website</a>
           {pushSupported && (
             <button
               className={pushEnabled ? "button button-outline" : "button button-primary"}
@@ -2155,11 +2102,7 @@ export default function AdminCRM() {
                   : void enablePushNotifications()
               }
             >
-              {pushBusy
-                ? "Notifications…"
-                : pushEnabled
-                  ? "Notifications on"
-                  : "Enable alerts"}
+              {pushBusy ? "Notifications…" : pushEnabled ? "Alerts on" : "Enable alerts"}
             </button>
           )}
           <button className="button button-ghost" type="button" onClick={() => void loadCRM()}>
@@ -2170,6 +2113,35 @@ export default function AdminCRM() {
           </button>
         </div>
       </div>
+
+      <nav className="crm-workspace-nav" aria-label="CRM main navigation">
+        <button
+          type="button"
+          className={workspaceView === "operations" && filter === "in_progress" ? "crm-nav-active" : ""}
+          onClick={() => openView("in_progress")}
+          aria-current={workspaceView === "operations" && filter === "in_progress" ? "page" : undefined}
+        >Dashboard</button>
+        <button
+          type="button"
+          className={workspaceView === "operations" && filter !== "contacts" && filter !== "in_progress" ? "crm-nav-active" : ""}
+          onClick={() => openView("all")}
+        >Requests</button>
+        <button
+          type="button"
+          className={workspaceView === "operations" && filter === "contacts" ? "crm-nav-active" : ""}
+          onClick={() => openView("contacts")}
+        >Contacts</button>
+        <a href="/admin/whatsapp">WhatsApp</a>
+        <a href="/admin/bookings">Bookings & payments</a>
+        <a href="https://watermelon-product-studio.vercel.app/">Product Studio</a>
+        <button
+          type="button"
+          className={workspaceView === "marketing" ? "crm-nav-active" : ""}
+          aria-pressed={workspaceView === "marketing"}
+          onClick={() => setWorkspaceView("marketing")}
+        >Marketing & analytics</button>
+        <a href="/admin/promotions">Promotions</a>
+      </nav>
 
       {!pushEnabled && pushSupported && (
         <div className="crm-alert-setup">
@@ -2274,9 +2246,17 @@ export default function AdminCRM() {
         </button>
       </div>
 
-      <CRMMarketingPerformance />
-      <CRMAnalytics />
-
+      {workspaceView === "marketing" ? (
+        <div className="crm-marketing-workspace">
+          <div className="crm-workspace-heading">
+            <h2>Marketing & analytics</h2>
+            <p>Historical website events and Google Ads conversions are different from active CRM requests.</p>
+          </div>
+          <CRMMarketingPerformance />
+          <CRMAnalytics />
+        </div>
+      ) : (
+        <>
       <div className="crm-toolbar">
         <div className="admin-filters crm-filters">
           {([
@@ -2928,6 +2908,8 @@ export default function AdminCRM() {
           );
         })}
         </div>
+      )}
+        </>
       )}
     </section>
   );
