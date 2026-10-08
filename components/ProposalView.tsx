@@ -10,6 +10,7 @@ type ProposalItem = {
   proposed_date: string | null;
   proposed_time: string | null;
   guests: number;
+  pricing_mode?: "group" | "per_person";
   unit_price: number;
   line_total: number;
   pickup_location: string | null;
@@ -223,7 +224,7 @@ export default function ProposalView({
                 <div><span>Date</span><strong>{displayDate(item.proposed_date)}</strong></div>
                 <div><span>Time</span><strong>{item.proposed_time || "Flexible"}</strong></div>
                 <div><span>Guests</span><strong>{item.guests}</strong></div>
-                <div><span>Price per person</span><strong>{money(item.unit_price, proposal.currency)}</strong></div>
+                <div><span>{item.pricing_mode === "group" ? "Price per group" : "Price per person"}</span><strong>{money(item.unit_price, proposal.currency)}</strong></div>
               </div>
 
               {item.option_name && <p><strong>Option:</strong> {item.option_name}</p>}

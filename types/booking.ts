@@ -46,6 +46,7 @@ export type BookingRequestRecord = {
   preferred_time: string | null;
   guests: number;
   unit_price: number | null;
+  pricing_mode?: "group" | "per_person";
   currency: string;
   estimated_total: number | null;
   customer_name: string;
@@ -71,6 +72,7 @@ export type CreateBookingRequestInput = {
   preferredTime: string;
   guests: number;
   unitPrice: number | null;
+  pricingMode?: "group" | "per_person";
   websitePromotion?: boolean;
   currency: string;
   customerName: string;

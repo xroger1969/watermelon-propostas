@@ -5,6 +5,17 @@ export type ProductRules = {
   maxGuests: number | null;
 };
 
+export function pricingModeFor(priceType: string | undefined): PricingMode {
+  if (priceType === "Per person" || priceType === "per_person") return "per_person";
+  if (["Per group", "per_group", "Per vehicle", "per_vehicle", "Fixed", "fixed"].includes(priceType || "")) return "group";
+  throw new Error("The pricing basis must be configured before taking reservations.");
+}
+
+export function priceTotal(price: number, guests: number, mode: PricingMode) {
+  if (!Number.isFinite(price) || price < 0 || !Number.isInteger(guests) || guests < 1) throw new Error("Invalid price or guest count.");
+  return Math.round((mode === "group" ? price : price * guests) * 100) / 100;
+}
+
 type ProductRuleInput = {
   code?: string;
   title?: string;

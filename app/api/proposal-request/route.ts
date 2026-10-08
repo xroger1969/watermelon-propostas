@@ -4,7 +4,8 @@ import {
   SUPABASE_BOOKING_PUBLISHABLE_KEY,
   SUPABASE_BOOKING_URL,
 } from "@/lib/supabase/config";
-import { inferProductRules } from "@/lib/product-rules";
+import { priceTotal } from "@/lib/product-rules";
+import { loadStudioCatalog, resolveCatalogPricing } from "@/lib/studio-pricing";
 
 export const runtime = "nodejs";
 
@@ -80,7 +81,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const preparedItems = rawItems.map((item, index) => {
+  let catalogue;
+  try { catalogue = await loadStudioCatalog(); } catch { return NextResponse.json({ error: "Unable to verify the current catalogue. Please try again." }, { status: 503 }); }
+  const pricingDb = createClient(SUPABASE_BOOKING_URL, SUPABASE_BOOKING_PUBLISHABLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: promotions, error: pricingError } = await pricingDb.from("watermelon_site_promotions").select("product_code,now_price,before_price,currency").in("product_code", rawItems.map(item => clean(item.code, 80)));
+  if (pricingError) return NextResponse.json({ error: "Unable to verify current offers. Please try again." }, { status: 503 });
+  let preparedItems;
+  try { preparedItems = rawItems.map((item, index) => {
     const guests = Math.max(1, Math.min(50, Number(item.guests) || 1));
     const unitPrice =
       item.unitPrice === null || item.unitPrice === undefined
@@ -89,23 +96,27 @@ export async function POST(request: Request) {
     const productCode = clean(item.code, 80);
     const experienceTitle = clean(item.title, 250) || "Experience";
     const optionName = clean(item.optionName, 200);
-    const rules = inferProductRules({
+    const rules = resolveCatalogPricing(catalogue, {
       code: productCode,
       title: experienceTitle,
       optionName,
+      optionCode: clean(item.optionCode, 80),
     });
 
+    const promotion = promotions?.find(p => p.product_code === productCode);
+    const promotedPrice = Number(promotion?.now_price);
+    const promotional = (!rules.studio || rules.primaryOption) && promotedPrice > 0 && Number(promotion?.before_price) > promotedPrice;
     return {
       item,
       index,
       guests,
-      unitPrice,
+      unitPrice: promotional ? promotedPrice : rules.studio ? rules.price ?? null : unitPrice,
       productCode,
       experienceTitle,
       optionName,
       rules,
     };
-  });
+  }); } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid option." }, { status: 409 }); }
 
   const overCapacity = preparedItems.find(
     (entry) => entry.rules.maxGuests && entry.guests > entry.rules.maxGuests
@@ -132,10 +143,11 @@ export async function POST(request: Request) {
       date_flexibility: clean(item.dateFlexibility, 80) || "Exact date",
       guests,
       unit_price: unitPrice,
+      pricing_mode: rules.pricingMode,
       subtotal:
         unitPrice === null
           ? null
-          : Number((rules.pricingMode === "group" ? unitPrice : unitPrice * guests).toFixed(2)),
+          : priceTotal(unitPrice, guests, rules.pricingMode),
       pickup_location: clean(item.pickupLocation, 500) || null,
       guide_language: clean(item.language, 80) || null,
       special_request: clean(item.notes, 2000) || null,

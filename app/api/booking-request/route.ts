@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { CreateBookingRequestInput } from "@/types/booking";
-import { inferProductRules } from "@/lib/product-rules";
+import { priceTotal } from "@/lib/product-rules";
+import { loadStudioCatalog, resolveCatalogPricing } from "@/lib/studio-pricing";
 import {
   SUPABASE_BOOKING_PUBLISHABLE_KEY,
   SUPABASE_BOOKING_URL,
@@ -38,7 +39,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const guests = Math.max(1, Math.min(50, Number(input.guests) || 1));
+  const guests = Number(input.guests);
+  if (!Number.isInteger(guests) || guests < 1 || guests > 50) return NextResponse.json({ error: "Invalid guest count." }, { status: 400 });
   const requestedUnitPrice =
     input.unitPrice === null || input.unitPrice === undefined
       ? null
@@ -57,11 +59,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const productRules = inferProductRules({
-    code: productCode,
-    title: experienceTitle,
-    optionName: clean(input.optionName, 200),
-  });
+  let productRules;
+  try {
+    productRules = resolveCatalogPricing(await loadStudioCatalog(), {
+      code: productCode, optionCode: clean(input.optionCode, 80),
+      title: experienceTitle, optionName: clean(input.optionName, 200),
+    });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to verify pricing." }, { status: 503 });
+  }
 
   if (productRules.maxGuests && guests > productRules.maxGuests) {
     return NextResponse.json(
@@ -91,6 +97,7 @@ export async function POST(request: Request) {
   const promotionNowPrice = Number(promotion?.now_price);
   const promotionBeforePrice = Number(promotion?.before_price);
   const promotionApplied =
+    (!productRules.studio || productRules.primaryOption) &&
     Number.isFinite(promotionNowPrice) &&
     Number.isFinite(promotionBeforePrice) &&
     promotionNowPrice > 0 &&
@@ -106,20 +113,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const unitPrice = promotionApplied ? promotionNowPrice : requestedUnitPrice;
+  const unitPrice = promotionApplied ? promotionNowPrice : productRules.studio ? productRules.price ?? null : requestedUnitPrice;
   const currency = promotionApplied
     ? clean(promotion?.currency, 3).toUpperCase() || "EUR"
-    : clean(input.currency, 3).toUpperCase() || "EUR";
-  const estimatedTotal =
-    unitPrice === null
-      ? null
-      : Number(
-          (
-            productRules.pricingMode === "group"
-              ? unitPrice
-              : unitPrice * guests
-          ).toFixed(2)
-        );
+    : productRules.currency || clean(input.currency, 3).toUpperCase() || "EUR";
+  if (requestedUnitPrice !== unitPrice || (input.pricingMode && input.pricingMode !== productRules.pricingMode)) {
+    return NextResponse.json({ error: "The price or pricing basis has changed. Please refresh the experience page before booking." }, { status: 409 });
+  }
+  const estimatedTotal = unitPrice === null ? null : priceTotal(unitPrice, guests, productRules.pricingMode);
 
   const { error } = await supabase
     .from("watermelon_booking_requests")
@@ -135,6 +136,7 @@ export async function POST(request: Request) {
       preferred_time: clean(input.preferredTime, 80) || null,
       guests,
       unit_price: unitPrice,
+      pricing_mode: productRules.pricingMode,
       currency,
       estimated_total: estimatedTotal,
       site_promotion_applied: promotionApplied,
@@ -161,5 +163,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     reference,
     status: "pending",
+    estimatedTotal,
+    pricingMode: productRules.pricingMode,
   });
 }

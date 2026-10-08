@@ -12,6 +12,7 @@ type RequestItem = {
   requested_date: string | null;
   preferred_time: string | null;
   guests: number;
+  pricing_mode?: "group" | "per_person";
   unit_price: number | null;
   pickup_location: string | null;
   special_request: string | null;
@@ -25,6 +26,7 @@ type ProposalItemRecord = {
   proposed_date: string | null;
   proposed_time: string | null;
   guests: number;
+  pricing_mode?: "group" | "per_person";
   unit_price: number;
   line_total: number;
   pickup_location: string | null;
@@ -73,6 +75,7 @@ type EditorItem = {
   proposed_date: string;
   proposed_time: string;
   guests: string;
+  pricing_mode: "group" | "per_person";
   unit_price: string;
   pickup_location: string;
   notes: string;
@@ -108,6 +111,7 @@ function numberValue(value: string) {
 
 function fromRequest(item: RequestItem): EditorItem {
   return {
+    pricing_mode: item.pricing_mode || "per_person",
     experience_title: item.experience_title,
     option_name: item.option_name || "",
     proposed_date: item.requested_date || "",
@@ -121,6 +125,7 @@ function fromRequest(item: RequestItem): EditorItem {
 
 function fromProposal(item: ProposalItemRecord): EditorItem {
   return {
+    pricing_mode: item.pricing_mode || "per_person",
     experience_title: item.experience_title,
     option_name: item.option_name || "",
     proposed_date: item.proposed_date || "",
@@ -287,7 +292,7 @@ export default function ProposalEditor({
     () =>
       items.reduce((sum, item) => {
         const guests = Math.max(1, Number.parseInt(item.guests, 10) || 1);
-        return sum + numberValue(item.unit_price) * guests;
+        return sum + numberValue(item.unit_price) * (item.pricing_mode === "group" ? 1 : guests);
       }, 0),
     [items]
   );
@@ -305,7 +310,7 @@ export default function ProposalEditor({
   async function saveDraft(showFeedback = true): Promise<SavedDraft | null> {
     if (!items.length || saveInFlight.current) return null;
     if (items.some((item) => !/^\d+(?:[.,]\d{1,2})?$/.test(item.unit_price.trim()))) {
-      setFeedback("Enter your price per person for every experience (for example 150 or 150,50).");
+      setFeedback("Enter your price for every experience (for example 150 or 150,50).");
       return null;
     }
     saveInFlight.current = true;
@@ -330,6 +335,7 @@ export default function ProposalEditor({
           proposed_time: item.proposed_time,
           guests: Math.max(1, Number.parseInt(item.guests, 10) || 1),
           unit_price: numberValue(item.unit_price),
+          pricing_mode: item.pricing_mode,
           pickup_location: item.pickup_location,
           notes: item.notes,
         })),
@@ -819,7 +825,7 @@ export default function ProposalEditor({
           <div className="crm-proposal-items">
             {items.map((item, index) => {
               const guests = Math.max(1, Number.parseInt(item.guests, 10) || 1);
-              const lineTotal = numberValue(item.unit_price) * guests;
+              const lineTotal = numberValue(item.unit_price) * (item.pricing_mode === "group" ? 1 : guests);
 
               return (
                 <article className="crm-proposal-item" key={index}>
@@ -876,7 +882,7 @@ export default function ProposalEditor({
                       />
                     </label>
                     <label>
-                      <span>Your price per person ({request.currency || "EUR"})</span>
+                      <span>Your price {item.pricing_mode === "group" ? "per group" : "per person"} ({request.currency || "EUR"})</span>
                       <input
                         type="text"
                         inputMode="decimal"

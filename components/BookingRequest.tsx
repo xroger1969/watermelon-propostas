@@ -1,7 +1,7 @@
 "use client";
 
 import { trackLeadConversion } from "@/lib/marketing";
-import { guestLimitLabel, inferProductRules, type PricingMode } from "@/lib/product-rules";
+import { guestLimitLabel, inferProductRules, pricingModeFor, priceTotal, type PricingMode } from "@/lib/product-rules";
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -14,6 +14,9 @@ type BookingSelection = {
     optionCode: string;
     optionName: string;
     optionDescription?: string;
+    price?: number | null;
+    priceType?: string;
+    capacity?: number | null;
   }>;
   price: string;
   originalPrice?: string;
@@ -179,18 +182,20 @@ export default function BookingRequest() {
         : { pricingMode: "per_person" as PricingMode, maxGuests: null },
     [selection, selectedOption]
   );
-  const pricingMode = selection?.pricingMode || inferredRules.pricingMode;
-  const maxGuests = selection?.maxGuests ?? inferredRules.maxGuests;
-  const unitPrice = Number.parseFloat(selection?.price || "") || 0;
+  const pricingMode = selectedOption?.priceType ? pricingModeFor(selectedOption.priceType) : selection?.pricingMode || inferredRules.pricingMode;
+  const limits = [selection?.maxGuests, selectedOption?.capacity, inferredRules.maxGuests].filter((n): n is number => typeof n === "number" && n > 0);
+  const maxGuests = limits.length ? Math.min(...limits) : null;
+  const isPrimaryOption = !selectedOption || selectedOption.optionCode === selection?.optionCode;
+  const unitPrice = !isPrimaryOption && selectedOption && "price" in selectedOption ? selectedOption.price ?? 0 : Number.parseFloat(selection?.price || "") || 0;
   const originalUnitPrice = Number.parseFloat(selection?.originalPrice || "") || 0;
   const websitePromotion = Boolean(
-    selection?.websitePromotion && originalUnitPrice > unitPrice && unitPrice > 0
+    isPrimaryOption && selection?.websitePromotion && originalUnitPrice > unitPrice && unitPrice > 0
   );
   const guests = Math.max(1, Number.parseInt(form.guests, 10) || 1);
   const guestsWithinLimit = maxGuests === null || guests <= maxGuests;
-  const estimatedTotal = pricingMode === "group" ? unitPrice : unitPrice * guests;
+  const estimatedTotal = priceTotal(unitPrice, guests, pricingMode);
   const originalEstimatedTotal =
-    pricingMode === "group" ? originalUnitPrice : originalUnitPrice * guests;
+    priceTotal(originalUnitPrice, guests, pricingMode);
 
   const canSend = Boolean(
     selection &&
@@ -226,6 +231,7 @@ export default function BookingRequest() {
           guests,
           unitPrice: unitPrice || null,
           websitePromotion,
+          pricingMode,
           currency: selection.currency || "EUR",
           customerName: form.name.trim(),
           customerEmail: form.email.trim(),

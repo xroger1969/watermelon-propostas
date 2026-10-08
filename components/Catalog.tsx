@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { experiences } from "@/data/products";
 import { viatorListings } from "@/data/viator";
-import { guestLimitLabel, inferProductRules, type PricingMode } from "@/lib/product-rules";
+import { guestLimitLabel, inferProductRules, pricingModeFor, type PricingMode } from "@/lib/product-rules";
 
 type ProposalItem = {
   code: string;
@@ -26,6 +26,9 @@ type BookingSelection = {
     optionCode: string;
     optionName: string;
     optionDescription?: string;
+    price?: number | null;
+    priceType?: string;
+    capacity?: number | null;
   }>;
   price: string;
   originalPrice?: string;
@@ -150,6 +153,9 @@ type UnifiedCatalogProduct = {
     optionDescription: string;
     startTimes: string;
     pickup: boolean;
+    price?: number | null;
+    priceType?: string;
+    capacity?: number | null;
   }>;
   viator: {
     code: string;
@@ -245,6 +251,9 @@ function studioToProduct(
     optionDescription: option.optionDescription || "",
     startTimes: (option.startTimes || []).join(" "),
     pickup: Boolean(product.pickup),
+    price: option.price ?? null,
+    priceType: option.priceType || product.priceType,
+    capacity: option.capacity ?? product.maxGuests,
   }));
 
   return {
@@ -579,7 +588,7 @@ export default function Catalog() {
   function rulesFor(product: UnifiedCatalogProduct) {
     if (product.studio) {
       return {
-        pricingMode: product.studio.priceType === "Per person" ? ("per_person" as PricingMode) : ("group" as PricingMode),
+        pricingMode: pricingModeFor(product.studio.priceType),
         maxGuests: product.studio.maxGuests,
       };
     }
@@ -637,6 +646,7 @@ export default function Catalog() {
         optionCode: item.optionCode,
         optionName: item.optionName,
         optionDescription: item.optionDescription,
+        ...(product.studio ? { price: item.price ?? null, priceType: item.priceType, capacity: item.capacity } : {}),
       })),
       price: currentPrice.price === null ? "" : String(currentPrice.price),
       originalPrice:

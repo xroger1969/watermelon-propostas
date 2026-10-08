@@ -47,6 +47,7 @@ type CRMItem = {
   preferred_time: string | null;
   date_flexibility: string | null;
   guests: number;
+  pricing_mode?: "group" | "per_person";
   unit_price: number | null;
   subtotal: number | null;
   pickup_location: string | null;
@@ -87,6 +88,7 @@ type CRMProposalItem = {
   proposed_date: string | null;
   proposed_time: string | null;
   guests: number;
+  pricing_mode?: "group" | "per_person";
   unit_price: number;
   line_total: number;
   pickup_location: string | null;
@@ -2500,7 +2502,7 @@ export default function AdminCRM() {
                     <section className="crm-review-note">
                       <strong>{request.booking.site_promotion_label || "Website offer"}</strong>
                       <span>
-                        Direct-site promotion applied · Before {money(request.booking.site_before_price, request.currency)} · Now {request.items[0]?.unit_price !== null && request.items[0]?.unit_price !== undefined ? money(request.items[0].unit_price, request.currency) : "—"} per guest. Viator was not changed.
+                        Direct-site promotion applied · Before {money(request.booking.site_before_price, request.currency)} · Now {request.items[0]?.unit_price !== null && request.items[0]?.unit_price !== undefined ? money(request.items[0].unit_price, request.currency) : "—"} {request.items[0]?.pricing_mode === "group" ? "per group" : "per guest"}. Viator was not changed.
                       </span>
                     </section>
                   )}
