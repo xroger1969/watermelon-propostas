@@ -607,14 +607,13 @@ export default function AdminPromotions() {
           >
             Copy Google Ads sync script
           </button>
-          <a
+          <button
             className="button button-outline"
-            href="/api/google-ads-promotions"
-            target="_blank"
-            rel="noreferrer"
+            type="button"
+            onClick={() => window.open("/admin/promotions/feed", "_blank", "noopener,noreferrer")}
           >
             View Ads promotion feed
-          </a>
+          </button>
           <small>
             One-time activation is required inside Google Ads because Google must authorize the script
             in your advertising account. After that, the website and Google Ads can stay aligned automatically.
