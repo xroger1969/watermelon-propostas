@@ -1,6 +1,6 @@
 # WhatsApp Business App coexistence — production completion checklist
 
-Status: **onboarded in Meta; API token exchange, subscription and delivery not yet verified**.
+Status: **onboarded in Meta; admin-authenticated exchange function deployed; credentials exchange, subscription and delivery not yet executed or verified**.
 
 ## Confirmed assets (not credentials)
 - Meta App: Watermelon CRM (1725466825210094), published; WhatsApp permissions approved.
@@ -45,3 +45,11 @@ The current `components/WhatsAppSetup.tsx` expects an operator to paste a perman
 ## Sources
 - Meta WhatsApp Embedded Signup API collection: https://www.postman.com/meta/whatsapp-business-platform/documentation/du6gzjv/embedded-signup
 - Meta WhatsApp Cloud API collection: https://www.postman.com/meta/whatsapp-business-platform/documentation/wlk6lh4/whatsapp-cloud-api
+
+## Implementation prepared (2026-10-09)
+- Deployed new Supabase Edge Function `watermelon-whatsapp-coexistence` to existing Watermelon project, `verify_jwt=true`, separate from the working webhook.
+- Restricted invocation to an authenticated CRM administrator, exact expected WABA `1785473568789104`, exact phone ID `874910289048462`, and display number `+351 918 404 101`.
+- Meta OAuth code exchange occurs server-to-server with existing App Secret, followed by WABA/phone validation, WABA subscription verification, and only then saving token and IDs via `watermelon_save_whatsapp_config`.
+- Added completion form to `components/WhatsAppSetup.tsx` on the preparation branch; not yet in production.
+- Existing live Supabase configuration is still for a different/test WABA and phone; intentionally preserved until valid fresh authorization.
+- **Not complete:** do not mark integration live before a fresh authorization code is generated, exchanged securely via the admin UI, WABA subscription is confirmed, and two-way message tests pass.
