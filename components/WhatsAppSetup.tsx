@@ -54,6 +54,10 @@ export default function WhatsAppSetup() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [copied, setCopied] = useState("");
+  const [metaCode, setMetaCode] = useState("");
+  const [metaRedirectUri, setMetaRedirectUri] = useState("");
+  const [coexistenceBusy, setCoexistenceBusy] = useState(false);
+  const [coexistenceMessage, setCoexistenceMessage] = useState("");
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [templateBusy, setTemplateBusy] = useState(false);
@@ -110,6 +114,36 @@ export default function WhatsAppSetup() {
     setAccessToken("");
     setMessage("WhatsApp settings saved.");
     setSaving(false);
+  }
+
+  async function connectCoexistence() {
+    const code = metaCode.trim();
+    const redirect_uri = metaRedirectUri.trim();
+    if (!code || !redirect_uri) {
+      setCoexistenceMessage("Introduce the new authorization code and exact redirect URI from Meta.");
+      return;
+    }
+    if (!window.confirm(
+      "Confirm that the authorization code is new and belongs to the existing WhatsApp Business App number +351 918 404 101. This will replace the currently configured test number only after validation by Meta."
+    )) return;
+    setCoexistenceBusy(true);
+    setCoexistenceMessage("");
+    try {
+      const { data, error } = await supabase.functions.invoke("watermelon-whatsapp-coexistence", {
+        method: "POST",
+        body: { code, redirect_uri },
+      });
+      if (error) throw new Error("Request failed. Check authentication and try a fresh code.");
+      if (!data?.ok) throw new Error(String(data?.error || "Meta connection could not be completed."));
+      setMetaCode("");
+      setMetaRedirectUri("");
+      setCoexistenceMessage("Meta authorization and WABA subscription confirmed. Now test webhook messages.");
+      await load();
+    } catch (error) {
+      setCoexistenceMessage(error instanceof Error ? error.message : "Connection could not be completed.");
+    } finally {
+      setCoexistenceBusy(false);
+    }
   }
 
   async function loadTemplates() {
@@ -265,6 +299,61 @@ export default function WhatsAppSetup() {
             <p className="whatsapp-setup-note">
               Subscribe the app to the <strong>messages</strong> webhook field and to the WhatsApp Business Account.
             </p>
+          </article>
+
+          <article className="whatsapp-setup-card">
+            <div className="whatsapp-setup-heading">
+              <div>
+                <p className="eyebrow dark">META · BUSINESS APP COEXISTENCE</p>
+                <h2>Connect existing WhatsApp Business (+351 918 404 101)</h2>
+                <p>
+                  Meta has already linked the existing iPhone WhatsApp Business account.
+                  Paste only a <strong>fresh, single-use</strong> authorization code from Embedded Signup
+                  and the exact <strong>redirect_uri</strong> shown under Exchange Token.
+                  The server checks the WhatsApp account and number before replacing the test configuration.
+                </p>
+              </div>
+            </div>
+            <div className="whatsapp-setup-grid">
+              <label className="whatsapp-secret-field">
+                <span>New authorization code (never share it in chat)</span>
+                <input
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={metaCode}
+                  onChange={(event) => setMetaCode(event.target.value)}
+                  placeholder="Paste the fresh ES Response Code"
+                />
+              </label>
+              <label className="whatsapp-secret-field">
+                <span>Exact Meta redirect_uri</span>
+                <input
+                  type="url"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={metaRedirectUri}
+                  onChange={(event) => setMetaRedirectUri(event.target.value)}
+                  placeholder="https://developers.facebook.com/es/oauth/callback/?..."
+                />
+              </label>
+            </div>
+            <p className="whatsapp-setup-note">
+              No phone registration, deregistration or migration will be performed.
+              The code is exchanged server-side; no access token is returned to the browser.
+              Message delivery must be tested separately.
+            </p>
+            {coexistenceMessage && <p role="status">{coexistenceMessage}</p>}
+            <div className="whatsapp-setup-actions">
+              <button
+                className="button button-primary"
+                type="button"
+                disabled={coexistenceBusy || !metaCode.trim() || !metaRedirectUri.trim()}
+                onClick={() => void connectCoexistence()}
+              >
+                {coexistenceBusy ? "Verifying with Meta…" : "Verify and connect existing number"}
+              </button>
+            </div>
           </article>
 
           <article className="whatsapp-setup-card">
