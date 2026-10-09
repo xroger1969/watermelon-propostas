@@ -74,6 +74,11 @@ POST, GET, PUT, PATCH, DELETE and OPTIONS. All passed.
 Assertions include status, pause code, no-store, and no body/credential/network access.
 No real destinations, tokens, database writes or Meta calls were used.
 
+GitHub Actions ran the full Node suite: **26 tests passed, zero failed**, including all six
+new suspension tests. The Next.js TypeScript configuration now excludes supabase/functions
+because those files run on Deno rather than the browser/Node app runtime. Supabase compiled
+and deployed the Edge Function successfully.
+
 Saved equivalent Node regression tests at tests/whatsapp-suspension.cjs.
 Full local npm/typecheck execution was unavailable because automatic command approval review
 could not complete due to a usage limit. In-memory tests are not an end-to-end delivery test.
