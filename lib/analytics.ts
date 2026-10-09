@@ -1,5 +1,7 @@
 "use client";
 
+import { classifyAttribution, type Attribution } from "./attribution";
+
 export type AnalyticsEventType =
   | "page_view"
   | "booking_request"
@@ -10,13 +12,6 @@ const CONSENT_STORAGE_KEY = "watermelon-consent-v1";
 const VISITOR_STORAGE_KEY = "watermelon-analytics-visitor-v1";
 const SESSION_STORAGE_KEY = "watermelon-analytics-session-v1";
 const ATTRIBUTION_STORAGE_KEY = "watermelon-analytics-attribution-v1";
-
-type Attribution = {
-  source: string;
-  medium: string;
-  campaign: string;
-  referrerHost: string;
-};
 
 function analyticsConsentGranted() {
   if (typeof window === "undefined") return false;
@@ -55,40 +50,30 @@ function referrerHost() {
 }
 
 function getAttribution(): Attribution {
+  let previous: Attribution | null = null;
   try {
     const saved = window.sessionStorage.getItem(ATTRIBUTION_STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved) as Partial<Attribution>;
-      if (typeof parsed.source === "string") {
-        return {
-          source: parsed.source || "direct",
-          medium: typeof parsed.medium === "string" ? parsed.medium : "",
-          campaign: typeof parsed.campaign === "string" ? parsed.campaign : "",
-          referrerHost:
-            typeof parsed.referrerHost === "string" ? parsed.referrerHost : "",
+      if (typeof parsed.source === "string" && typeof parsed.medium === "string") {
+        previous = {
+          source: parsed.source.slice(0, 120),
+          medium: parsed.medium.slice(0, 120),
+          campaign: typeof parsed.campaign === "string" ? parsed.campaign.slice(0, 200) : "",
+          referrerHost: typeof parsed.referrerHost === "string" ? parsed.referrerHost.slice(0, 255) : "",
         };
       }
     }
   } catch {}
 
-  const params = new URLSearchParams(window.location.search);
-  const referrer = referrerHost();
-  const utmSource = (params.get("utm_source") || "").slice(0, 120);
-  const utmMedium = (params.get("utm_medium") || "").slice(0, 120);
-  const campaign = (params.get("utm_campaign") || "").slice(0, 200);
-
-  const attribution: Attribution = {
-    source: utmSource || referrer || "direct",
-    medium: utmMedium || (utmSource ? "campaign" : referrer ? "referral" : "direct"),
-    campaign,
-    referrerHost: referrer,
-  };
+  const attribution = classifyAttribution({
+    search: window.location.search,
+    referrerHost: referrerHost(),
+    previous,
+  });
 
   try {
-    window.sessionStorage.setItem(
-      ATTRIBUTION_STORAGE_KEY,
-      JSON.stringify(attribution)
-    );
+    window.sessionStorage.setItem(ATTRIBUTION_STORAGE_KEY, JSON.stringify(attribution));
   } catch {}
 
   return attribution;
