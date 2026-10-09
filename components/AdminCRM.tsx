@@ -385,14 +385,17 @@ export default function AdminCRM() {
           proposals:watermelon_proposals(*, items:watermelon_proposal_items(*)),
           messages:watermelon_messages(*)
         `)
+        .eq("is_private", false)
         .order("created_at", { ascending: false }),
       supabase
         .from("watermelon_contacts")
         .select("*")
+        .eq("is_private", false)
         .order("last_contact_at", { ascending: false }),
       supabase
         .from("watermelon_messages")
         .select("*")
+        .eq("is_private", false)
         .order("whatsapp_timestamp", { ascending: true, nullsFirst: false }),
     ]);
 
