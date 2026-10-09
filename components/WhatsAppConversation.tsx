@@ -14,6 +14,7 @@ type ThreadItem = {
   status: "received" | "sent" | "delivered" | "read" | "failed" | "deleted";
   source: string;
   whatsapp_timestamp: string | null;
+  raw_payload?: { errors?: Array<{ code?: number; message?: string }> } | null;
 };
 
 type RequestItem = {
@@ -219,7 +220,7 @@ export default function WhatsAppConversation({
       } else {
         setDraft("");
         setFeedback(
-          "Message submitted to WhatsApp. Delivery/read confirmation will update automatically in the CRM."
+          "Accepted for processing by WhatsApp; this is NOT a delivery confirmation. Check for Delivered, Read or Failed below."
         );
       }
       await onChanged();
@@ -240,7 +241,7 @@ export default function WhatsAppConversation({
         <div>
           <strong>WhatsApp conversation</strong>
           <span>
-            Full WhatsApp history for this contact appears here automatically, including Cloud API messages and supported WhatsApp Business app sync. Customer replies move the request to Customer replied.
+            Only messages linked to an existing commercial request appear here. Unrelated personal WhatsApp chats are excluded. Meta must confirm delivery before a message is considered received.
           </span>
         </div>
         {messages.length > 0 && (
@@ -264,6 +265,12 @@ export default function WhatsAppConversation({
                 {timeLabel(message.whatsapp_timestamp || message.created_at)}
                 {message.direction === "outbound" ? " · " + message.status : ""}
               </span>
+              {message.direction === "outbound" && message.status === "failed" && (
+                <p className="admin-error" role="alert">
+                  Not delivered — {message.raw_payload?.errors?.[0]?.message || "WhatsApp rejected this message."}
+                  {message.raw_payload?.errors?.[0]?.code ? " (Meta code " + message.raw_payload.errors[0].code + ")" : ""}
+                </p>
+              )}
             </div>
           ))}
         </div>
@@ -291,10 +298,11 @@ export default function WhatsAppConversation({
         {feedback && (
           <p
             className={
-              feedback.toLowerCase().includes("submitted") ||
-              feedback.toLowerCase().includes("approved template")
-                ? "crm-proposal-feedback"
-                : "admin-error"
+              feedback.startsWith("Accepted for processing")
+                ? "crm-whatsapp-window-note"
+                : feedback.toLowerCase().includes("approved template")
+                  ? "crm-proposal-feedback"
+                  : "admin-error"
             }
           >
             {feedback}
