@@ -43,6 +43,12 @@ function readChoice(): ConsentChoice | null {
 function applyChoice(choice: ConsentChoice) {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(choice));
+    if (!choice.analytics) {
+      // Clear optional identifiers and session attribution on consent withdrawal.
+      window.localStorage.removeItem("watermelon-analytics-visitor-v1");
+      window.sessionStorage.removeItem("watermelon-analytics-session-v1");
+      window.sessionStorage.removeItem("watermelon-analytics-attribution-v1");
+    }
   } catch {}
 
   const gtag = (window as GtagWindow).gtag;

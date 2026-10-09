@@ -87,7 +87,7 @@ function statusCopy(campaign: Campaign) {
   const reasons = campaign.primaryStatusReasons || [];
   if (reasons.includes("BIDDING_STRATEGY_LEARNING")) return "Learning";
   if (campaign.primaryStatus === "LIMITED") return "Limited";
-  if (campaign.status === "ENABLED") return "Active";
+  if (campaign.status === "ENABLED") return "Enabled";
   return campaign.status || "Unknown";
 }
 
@@ -113,22 +113,31 @@ export default function CRMMarketingPerformance() {
   }, []);
 
   const load = useCallback(async () => {
-    if (!supabase) return;
-
-    setLoading(true);
-    setError("");
-
-    const { data, error: queryError } = await supabase.rpc(
-      "watermelon_marketing_summary"
-    );
-
-    if (queryError) {
-      setError(queryError.message);
-    } else {
-      setSummary(data as MarketingSummary);
+    if (!supabase) {
+      setError("Marketing data connection is not configured. Please contact support.");
+      setLoading(false);
+      return;
     }
 
-    setLoading(false);
+    setLoading(true);
+    try {
+      const { data, error: queryError } = await supabase.rpc(
+        "watermelon_marketing_summary"
+      );
+      if (queryError) throw queryError;
+      if (!data || typeof data !== "object" || !("last30" in data)) {
+        throw new Error("Invalid marketing summary response");
+      }
+      setSummary(data as MarketingSummary);
+      setError("");
+    } catch (cause) {
+      console.error("Marketing metrics refresh failed", cause);
+      setError(
+        "Could not refresh Google Ads data. Previously loaded results are shown below, if available. Check your connection and tap Refresh to try again."
+      );
+    } finally {
+      setLoading(false);
+    }
   }, [supabase]);
 
   useEffect(() => {
@@ -188,7 +197,7 @@ export default function CRMMarketingPerformance() {
         </div>
       </div>
 
-      {error && <p className={styles.error}>{error}</p>}
+      {error && <p className={styles.error} role="alert">{error}</p>}
 
       {activeCampaign && (
         <div className={styles.campaign}>
@@ -256,10 +265,10 @@ export default function CRMMarketingPerformance() {
 
           {!hasAdsData && (
             <div className={styles.waiting}>
-              <strong>Campaign live — waiting for Google reporting</strong>
+              <strong>No Google Ads data for this period yet</strong>
               <span>
-                The campaign is active, but Google Ads has not yet returned
-                reportable impressions, clicks or spend for this period.
+                The latest imported report may not cover this period. An enabled
+                campaign does not guarantee impressions on every day.
               </span>
             </div>
           )}
@@ -275,8 +284,8 @@ export default function CRMMarketingPerformance() {
                 <strong>{number(siteAttributed.leads)}</strong>
               </div>
               <p>
-                Website attribution is consent-based, so it is useful for the
-                commercial funnel but can be lower than Google Ads reporting.
+                Only consented visits with verifiable Google CPC attribution appear here.
+                This count can be lower than Google Ads clicks; zero does not mean zero visits.
               </p>
             </div>
           )}
