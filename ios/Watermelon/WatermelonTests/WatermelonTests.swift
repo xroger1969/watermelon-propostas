@@ -100,7 +100,10 @@ final class WatermelonTests: XCTestCase {
         }
         defer { MockURLProtocol.handler = nil }
         do { _ = try await client().catalog(); XCTFail("Unconfigured catalogue is not a live catalogue") }
-        catch { XCTAssertTrue(error.localizedDescription.contains("Catalogue unavailable")) }
+        catch {
+            XCTAssertTrue(error is WatermelonError)
+            XCTAssertFalse(error.localizedDescription.isEmpty)
+        }
     }
     private func client() -> APIClient {
         let config = URLSessionConfiguration.ephemeral

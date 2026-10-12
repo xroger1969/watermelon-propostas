@@ -2,6 +2,15 @@ import XCTest
 
 final class WatermelonUITests: XCTestCase {
     @MainActor
+    func testPortugueseControlsUsePortugalLocalization() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "-AppleLanguages", "(pt-PT)", "-AppleLocale", "pt_PT"]
+        app.launch()
+        XCTAssertTrue(app.tabBars.buttons["Propostas"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.tabBars.buttons["As minhas viagens"].exists)
+        XCTAssertTrue(app.staticTexts["Portugal, à sua maneira."].exists)
+    }
+    @MainActor
     func testNativeNavigationAndProposalSelectionWithoutRealCRMRequests() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]

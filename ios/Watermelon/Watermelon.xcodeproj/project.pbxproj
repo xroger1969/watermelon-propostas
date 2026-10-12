@@ -101,6 +101,13 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = D1E758409119DB029CFFF1AB;
 		};
+		"9CC82BA0CD0551FF8D7BB257" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "text.plist.strings";
+			"name" = "en";
+			"path" = "en.lproj/Localizable.strings";
+			"sourceTree" = "<group>";
+		};
 		"A6D976088EA0408123CE96F2" = {
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "text.plist.strings";
@@ -110,13 +117,20 @@
 		};
 		"F2D1BF752036A896D9DA888C" = {
 			"isa" = "PBXVariantGroup";
-			"children" = (A6D976088EA0408123CE96F2);
+			"children" = (9CC82BA0CD0551FF8D7BB257, A6D976088EA0408123CE96F2);
 			"name" = "Localizable.strings";
 			"sourceTree" = "<group>";
 		};
 		"31E47623E9E496DCBEA27AA8" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = F2D1BF752036A896D9DA888C;
+		};
+		"08404B97956667E7FBA0F914" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "text.plist.strings";
+			"name" = "en";
+			"path" = "en.lproj/InfoPlist.strings";
+			"sourceTree" = "<group>";
 		};
 		"84F2E1AD431E4012DF9DEF52" = {
 			"isa" = "PBXFileReference";
@@ -127,7 +141,7 @@
 		};
 		"D63CB1F9ACC0CAA539159FC9" = {
 			"isa" = "PBXVariantGroup";
-			"children" = (84F2E1AD431E4012DF9DEF52);
+			"children" = (08404B97956667E7FBA0F914, 84F2E1AD431E4012DF9DEF52);
 			"name" = "InfoPlist.strings";
 			"sourceTree" = "<group>";
 		};

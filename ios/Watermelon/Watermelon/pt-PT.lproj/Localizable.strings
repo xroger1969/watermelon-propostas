@@ -98,7 +98,9 @@
 "Request pending — awaiting confirmation" = "Pedido pendente — a aguardar confirmação";
 "Request received" = "Pedido recebido";
 "Awaiting Watermelon confirmation" = "A aguardar a confirmação da Watermelon";
-"Your request has been saved in the CRM. Watermelon will contact you to confirm availability and final arrangements." = "O pedido ficou registado. A Watermelon irá contactá-lo para confirmar a disponibilidade e os detalhes finais.";
+"Your request has been sent to Watermelon. We will contact you to confirm availability and final arrangements." = "O pedido foi enviado à Watermelon. Iremos contactá-lo para confirmar a disponibilidade e os detalhes finais.";
+"Guests: %lld" = "Pessoas: %lld";
+"%lld guests" = "%lld pessoas";
 "Share request summary" = "Partilhar resumo do pedido";
 "Contact Watermelon" = "Contactar a Watermelon";
 "Your request" = "O seu pedido";

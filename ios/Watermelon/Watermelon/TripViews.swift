@@ -57,7 +57,7 @@ struct ReceiptView: View {
                 Label("Request received", systemImage: "checkmark.circle.fill").font(.title2.bold()).foregroundStyle(Brand.green)
                 Text(receipt.reference).font(.headline).textSelection(.enabled).accessibilityIdentifier("requestReference")
                 Text("Awaiting Watermelon confirmation").font(.headline)
-                Text("Your request has been saved in the CRM. Watermelon will contact you to confirm availability and final arrangements.")
+                Text("Your request has been sent to Watermelon. We will contact you to confirm availability and final arrangements.")
             }
             ForEach(receipt.items) { item in Section { TripItemView(item: item) } }
             Section {
