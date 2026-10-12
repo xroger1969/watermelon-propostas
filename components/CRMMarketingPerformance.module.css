@@ -178,15 +178,33 @@
 }
 
 .waiting {
-  display: flex;
+  display: grid;
   gap: 10px;
-  align-items: baseline;
   margin-top: 12px;
   padding: 12px 14px;
   border-radius: 14px;
   background: rgba(237,191,72,.1);
   color: #f7df99;
   font-size: .8rem;
+}
+
+.syncSetup {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 14px;
+  font-size: .8rem;
+}
+
+.syncSetup summary {
+  cursor: pointer;
+  color: #94d9af;
+  font-weight: 750;
+}
+
+.syncSetup p {
+  color: rgba(255,255,255,.72);
+  line-height: 1.5;
 }
 
 .waiting span {
