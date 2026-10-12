@@ -1,0 +1,367 @@
+[
+  {
+    "code": "9963P14",
+    "title": "Private Tour South of Lisbon — Cacilhas, Almada & Costa da Caparica",
+    "category": "Private Tours",
+    "location": "Almada & Costa da Caparica",
+    "description": "Discover Lisbon from a different perspective, crossing the Tagus to explore Cacilhas, Almada and Costa da Caparica on a private tour. Enjoy panoramic views over the city and discover some of the highlights of Lisbon’s south bank.",
+    "apiEnabled": true,
+    "options": [
+      {
+        "optionCode": "DEFAULT",
+        "optionName": "4 Hours of breathtaking views",
+        "optionDescription": "The Cliff Route is the best way to observe and appreciate Lisbon from another perspective.Without any doubt the Almada area is the best view that Lisbon has.",
+        "startTimes": [
+          "09:00",
+          "14:00"
+        ]
+      }
+    ],
+    "price": 90,
+    "currency": "EUR",
+    "image": "https://media-cdn.tripadvisor.com/media/attractions-splice-spp-674x446/06/d7/d1/15.jpg",
+    "url": "https://www.viator.com/en-GB/tours/Almada/Cacilhas-Almada-Costa-da-Caparica-Half-Day-Tour-from-Lisbon/d51024-9963P14",
+    "duration": "3–4 h",
+    "rating": 5,
+    "reviews": 4,
+    "isStudio": false
+  },
+  {
+    "code": "9963P25",
+    "title": "Portuguese Cooking Class at a Local Market",
+    "category": "Culture & Food",
+    "location": "Portugal",
+    "description": "Step into the atmosphere of a local market and discover Portuguese flavours through a hands-on cooking experience. Learn about traditional ingredients, take part in the preparation and enjoy a meal designed for travellers who want to discover Portugal through its food.",
+    "apiEnabled": true,
+    "options": [
+      {
+        "optionCode": "DEFAULT",
+        "optionName": "Standard option",
+        "optionDescription": "",
+        "startTimes": [
+          "10:00"
+        ]
+      }
+    ],
+    "price": 150,
+    "currency": "EUR",
+    "image": "https://media-cdn.tripadvisor.com/media/attractions-splice-spp-674x446/07/95/83/2c.jpg",
+    "url": "https://www.viator.com/en-GB/tours/Lisbon/Food-Tour-Cooking-Class-and-Lunch-at-a-Market-with-Local-Market-Tour/d538-9963P25",
+    "duration": "6 h",
+    "rating": 5,
+    "reviews": 3,
+    "isStudio": false
+  },
+  {
+    "code": "9963P13",
+    "title": "Arrábida Private Half-Day Tour",
+    "category": "Arrábida & Setúbal",
+    "location": "Arrábida",
+    "description": "Discover Arrábida on a private half-day tour, ideal for small groups. Travel between mountains and coast with time to enjoy some of the region’s most memorable natural scenery.",
+    "apiEnabled": true,
+    "options": [
+      {
+        "optionCode": "DEFAULT",
+        "optionName": "Standard option",
+        "optionDescription": "",
+        "startTimes": [
+          "09:00"
+        ]
+      }
+    ],
+    "price": 350,
+    "currency": "EUR",
+    "image": "https://media-cdn.tripadvisor.com/media/attractions-splice-spp-674x446/07/90/a7/88.jpg",
+    "url": "https://www.viator.com/en-GB/tours/Lisbon/Arrabida-Tour-Half-Day/d538-9963P13",
+    "duration": "4 h",
+    "isStudio": false
+  },
+  {
+    "code": "9963P23",
+    "title": "Beach Day & Lunch — All Inclusive",
+    "category": "Beach & Surf",
+    "location": "Almada & Costa da Caparica",
+    "description": "Enjoy a relaxed day by the Atlantic in Costa da Caparica, combining beach time and lunch in an experience designed to make the most of the coast south of Lisbon.",
+    "apiEnabled": true,
+    "options": [
+      {
+        "optionCode": "DEFAULT",
+        "optionName": "Standard option",
+        "optionDescription": "",
+        "startTimes": [
+          "10:00",
+          "10:30",
+          "11:00",
+          "11:30"
+        ]
+      }
+    ],
+    "price": 180,
+    "currency": "EUR",
+    "image": "https://media-cdn.tripadvisor.com/media/attractions-splice-spp-674x446/06/bd/bd/c3.jpg",
+    "url": "https://www.viator.com/en-GB/tours/Lisbon/Beach-day-and-Sushi-all-Inclusive/d538-9963P23",
+    "duration": "Duration on request",
+    "isStudio": false
+  },
+  {
+    "code": "9963P11",
+    "title": "Arrábida Private Full-Day Tour",
+    "category": "Arrábida & Setúbal",
+    "location": "Arrábida",
+    "description": "Explore Arrábida at a relaxed pace on a full-day private tour. Discover the mountains, coastline and landscapes of the region in an experience reserved for your group.",
+    "apiEnabled": true,
+    "options": [
+      {
+        "optionCode": "DEFAULT",
+        "optionName": "Standard option",
+        "optionDescription": "",
+        "startTimes": [
+          "09:00",
+          "09:30",
+          "10:00"
+        ]
+      }
+    ],
+    "price": 350,
+    "currency": "EUR",
+    "image": "https://media-cdn.tripadvisor.com/media/attractions-splice-spp-674x446/07/90/a5/c4.jpg",
+    "url": "https://www.viator.com/en-GB/tours/Lisbon/Arrabida-Tour/d538-9963P11",
+    "duration": "6–7 h",
+    "isStudio": false
+  },
+  {
+    "code": "9963P17",
+    "title": "Porto from Lisbon — Private Full-Day Tour",
+    "category": "Private Tours",
+    "location": "Porto",
+    "description": "Travel from Lisbon to discover Porto on a full-day private tour. A comfortable way to experience the city, its landmarks and the atmosphere of northern Portugal in a single day.",
+    "apiEnabled": true,
+    "options": [
+      {
+        "optionCode": "DEFAULT",
+        "optionName": "Standard option",
+        "optionDescription": "",
+        "startTimes": [
+          "08:00"
+        ]
+      }
+    ],
+    "price": 750,
+    "currency": "EUR",
+    "image": "https://media-cdn.tripadvisor.com/media/attractions-splice-spp-674x446/06/75/c5/a3.jpg",
+    "url": "https://www.viator.com/en-GB/tours/Lisbon/Tour-Porto-Full-Day-Up-to-8-people/d538-9963P17",
+    "duration": "9–10 h",
+    "isStudio": false
+  },
+  {
+    "code": "9963P28",
+    "title": "Horseback Riding on the Beach with Lunch",
+    "category": "Horse Riding",
+    "location": "Almada & Costa da Caparica",
+    "description": "Ride beside the Atlantic and complete the experience with lunch. A different way to enjoy Costa da Caparica, combining nature, horseback riding and Portuguese food.",
+    "apiEnabled": true,
+    "options": [
+      {
+        "optionCode": "TG1",
+        "optionName": "Standard option",
+        "optionDescription": "",
+        "startTimes": [
+          "10:00"
+        ]
+      }
+    ],
+    "price": 360,
+    "currency": "EUR",
+    "image": "https://media-cdn.tripadvisor.com/media/attractions-splice-spp-674x446/12/55/45/63.jpg",
+    "url": "https://www.viator.com/en-GB/tours/Lisbon/5-hour-horseback-ride-on-the-beach-with-dinner/d538-9963P28",
+    "duration": "5 h",
+    "isStudio": false
+  },
+  {
+    "code": "9963P16",
+    "title": "Lisbon Monuments — Private Tour",
+    "category": "Lisbon",
+    "location": "Lisbon",
+    "description": "Discover some of Lisbon’s most iconic monuments on a private tour focused on the city’s history and the Age of Discoveries, with personalized guidance throughout.",
+    "apiEnabled": true,
+    "options": [
+      {
+        "optionCode": "DEFAULT",
+        "optionName": "Tour Monuments Half Day",
+        "optionDescription": "4 hours tour where you will see all the most impressive monuments related to the time of maritime discoveries. Visit Sintra and its wonderful castles",
+        "startTimes": [
+          "09:00",
+          "09:30",
+          "10:00"
+        ]
+      }
+    ],
+    "price": 90,
+    "currency": "EUR",
+    "image": "https://media-cdn.tripadvisor.com/media/attractions-splice-spp-674x446/10/7d/4d/36.jpg",
+    "url": "https://www.viator.com/en-GB/tours/Lisbon/Tour-Monuments-Half-Day/d538-9963P16",
+    "duration": "3 h",
+    "isStudio": false
+  },
+  {
+    "code": "9963P27",
+    "title": "Tile Painting Experience & Azeitão Winery Visit",
+    "category": "Culture & Food",
+    "location": "Azeitão",
+    "description": "Discover two Azeitão traditions in one experience: the art of tile painting and the region’s wine culture. A program combining creativity, heritage and a visit to a local winery.",
+    "apiEnabled": true,
+    "options": [
+      {
+        "optionCode": "TG1",
+        "optionName": "Standard option",
+        "optionDescription": "",
+        "startTimes": [
+          "09:00",
+          "14:30"
+        ]
+      }
+    ],
+    "price": 120,
+    "currency": "EUR",
+    "image": "https://media-cdn.tripadvisor.com/media/attractions-splice-spp-674x446/0f/61/9f/11.jpg",
+    "url": "https://www.viator.com/en-GB/tours/Lisbon/Tile-painting-experience-and-visit-to-Azeitao-cellars/d538-9963P27",
+    "duration": "4 h",
+    "rating": 5,
+    "reviews": 2,
+    "isStudio": false
+  },
+  {
+    "code": "9963P15",
+    "title": "Lisbon Panoramic Viewpoints",
+    "category": "Lisbon",
+    "location": "Lisbon",
+    "description": "Discover Lisbon through its viewpoints and panoramic sights. Explore some of the city’s most memorable areas and enjoy different perspectives over its hills, the Tagus and the capital’s history.",
+    "apiEnabled": true,
+    "options": [
+      {
+        "optionCode": "DEFAULT",
+        "optionName": "Lisbon Panoramic",
+        "optionDescription": "Panoramic Lisbon Tour is the best way to see all the best of Lisbon.The most enigmatic squares in Lisbon and all its history.Experience the most wonderful and panoramic sights on Lisbon hills",
+        "startTimes": [
+          "09:00",
+          "14:00"
+        ]
+      }
+    ],
+    "price": 90,
+    "currency": "EUR",
+    "image": "https://media-cdn.tripadvisor.com/media/attractions-splice-spp-674x446/10/7d/4b/5a.jpg",
+    "url": "https://www.viator.com/en-GB/tours/Lisbon/Lisbon-Panoramic-Half-day/d538-9963P15",
+    "duration": "2–3 h",
+    "isStudio": false
+  },
+  {
+    "code": "9963P6",
+    "title": "Horseback Riding — Beach, Mountain & Riding Arena",
+    "category": "Horse Riding",
+    "location": "Almada & Costa da Caparica",
+    "description": "Choose a horseback experience on the beach, in the mountains or in the riding arena and enjoy around two hours on horseback. A special way to connect with nature and create memorable moments.",
+    "apiEnabled": true,
+    "options": [
+      {
+        "optionCode": "TG4",
+        "optionName": "Horseback Beach+Private Photo",
+        "optionDescription": "Take the most unforgettable photos of your travel memories.\nPrivate photographer and videographer included + Drone.",
+        "startTimes": [
+          "10:00",
+          "14:30"
+        ]
+      },
+      {
+        "optionCode": "TG2",
+        "optionName": "Horseback Riding Mountain",
+        "optionDescription": "Ride a horse adventure in the natural park of Arrábida.\n\nEnjoy a completely natural environment and observe the ancient windmills on the mountain top.\n\nstunning views.\n\nOne day unforgettable",
+        "startTimes": [
+          "10:00",
+          "14:30"
+        ]
+      },
+      {
+        "optionCode": "TG1",
+        "optionName": "Horseback lesson (Horse Ring)",
+        "optionDescription": "TRANSFERS NOT INCLUDED \n35 KMS FROM LISBON \nLessons for horseback riding.\nExperienced teachers and trained horses.",
+        "startTimes": [
+          "10:00"
+        ]
+      },
+      {
+        "optionCode": "TG3",
+        "optionName": "Horseback Riding Beach",
+        "optionDescription": "Horseback riding through our woods by Fossil Cliffs to the beach with beautiful scenery all the way to Costa de Caparica, a certain tour will be unforgettable!",
+        "startTimes": [
+          "02:30",
+          "10:00"
+        ]
+      }
+    ],
+    "price": 130,
+    "currency": "EUR",
+    "image": "https://media-cdn.tripadvisor.com/media/attractions-splice-spp-674x446/06/f1/94/28.jpg",
+    "url": "https://www.viator.com/en-GB/tours/Almada/Horseback-Riding-Options-1-Horseback-ride-lesson-2-Horseback-ride-Arrabida-3-Horseback-ride-beach/d51024-9963P6",
+    "duration": "2 h",
+    "rating": 4.8,
+    "reviews": 36,
+    "isStudio": false
+  },
+  {
+    "code": "9963P21",
+    "title": "Horseback Riding in Arrábida — Louro Mountain Trail",
+    "category": "Horse Riding",
+    "location": "Arrábida",
+    "description": "Explore Arrábida on horseback on a longer mountain trail, designed for travellers looking for an immersive riding experience surrounded by nature.",
+    "apiEnabled": true,
+    "options": [
+      {
+        "optionCode": "TG1",
+        "optionName": "Horseback Mountain Trail",
+        "optionDescription": "Horseback Mountain Trail NO Transfer and Pickup included \nIMPORTANT : The place of activity is 35km from lisbon by car .",
+        "startTimes": [
+          "09:00"
+        ]
+      },
+      {
+        "optionCode": "TG3",
+        "optionName": "Horseback Mountain + Pickup",
+        "optionDescription": "Horseback Louro Mountain Trail with Pickup and Transfer included",
+        "startTimes": []
+      }
+    ],
+    "price": 260,
+    "currency": "EUR",
+    "image": "https://media-cdn.tripadvisor.com/media/attractions-splice-spp-674x446/06/e1/a2/4e.jpg",
+    "url": "https://www.viator.com/en-GB/tours/Setubal-District/HORSEBACK-RIDE-IN-ARRABIDA-LOURO-TRAIL-MOUNTAIN/d5016-9963P21",
+    "duration": "7 h",
+    "rating": 5,
+    "reviews": 24,
+    "isStudio": false
+  },
+  {
+    "code": "9963P31",
+    "title": "Ride & Relax — Beach Escape in Costa da Caparica",
+    "category": "Beach & Surf",
+    "location": "Almada & Costa da Caparica",
+    "description": "Leave the city behind for a full-day Atlantic escape to Costa da Caparica. A relaxed experience to enjoy the beach, scenery and coastal lifestyle close to Lisbon.",
+    "apiEnabled": true,
+    "options": [
+      {
+        "optionCode": "TG1",
+        "optionName": "Standard option",
+        "optionDescription": "",
+        "startTimes": [
+          "10:00"
+        ]
+      }
+    ],
+    "price": 385,
+    "currency": "EUR",
+    "image": "https://media-cdn.tripadvisor.com/media/attractions-splice-spp-674x446/17/04/95/d9.jpg",
+    "url": "https://www.viator.com/en-GB/tours/Lisbon/Ride-and-Relax-Beach-Escape-Lisbon-Costa-da-Caparica/d538-9963P31",
+    "duration": "8 h",
+    "isStudio": false
+  }
+]

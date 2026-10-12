@@ -6,3 +6,10 @@ node_modules
 .env.*.local
 .DS_Store
 npm-debug.log*
+build/
+**/xcuserdata/
+*.xcarchive
+*.ipa
+*.mobileprovision
+*.p12
+*.p8
