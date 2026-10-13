@@ -512,6 +512,17 @@ struct AIConciergeView: View {
                         Text("Experiences suggested for you").font(.headline)
                         ForEach(recommendations) { suggestion in
                             VStack(alignment: .leading, spacing: 9) {
+                                if let product = store.experiences.first(where: { $0.code == suggestion.code }) {
+                                    ExperienceImage(url: product.imageURL)
+                                        .frame(height: 130).clipped()
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    NavigationLink {
+                                        ExperienceDetail(product: product)
+                                    } label: {
+                                        Label("View experience", systemImage: "arrow.up.right.square")
+                                    }
+                                    .font(.subheadline.weight(.semibold))
+                                }
                                 Text(suggestion.title).font(.headline)
                                 Text(suggestion.reason).font(.subheadline)
                                 if let product = store.experiences.first(where: { $0.code == suggestion.code }),
@@ -622,9 +633,10 @@ struct AIConciergeView: View {
                 }
             }
             .onChange(of: sending) { _, _ in
-                if let latest = messages.last {
-                    withAnimation { scroll.scrollTo(latest.id, anchor: .bottom) }
-                }
+                withAnimation { scroll.scrollTo("chatBottom", anchor: .bottom) }
+            }
+            .onChange(of: composerFocused) { _, focused in
+                if focused { withAnimation { scroll.scrollTo("chatBottom", anchor: .bottom) } }
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -636,7 +648,15 @@ struct AIConciergeView: View {
                     .accessibilityIdentifier("aiMessageInput")
                     .submitLabel(.send)
                     .onSubmit { if canSend { Task { await send() } } }
+                Button { toggleVoice() } label: {
+                    Image(systemName: voice.listening ? "stop.circle.fill" : "mic.circle.fill")
+                        .font(.title)
+                        .foregroundStyle(voice.listening ? Brand.red : Brand.green)
+                }
+                .accessibilityLabel(voice.listening ? "Stop recording" : "Speak with Watermelon AI")
+                .accessibilityIdentifier("aiMicrophone")
                 Button {
+                    voice.stop()
                     Task { await send() }
                 } label: {
                     Image(systemName: "arrow.up.circle.fill").font(.title)
@@ -647,6 +667,16 @@ struct AIConciergeView: View {
             }
             .padding(12)
             .background(.regularMaterial)
+            .overlay(alignment: .topLeading) {
+                if voice.listening {
+                    Label("Listening… tap stop when finished", systemImage: "waveform")
+                        .font(.caption)
+                        .foregroundStyle(Brand.red)
+                        .padding(.horizontal, 12)
+                        .offset(y: -22)
+                        .accessibilityIdentifier("aiVoiceListening")
+                }
+            }
         }
         .navigationTitle("Watermelon AI")
         .navigationBarTitleDisplayMode(.inline)
