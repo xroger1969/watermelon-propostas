@@ -472,8 +472,8 @@ export async function POST(request: NextRequest) {
     const conversationId = cleanText(body.conversationId, 120);
 
     const catalogueContext =
-      "PREFERRED REPLY LANGUAGE: " + (preferredLanguage || "traveller language") + "\\n" +
-      "WATERMELON CATALOGUE (current products only):\\n" +
+      "PREFERRED REPLY LANGUAGE: " + (preferredLanguage || "traveller language") + "\n" +
+      "WATERMELON CATALOGUE (current products only):\n" +
       JSON.stringify(compactCatalogue(catalogue)) +
       "\n\nCURRENT SHORTLIST DISPLAYED TO THE TRAVELLER (for conversational reference only; validate codes against the live catalogue):\n" +
       JSON.stringify(currentRecommendations) +
