@@ -5,6 +5,90 @@
 	};
 	"objectVersion" = 56;
 	"objects" = {
+        "B00000000000000000000001" = {
+            "isa" = "PBXFileReference";
+            "lastKnownFileType" = "text.plist.strings";
+            "name" = "fr";
+            "path" = "fr.lproj/Localizable.strings";
+            "sourceTree" = "<group>";
+        };
+        "B10000000000000000000001" = {
+            "isa" = "PBXFileReference";
+            "lastKnownFileType" = "text.plist.strings";
+            "name" = "fr";
+            "path" = "fr.lproj/InfoPlist.strings";
+            "sourceTree" = "<group>";
+        };
+        "B00000000000000000000002" = {
+            "isa" = "PBXFileReference";
+            "lastKnownFileType" = "text.plist.strings";
+            "name" = "es";
+            "path" = "es.lproj/Localizable.strings";
+            "sourceTree" = "<group>";
+        };
+        "B10000000000000000000002" = {
+            "isa" = "PBXFileReference";
+            "lastKnownFileType" = "text.plist.strings";
+            "name" = "es";
+            "path" = "es.lproj/InfoPlist.strings";
+            "sourceTree" = "<group>";
+        };
+        "B00000000000000000000003" = {
+            "isa" = "PBXFileReference";
+            "lastKnownFileType" = "text.plist.strings";
+            "name" = "de";
+            "path" = "de.lproj/Localizable.strings";
+            "sourceTree" = "<group>";
+        };
+        "B10000000000000000000003" = {
+            "isa" = "PBXFileReference";
+            "lastKnownFileType" = "text.plist.strings";
+            "name" = "de";
+            "path" = "de.lproj/InfoPlist.strings";
+            "sourceTree" = "<group>";
+        };
+        "B00000000000000000000004" = {
+            "isa" = "PBXFileReference";
+            "lastKnownFileType" = "text.plist.strings";
+            "name" = "it";
+            "path" = "it.lproj/Localizable.strings";
+            "sourceTree" = "<group>";
+        };
+        "B10000000000000000000004" = {
+            "isa" = "PBXFileReference";
+            "lastKnownFileType" = "text.plist.strings";
+            "name" = "it";
+            "path" = "it.lproj/InfoPlist.strings";
+            "sourceTree" = "<group>";
+        };
+        "B00000000000000000000005" = {
+            "isa" = "PBXFileReference";
+            "lastKnownFileType" = "text.plist.strings";
+            "name" = "nl";
+            "path" = "nl.lproj/Localizable.strings";
+            "sourceTree" = "<group>";
+        };
+        "B10000000000000000000005" = {
+            "isa" = "PBXFileReference";
+            "lastKnownFileType" = "text.plist.strings";
+            "name" = "nl";
+            "path" = "nl.lproj/InfoPlist.strings";
+            "sourceTree" = "<group>";
+        };
+        "B00000000000000000000006" = {
+            "isa" = "PBXFileReference";
+            "lastKnownFileType" = "text.plist.strings";
+            "name" = "pt-BR";
+            "path" = "pt-BR.lproj/Localizable.strings";
+            "sourceTree" = "<group>";
+        };
+        "B10000000000000000000006" = {
+            "isa" = "PBXFileReference";
+            "lastKnownFileType" = "text.plist.strings";
+            "name" = "pt-BR";
+            "path" = "pt-BR.lproj/InfoPlist.strings";
+            "sourceTree" = "<group>";
+        };
 		"04F308D98ACB91C508A325CC" = {
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -117,7 +201,7 @@
 		};
 		"F2D1BF752036A896D9DA888C" = {
 			"isa" = "PBXVariantGroup";
-			"children" = (9CC82BA0CD0551FF8D7BB257, A6D976088EA0408123CE96F2);
+			"children" = (9CC82BA0CD0551FF8D7BB257, A6D976088EA0408123CE96F2, B00000000000000000000001, B00000000000000000000002, B00000000000000000000003, B00000000000000000000004, B00000000000000000000005, B00000000000000000000006);
 			"name" = "Localizable.strings";
 			"sourceTree" = "<group>";
 		};
@@ -141,7 +225,7 @@
 		};
 		"D63CB1F9ACC0CAA539159FC9" = {
 			"isa" = "PBXVariantGroup";
-			"children" = (08404B97956667E7FBA0F914, 84F2E1AD431E4012DF9DEF52);
+			"children" = (08404B97956667E7FBA0F914, 84F2E1AD431E4012DF9DEF52, B10000000000000000000001, B10000000000000000000002, B10000000000000000000003, B10000000000000000000004, B10000000000000000000005, B10000000000000000000006);
 			"name" = "InfoPlist.strings";
 			"sourceTree" = "<group>";
 		};
@@ -191,7 +275,7 @@
 				"PRODUCT_NAME" = "$(TARGET_NAME)";
 				"CODE_SIGN_STYLE" = "Automatic";
 				"CURRENT_PROJECT_VERSION" = "1";
-				"MARKETING_VERSION" = "0.1.0";
+				"MARKETING_VERSION" = "0.2.0";
 				"PRODUCT_BUNDLE_IDENTIFIER" = "pt.watermelonexperiences.app";
 				"LD_RUNPATH_SEARCH_PATHS" = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
 				"SWIFT_OPTIMIZATION_LEVEL" = "-Onone";
@@ -216,7 +300,7 @@
 				"PRODUCT_NAME" = "$(TARGET_NAME)";
 				"CODE_SIGN_STYLE" = "Automatic";
 				"CURRENT_PROJECT_VERSION" = "1";
-				"MARKETING_VERSION" = "0.1.0";
+				"MARKETING_VERSION" = "0.2.0";
 				"PRODUCT_BUNDLE_IDENTIFIER" = "pt.watermelonexperiences.app";
 				"LD_RUNPATH_SEARCH_PATHS" = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
 				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
@@ -299,7 +383,7 @@
 				"PRODUCT_NAME" = "$(TARGET_NAME)";
 				"CODE_SIGN_STYLE" = "Automatic";
 				"CURRENT_PROJECT_VERSION" = "1";
-				"MARKETING_VERSION" = "0.1.0";
+				"MARKETING_VERSION" = "0.2.0";
 				"PRODUCT_BUNDLE_IDENTIFIER" = "pt.watermelonexperiences.app.WatermelonTests";
 				"LD_RUNPATH_SEARCH_PATHS" = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
 				"SWIFT_OPTIMIZATION_LEVEL" = "-Onone";
@@ -323,7 +407,7 @@
 				"PRODUCT_NAME" = "$(TARGET_NAME)";
 				"CODE_SIGN_STYLE" = "Automatic";
 				"CURRENT_PROJECT_VERSION" = "1";
-				"MARKETING_VERSION" = "0.1.0";
+				"MARKETING_VERSION" = "0.2.0";
 				"PRODUCT_BUNDLE_IDENTIFIER" = "pt.watermelonexperiences.app.WatermelonTests";
 				"LD_RUNPATH_SEARCH_PATHS" = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
 				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
@@ -417,7 +501,7 @@
 				"PRODUCT_NAME" = "$(TARGET_NAME)";
 				"CODE_SIGN_STYLE" = "Automatic";
 				"CURRENT_PROJECT_VERSION" = "1";
-				"MARKETING_VERSION" = "0.1.0";
+				"MARKETING_VERSION" = "0.2.0";
 				"PRODUCT_BUNDLE_IDENTIFIER" = "pt.watermelonexperiences.app.WatermelonUITests";
 				"LD_RUNPATH_SEARCH_PATHS" = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
 				"SWIFT_OPTIMIZATION_LEVEL" = "-Onone";
@@ -440,7 +524,7 @@
 				"PRODUCT_NAME" = "$(TARGET_NAME)";
 				"CODE_SIGN_STYLE" = "Automatic";
 				"CURRENT_PROJECT_VERSION" = "1";
-				"MARKETING_VERSION" = "0.1.0";
+				"MARKETING_VERSION" = "0.2.0";
 				"PRODUCT_BUNDLE_IDENTIFIER" = "pt.watermelonexperiences.app.WatermelonUITests";
 				"LD_RUNPATH_SEARCH_PATHS" = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
 				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
@@ -541,7 +625,7 @@
 			"compatibilityVersion" = "Xcode 14.0";
 			"developmentRegion" = "en";
 			"hasScannedForEncodings" = 0;
-			"knownRegions" = ("en", "pt-PT", "Base");
+			"knownRegions" = ("en", "pt-PT", "fr", "es", "de", "it", "nl", "pt-BR", "Base");
 			"mainGroup" = AA0596BBDB4DCC95D5D4F10C;
 			"productRefGroup" = AE7805B56D1DCAFAA071416F;
 			"projectDirPath" = "";

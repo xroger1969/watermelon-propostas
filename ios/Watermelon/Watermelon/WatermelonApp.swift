@@ -4,9 +4,11 @@ import SwiftUI
 @MainActor
 struct WatermelonApp: App {
     @StateObject private var store = TravelStore()
+    @AppStorage("watermelon.languagePreference") private var languagePreference = "system"
     var body: some Scene {
         WindowGroup {
             RootView().environmentObject(store)
+                .environment(\.locale, languagePreference == "system" ? Locale.current : Locale(identifier: languagePreference))
                 .tint(Brand.green)
                 .preferredColorScheme(.light)
                 .onOpenURL { store.open($0) }
@@ -25,14 +27,16 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     var body: some View {
         TabView(selection: $store.tab) {
+            NavigationStack { AIConciergeView() }
+                .tabItem { Label("Watermelon AI", systemImage: "sparkles") }.tag(0)
             NavigationStack { ExploreView() }
-                .tabItem { Label("Explore", systemImage: "safari") }.tag(0)
+                .tabItem { Label("Explore", systemImage: "safari") }.tag(1)
             NavigationStack { ProposalsView() }
-                .tabItem { Label("Proposals", systemImage: "doc.text") }.tag(1)
+                .tabItem { Label("Proposals", systemImage: "doc.text") }.tag(2)
             NavigationStack { TripsView() }
-                .tabItem { Label("My trips", systemImage: "suitcase.rolling") }.tag(2)
+                .tabItem { Label("My trips", systemImage: "suitcase.rolling") }.tag(3)
             NavigationStack { MoreView() }
-                .tabItem { Label("More", systemImage: "ellipsis.circle") }.tag(3)
+                .tabItem { Label("More", systemImage: "ellipsis.circle") }.tag(4)
         }
         .task { await store.refresh() }
         .onChange(of: scenePhase) { _, phase in
@@ -199,6 +203,224 @@ struct ExperienceDetail: View {
                 Text(title).font(.headline)
                 ForEach(Array(lines.enumerated()), id: \.offset) { _, line in Label(line, systemImage: "checkmark.circle").font(.subheadline) }
             }
+        }
+    }
+}
+
+
+// Native conversational planner; commercial handoff is performed and confirmed only by the server.
+struct AIConciergeView: View {
+    @EnvironmentObject private var store: TravelStore
+    @Environment(\.locale) private var locale
+    @AppStorage("watermelon.ai.conversationId") private var conversationId = UUID().uuidString
+    @AppStorage("watermelon.ai.crmReference") private var crmReference = ""
+    @State private var messages: [AIChatEntry] = []
+    @State private var input = ""
+    @State private var sending = false
+    @State private var errorText = ""
+    @State private var recommendations: [AIRecommendation] = []
+    @State private var ideas: [AITailorMadeIdea] = []
+
+    private var canSend: Bool { !sending && !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+    var body: some View {
+        ScrollViewReader { scroll in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Image(systemName: "sparkles").font(.largeTitle)
+                        Text("Your personal travel concierge").font(.largeTitle.bold())
+                        Text("Describe your trip. Watermelon AI will suggest real experiences or a tailor-made concept, and help you request a proposal.")
+                            .font(.subheadline)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(24)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(LinearGradient(colors: [Brand.navy, Brand.green], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .clipShape(RoundedRectangle(cornerRadius: 24))
+
+                    if messages.isEmpty {
+                        Text("Try asking…").font(.headline)
+                        Button {
+                            input = String(localized: "Plan a three-day trip to Lisbon for four people.", locale: locale)
+                        } label: {
+                            Label("Plan a three-day trip to Lisbon for four people.", systemImage: "bubble.left.and.text.bubble.right")
+                        }.buttonStyle(.bordered)
+                        Button {
+                            store.tab = 1
+                        } label: {
+                            Label("Browse all experiences", systemImage: "safari")
+                        }.buttonStyle(.bordered)
+                    }
+
+                    ForEach(messages) { entry in
+                        HStack {
+                            if entry.role == "user" { Spacer(minLength: 32) }
+                            Text(entry.content)
+                                .padding(14)
+                                .background(entry.role == "user" ? Brand.green : Color(.secondarySystemGroupedBackground),
+                                            in: RoundedRectangle(cornerRadius: 16))
+                                .foregroundStyle(entry.role == "user" ? .white : .primary)
+                                .textSelection(.enabled)
+                            if entry.role != "user" { Spacer(minLength: 32) }
+                        }
+                    }
+                    if sending {
+                        HStack {
+                            ProgressView()
+                            Text("Watermelon AI is preparing your answer…").font(.footnote)
+                        }.accessibilityIdentifier("aiThinking")
+                    }
+                    if !errorText.isEmpty {
+                        Text(errorText).foregroundStyle(Brand.red).font(.footnote)
+                            .accessibilityIdentifier("aiError")
+                    }
+
+                    if !recommendations.isEmpty {
+                        Text("Experiences suggested for you").font(.headline)
+                        ForEach(recommendations) { suggestion in
+                            VStack(alignment: .leading, spacing: 9) {
+                                Text(suggestion.title).font(.headline)
+                                Text(suggestion.reason).font(.subheadline)
+                                if let product = store.experiences.first(where: { $0.code == suggestion.code }),
+                                   store.liveCodes.contains(suggestion.code) {
+                                    if let price = product.availableOptions.first.flatMap({ product.unitPrice(for: $0) }) {
+                                        HStack(alignment: .firstTextBaseline) {
+                                            Text(money(price, product.currency ?? "EUR"))
+                                                .foregroundStyle(Brand.green).font(.subheadline.bold())
+                                            Text(product.basis(for: product.availableOptions[0]) == .group ? "per group" : "per person")
+                                                .font(.caption).foregroundStyle(.secondary)
+                                        }
+                                    } else {
+                                        Text("Price subject to confirmation").font(.caption).foregroundStyle(.secondary)
+                                    }
+                                    Button {
+                                        store.addToCart(product)
+                                    } label: {
+                                        Label("Add to my proposal", systemImage: "plus.circle")
+                                    }.buttonStyle(.borderedProminent)
+                                } else {
+                                    Text("Check the live catalogue before requesting this experience.")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(16)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+                        }
+                    }
+
+                    if !ideas.isEmpty {
+                        Text("Tailor-made ideas").font(.headline)
+                        ForEach(ideas) { idea in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Label(idea.title, systemImage: "lightbulb").font(.headline)
+                                Text(idea.concept).font(.subheadline)
+                                Text(idea.reason).font(.footnote).foregroundStyle(.secondary)
+                                Text("Concept only — subject to Watermelon review, feasibility, availability and quotation.")
+                                    .font(.caption).foregroundStyle(Brand.red)
+                            }
+                            .padding(16)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+                        }
+                    }
+
+                    if !crmReference.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Proposal request recorded in the CRM", systemImage: "checkmark.seal.fill")
+                                .font(.headline).foregroundStyle(Brand.green)
+                            Text(crmReference).font(.title3.monospaced()).textSelection(.enabled)
+                            Text("Watermelon will review your request. This is not a confirmed reservation.")
+                                .font(.footnote)
+                        }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+                    }
+
+                    if !messages.isEmpty || !crmReference.isEmpty {
+                        Button {
+                            newConversation()
+                        } label: {
+                            Label("Start a new conversation", systemImage: "arrow.counterclockwise")
+                        }.buttonStyle(.bordered).disabled(sending)
+                    }
+                    Text("AI suggestions are indicative. Prices, availability and reservations require confirmation. Do not share payment details in chat.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Link("Privacy policy", destination: URL(string: "https://www.watermelonexperiences.pt/privacy")!)
+                        .font(.caption)
+                    Color.clear.frame(height: 1).id("chatBottom")
+                }
+                .padding(16)
+                .frame(maxWidth: 800).frame(maxWidth: .infinity)
+            }
+            .onChange(of: messages.count) { _, _ in
+                withAnimation { scroll.scrollTo("chatBottom", anchor: .bottom) }
+            }
+            .onChange(of: sending) { _, _ in
+                withAnimation { scroll.scrollTo("chatBottom", anchor: .bottom) }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            HStack(alignment: .bottom, spacing: 10) {
+                TextField("Tell Watermelon AI about your trip…", text: $input, axis: .vertical)
+                    .lineLimit(1...4)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("aiMessageInput")
+                    .submitLabel(.send)
+                    .onSubmit { if canSend { Task { await send() } } }
+                Button {
+                    Task { await send() }
+                } label: {
+                    Image(systemName: "arrow.up.circle.fill").font(.title)
+                }
+                .disabled(!canSend)
+                .accessibilityLabel("Send message")
+                .accessibilityIdentifier("aiSendMessage")
+            }
+            .padding(12)
+            .background(.regularMaterial)
+        }
+        .navigationTitle("Watermelon AI")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func newConversation() {
+        messages = []
+        input = ""
+        recommendations = []
+        ideas = []
+        errorText = ""
+        crmReference = ""
+        conversationId = UUID().uuidString
+    }
+
+    @MainActor
+    private func send() async {
+        let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sending, !text.isEmpty else { return }
+        let previous = messages
+        input = ""
+        errorText = ""
+        sending = true
+        messages.append(AIChatEntry(role: "user", content: text))
+        defer { sending = false }
+        do {
+            let reply = try await store.api.concierge(
+                message: text, history: previous, conversationId: conversationId,
+                crmReference: crmReference, language: locale.identifier,
+                recommendations: recommendations, ideas: ideas
+            )
+            if reply.crmCreated, !reply.crmReference.isEmpty { crmReference = reply.crmReference }
+            recommendations = reply.recommendations
+            ideas = reply.tailorMadeIdeas.filter { $0.status == "tailor_made_concept" }
+            if !reply.reply.isEmpty { messages.append(AIChatEntry(role: "assistant", content: reply.reply)) }
+            if !reply.question.isEmpty { messages.append(AIChatEntry(role: "assistant", content: reply.question)) }
+        } catch {
+            messages = previous
+            input = text
+            errorText = error.localizedDescription
         }
     }
 }

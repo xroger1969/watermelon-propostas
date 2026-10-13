@@ -6,6 +6,7 @@ on:
       - audit-crm-ui-20261008
   pull_request:
     paths:
+      - "app/api/ai-concierge/route.ts"
       - "components/AdminCRM.tsx"
       - "components/CRMAnalytics.tsx"
       - "components/CRMMarketingPerformance.tsx"

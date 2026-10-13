@@ -54,7 +54,7 @@ final class TravelStore: ObservableObject {
     func addToCart(_ experience: Experience) {
         if !saved.cart.contains(experience.code), saved.cart.count < 20 { saved.cart.append(experience.code) }
         persist()
-        tab = 1
+        tab = 2
     }
     func removeFromCart(_ code: String) { saved.cart.removeAll { $0 == code }; persist() }
     func refresh() async {
@@ -98,7 +98,7 @@ final class TravelStore: ObservableObject {
         tab = 2
     }
     func open(_ url: URL) {
-        if let link = ProposalLink.parse(url.absoluteString) { tab = 1; openingLink = link }
+        if let link = ProposalLink.parse(url.absoluteString) { tab = 2; openingLink = link }
     }
     func saveProposal(_ proposal: Proposal, link: ProposalLink) {
         if !saved.links.contains(link) { saved.links.insert(link, at: 0) }

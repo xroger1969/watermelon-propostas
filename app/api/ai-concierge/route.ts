@@ -269,7 +269,7 @@ QUOTE / CRM HANDOFF
 
 GENERAL RULES
 - Never mention competitors.
-- Reply in the same language as the traveller.
+- Reply in the preferred language supplied in the system context when present; otherwise use the traveller's language.
 - Be concise, warm, premium and practical.
 - If the traveller is vague, ask ONE high-value follow-up question.
 - If the traveller is specific, answer directly and only ask a question if it materially improves the match.
@@ -389,6 +389,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as {
       message?: string;
+      language?: string;
       history?: HistoryMessage[];
       conversationId?: string;
       crmReference?: string;
@@ -460,10 +461,23 @@ export async function POST(request: NextRequest) {
           reason: cleanText(item?.reason, 800),
         }))
       : [];
+    // Whitelist prevents client text from becoming arbitrary developer instructions.
+    const languageLabels: Record<string, string> = {
+      en: "English", pt: "Portuguese", fr: "French", es: "Spanish",
+      de: "German", it: "Italian", nl: "Dutch",
+    };
+    const preferredCode = cleanText(body.language, 20).toLowerCase().split(/[-_]/)[0];
+    const normalizedLocale = cleanText(body.language, 20).toLowerCase().replaceAll("_", "-");
+    const preferredLanguage = normalizedLocale === "pt-br"
+      ? "Brazilian Portuguese"
+      : normalizedLocale === "pt-pt"
+        ? "European Portuguese"
+        : languageLabels[preferredCode] || "";
     const existingCRMReference = cleanText(body.crmReference, 80);
     const conversationId = cleanText(body.conversationId, 120);
 
     const catalogueContext =
+      "PREFERRED REPLY LANGUAGE: " + (preferredLanguage || "traveller language") + "\n" +
       "WATERMELON CATALOGUE (current products only):\n" +
       JSON.stringify(compactCatalogue(catalogue)) +
       "\n\nCURRENT SHORTLIST DISPLAYED TO THE TRAVELLER (for conversational reference only; validate codes against the live catalogue):\n" +
