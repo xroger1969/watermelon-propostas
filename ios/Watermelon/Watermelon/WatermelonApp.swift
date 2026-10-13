@@ -322,6 +322,43 @@ struct AIConciergeView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 24))
 
                     if messages.isEmpty {
+                        if !store.experiences.isEmpty {
+                            HStack {
+                                Text("Discover our experiences").font(.headline)
+                                Spacer()
+                                Button {
+                                    store.tab = 1
+                                } label: {
+                                    Label("Browse all experiences", systemImage: "arrow.right")
+                                }
+                                .font(.caption.weight(.semibold))
+                            }
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(Array(store.experiences.prefix(3))) { product in
+                                        NavigationLink {
+                                            ExperienceDetail(product: product)
+                                        } label: {
+                                            VStack(alignment: .leading, spacing: 0) {
+                                                ExperienceImage(url: product.imageURL)
+                                                    .frame(width: 178, height: 108).clipped()
+                                                Text(product.displayTitle)
+                                                    .font(.subheadline.weight(.semibold))
+                                                    .foregroundStyle(.primary)
+                                                    .lineLimit(2)
+                                                    .padding(10)
+                                            }
+                                            .frame(width: 178, height: 172, alignment: .top)
+                                            .background(Color(.secondarySystemGroupedBackground),
+                                                        in: RoundedRectangle(cornerRadius: 16))
+                                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            }
+                            .accessibilityIdentifier("featuredExperiences")
+                        }
                         Text("Tell us what you'd love to experience").font(.headline)
                         Text("Find something from our catalogue, or create something entirely your own.")
                             .font(.subheadline).foregroundStyle(.secondary)
