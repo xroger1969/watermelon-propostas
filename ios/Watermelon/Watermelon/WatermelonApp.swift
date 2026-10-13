@@ -147,43 +147,53 @@ struct AIQuickAskBar: View {
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "sparkles")
+        VStack(alignment: .leading, spacing: 7) {
+            Label("Ask Watermelon AI", systemImage: "sparkles")
+                .font(.subheadline.weight(.bold))
                 .foregroundStyle(Brand.green)
-                .accessibilityHidden(true)
-            TextField("Ask Watermelon AI anything…", text: $question)
-                .submitLabel(.send)
-                .focused($isFocused)
-                .accessibilityIdentifier("quickAIInput")
-                .onSubmit { ask() }
-            Button {
-                if question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            HStack(alignment: .bottom, spacing: 10) {
+                TextField("Ask Watermelon AI anything…", text: $question, axis: .vertical)
+                    .lineLimit(2...3)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, minHeight: 56, alignment: .topLeading)
+                    .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 12))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(Brand.green.opacity(isFocused ? 1 : 0.45),
+                                          lineWidth: isFocused ? 2 : 1)
+                    }
+                    .submitLabel(.send)
+                    .focused($isFocused)
+                    .accessibilityIdentifier("quickAIInput")
+                    .onSubmit { ask() }
+                Button {
                     isFocused = false
-                    store.openAI()
-                } else {
-                    ask()
+                    store.openAI(voice: true)
+                } label: {
+                    Image(systemName: "mic.fill").font(.title3)
+                        .frame(width: 36, height: 36)
                 }
-            } label: {
-                Image(systemName: question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                      ? "arrow.up.right.circle.fill" : "arrow.up.circle.fill")
-                    .font(.title2)
+                .accessibilityLabel("Speak with Watermelon AI")
+                .accessibilityIdentifier("quickAIVoice")
+                Button {
+                    if question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        isFocused = false
+                        store.openAI()
+                    } else { ask() }
+                } label: {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.title)
+                        .frame(width: 36, height: 36)
+                }
+                .accessibilityLabel("Open Watermelon AI")
+                .accessibilityIdentifier("quickAISend")
             }
-            .accessibilityLabel("Open Watermelon AI")
-            .accessibilityIdentifier("quickAISend")
-            Button {
-                isFocused = false
-                store.openAI(voice: true)
-            } label: {
-                Image(systemName: "mic.fill").font(.headline)
-            }
-            .accessibilityLabel("Speak with Watermelon AI")
-            .accessibilityIdentifier("quickAIVoice")
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(12)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Brand.green.opacity(0.15)))
-        .padding(.horizontal, 12)
+        .overlay(RoundedRectangle(cornerRadius: 18)
+            .strokeBorder(Brand.green.opacity(0.35), lineWidth: 1))
+        .padding(.horizontal, 10)
         .padding(.vertical, 6)
     }
 
