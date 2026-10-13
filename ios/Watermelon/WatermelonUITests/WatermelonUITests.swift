@@ -116,6 +116,8 @@ final class WatermelonUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["quickAIInput"].exists)
         app.tabBars.buttons["Proposals"].tap()
         XCTAssertTrue(app.staticTexts["Ask Watermelon AI"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["AI proposal enquiries"].exists)
+        XCTAssertFalse(app.staticTexts["WM-AI-261013-58351237"].exists)
     }
 
     @MainActor
