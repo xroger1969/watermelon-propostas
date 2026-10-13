@@ -386,7 +386,6 @@ struct AIConciergeView: View {
     @Environment(\.locale) private var locale
     @AppStorage("watermelon.ai.conversationId") private var conversationId = UUID().uuidString
     @AppStorage("watermelon.ai.crmReference") private var crmReference = ""
-    @AppStorage("watermelon.ai.savedCRMReferences") private var savedCRMReferences = ""
     @State private var messages: [AIChatEntry] = []
     @State private var input = ""
     @State private var sending = false
@@ -755,13 +754,13 @@ struct AIConciergeView: View {
             }
         }
         .onAppear {
-            // Older versions saved only the CRM reference, not the conversation.
-            // Archive that receipt instead of presenting it as a new chat.
+            // Remove leftover chat confirmation from an earlier session.
+            // The original request remains safely registered in the CRM.
             if messages.isEmpty && !crmReference.isEmpty {
-                archiveAIReference(crmReference)
                 crmReference = ""
                 conversationId = UUID().uuidString
             }
+            UserDefaults.standard.removeObject(forKey: "watermelon.ai.savedCRMReferences")
             consumePendingQuestion()
             handleAIRequests()
         }
@@ -809,18 +808,7 @@ struct AIConciergeView: View {
         Task { await send() }
     }
 
-    private func archiveAIReference(_ reference: String) {
-        let safe = reference.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !safe.isEmpty else { return }
-        var refs = savedCRMReferences.split(separator: "\n").map(String.init)
-        if !refs.contains(safe) {
-            refs.insert(safe, at: 0)
-            savedCRMReferences = refs.prefix(30).joined(separator: "\n")
-        }
-    }
-
     private func newConversation() {
-        if !crmReference.isEmpty { archiveAIReference(crmReference) }
         messages = []
         input = ""
         recommendations = []
@@ -850,7 +838,6 @@ struct AIConciergeView: View {
             )
             if reply.crmCreated, !reply.crmReference.isEmpty {
                 crmReference = reply.crmReference
-                archiveAIReference(reply.crmReference)
             }
             recommendations = reply.recommendations
             ideas = reply.tailorMadeIdeas.filter { $0.status == "tailor_made_concept" }
