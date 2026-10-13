@@ -45,6 +45,9 @@ final class WatermelonUITests: XCTestCase {
         app.tabBars.buttons["My trips"].tap()
         XCTAssertTrue(app.staticTexts["Your trips start here"].waitForExistence(timeout: 5))
         app.tabBars.buttons["More"].tap()
-        XCTAssertTrue(app.buttons["Remove saved data"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Watermelon Experiences"].waitForExistence(timeout: 5))
+        let remove = app.buttons["Remove saved data"]
+        for _ in 0..<8 where !remove.exists { app.swipeUp() }
+        XCTAssertTrue(remove.waitForExistence(timeout: 5))
     }
 }
