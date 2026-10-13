@@ -1,4 +1,6 @@
 import SwiftUI
+import Speech
+import AVFoundation
 
 @main
 @MainActor
@@ -13,6 +15,86 @@ struct WatermelonApp: App {
                 .preferredColorScheme(.light)
                 .onOpenURL { store.open($0) }
         }
+    }
+}
+
+
+@MainActor
+final class WatermelonVoiceInput: ObservableObject {
+    @Published private(set) var listening = false
+    @Published private(set) var transcript = ""
+    @Published var error = ""
+    private let engine = AVAudioEngine()
+    private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
+    private var recognitionTask: SFSpeechRecognitionTask?
+    private var tapInstalled = false
+
+    func start(locale: Locale) async {
+        guard !listening else { return }
+        error = ""
+        transcript = ""
+        let speechAllowed = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0 == .authorized) }
+        }
+        guard speechAllowed else {
+            error = String(localized: "Allow speech recognition in iPhone Settings, or type your request.")
+            return
+        }
+        let micAllowed = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            AVAudioSession.sharedInstance().requestRecordPermission { continuation.resume(returning: $0) }
+        }
+        guard micAllowed else {
+            error = String(localized: "Allow microphone access in iPhone Settings, or type your request.")
+            return
+        }
+        guard let recognizer = SFSpeechRecognizer(locale: locale), recognizer.isAvailable else {
+            error = String(localized: "Voice transcription is unavailable for this language. You can still type your request.")
+            return
+        }
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.record, mode: .measurement, options: .duckOthers)
+            try AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
+            let request = SFSpeechAudioBufferRecognitionRequest()
+            request.shouldReportPartialResults = true
+            recognitionRequest = request
+            let node = engine.inputNode
+            let format = node.outputFormat(forBus: 0)
+            node.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+                request.append(buffer)
+            }
+            tapInstalled = true
+            recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, failure in
+                Task { @MainActor [weak self] in
+                    guard let self, self.listening else { return }
+                    if let result { self.transcript = result.bestTranscription.formattedString }
+                    if let failure {
+                        self.error = failure.localizedDescription
+                        self.stop()
+                    } else if result?.isFinal == true {
+                        self.stop()
+                    }
+                }
+            }
+            engine.prepare()
+            try engine.start()
+            listening = true
+        } catch {
+            stop()
+            self.error = error.localizedDescription
+        }
+    }
+    func stop() {
+        if engine.isRunning { engine.stop() }
+        if tapInstalled {
+            engine.inputNode.removeTap(onBus: 0)
+            tapInstalled = false
+        }
+        recognitionRequest?.endAudio()
+        recognitionTask?.cancel()
+        recognitionTask = nil
+        recognitionRequest = nil
+        listening = false
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 }
 
