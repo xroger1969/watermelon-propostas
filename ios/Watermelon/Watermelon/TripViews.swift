@@ -172,12 +172,27 @@ struct EventEditor: UIViewControllerRepresentable {
 
 struct MoreView: View {
     @EnvironmentObject private var store: TravelStore
+    @AppStorage("watermelon.languagePreference") private var languagePreference = "system"
     @State private var deleting = false
     var body: some View {
         List {
             Section {
                 Image("BrandLogo").resizable().scaledToFit().frame(maxWidth: .infinity).frame(height: 150).accessibilityLabel("Watermelon Experiences")
                 Text("Explore Portugal with Watermelon Experiences. Build your programme and keep your travel details close.")
+            }
+            Section("Language") {
+                Picker("App language", selection: $languagePreference) {
+                    Text("Automatic (iPhone language)").tag("system")
+                    Text("English").tag("en")
+                    Text("Português (Portugal)").tag("pt-PT")
+                    Text("Français").tag("fr")
+                    Text("Español").tag("es")
+                    Text("Deutsch").tag("de")
+                    Text("Italiano").tag("it")
+                    Text("Nederlands").tag("nl")
+                    Text("Português (Brasil)").tag("pt-BR")
+                }
+                .accessibilityIdentifier("appLanguagePicker")
             }
             Section("Contact") {
                 Link("WhatsApp Watermelon", destination: URL(string: "https://wa.me/351918404101")!)
