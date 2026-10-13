@@ -172,3 +172,11 @@
 "Request a tailor-made proposal" = "Individuelles Angebot anfordern";
 "I'd like to request a proposal for one of these tailor-made ideas. Please ask me for the details needed to send my request." = "Ich möchte ein Angebot für eine dieser individuellen Ideen anfordern. Bitte fragen Sie mich nach den Angaben, die für die Anfrage nötig sind.";
 "Discover our experiences" = "Entdecken Sie unsere Erlebnisse";
+
+"Speak with Watermelon AI" = "Mit Watermelon AI sprechen";
+"Stop recording" = "Aufnahme beenden";
+"Listening… tap stop when finished" = "Ich höre zu… Zum Beenden tippen";
+"View experience" = "Erlebnis ansehen";
+"Allow speech recognition in iPhone Settings, or type your request." = "Erlauben Sie die Spracherkennung in den iPhone-Einstellungen oder schreiben Sie Ihre Anfrage.";
+"Allow microphone access in iPhone Settings, or type your request." = "Erlauben Sie den Mikrofonzugriff in den iPhone-Einstellungen oder schreiben Sie Ihre Anfrage.";
+"Voice transcription is unavailable for this language. You can still type your request." = "Spracherkennung ist für diese Sprache nicht verfügbar. Sie können Ihre Anfrage eintippen.";
