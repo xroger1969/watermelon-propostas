@@ -216,20 +216,24 @@ struct ExploreView: View {
                     Text("Memorable experiences. A proposal made for you.").font(.headline)
                     Text("Discover handpicked experiences, or ask our AI to design a personalised day.")
                         .font(.subheadline)
-                    HStack(spacing: 12) {
+                    HStack(spacing: 8) {
                         Button { store.openAI() } label: {
                             Label("Plan with AI", systemImage: "sparkles")
+                                .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.white)
                         .foregroundStyle(Brand.green)
+                        .accessibilityIdentifier("explorePlanWithAI")
                         Button { store.tab = 2 } label: {
                             Label("My proposals", systemImage: "doc.text")
+                                .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
                         .tint(.white)
                     }
-                    .font(.subheadline.weight(.semibold))
+                    .font(.caption.weight(.semibold))
+                    .controlSize(.small)
                 }
                 .foregroundStyle(.white).padding(24).frame(maxWidth: .infinity, alignment: .leading)
                 .background(LinearGradient(colors: [Brand.navy, Brand.green], startPoint: .topLeading, endPoint: .bottomTrailing))
