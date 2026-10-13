@@ -25,6 +25,55 @@ final class WatermelonUITests: XCTestCase {
     }
 
     @MainActor
+    func testQuickAIIsAvailableFromExploreAndProposals() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Watermelon AI"].waitForExistence(timeout: 15))
+
+        app.tabBars.buttons["Explore"].tap()
+        let exploreComposer = app.descendants(matching: .any)["quickAIInput"]
+        XCTAssertTrue(exploreComposer.waitForExistence(timeout: 5))
+        exploreComposer.tap()
+        exploreComposer.typeText("horse riding")
+        app.buttons["quickAISend"].tap()
+        XCTAssertTrue(app.staticTexts["I can help you plan a trip in Portugal."].waitForExistence(timeout: 10))
+
+        app.tabBars.buttons["Proposals"].tap()
+        XCTAssertTrue(app.buttons["discoverFromProposals"].waitForExistence(timeout: 5))
+        let proposalComposer = app.descendants(matching: .any)["quickAIInput"]
+        XCTAssertTrue(proposalComposer.waitForExistence(timeout: 5))
+        proposalComposer.tap()
+        proposalComposer.typeText("tailor made day")
+        app.buttons["quickAISend"].tap()
+        XCTAssertTrue(app.staticTexts["I can help you plan a trip in Portugal."].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testAIComposerCanDismissKeyboardAndContinueConversation() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
+        app.launch()
+        let suggestion = app.buttons["Plan a three-day trip to Lisbon for four people."]
+        XCTAssertTrue(suggestion.waitForExistence(timeout: 15))
+        suggestion.tap()
+        app.buttons["aiSendMessage"].tap()
+        XCTAssertTrue(app.staticTexts["I can help you plan a trip in Portugal."].waitForExistence(timeout: 10))
+
+        let input = app.descendants(matching: .any)["aiMessageInput"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap()
+        XCTAssertTrue(app.buttons["dismissAIKeyboard"].waitForExistence(timeout: 5))
+        app.buttons["dismissAIKeyboard"].tap()
+        XCTAssertTrue(input.exists)
+        input.tap()
+        input.typeText("another experience")
+        app.buttons["aiSendMessage"].tap()
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["aiSendMessage"].exists)
+    }
+
+    @MainActor
     func testNativeNavigationAndProposalSelectionWithoutRealCRMRequests() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
