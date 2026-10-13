@@ -39,6 +39,17 @@ function runScript({ date = "2026-10-11", accountId = "575-598-5719", preview = 
     Date: class extends Date { constructor(...args) { super(...(args.length ? args : [date + "T17:00:00Z"])); } },
     AdsApp: {
       currentAccount: () => ({ getCustomerId: () => accountId, getTimeZone: () => "Europe/Lisbon", getCurrencyCode: () => "EUR" }),
+      performanceMaxCampaigns: () => ({
+        withIds: () => ({
+          get: () => ({
+            hasNext: () => true,
+            next: () => ({
+              getStartDate: () => ({ year: 2026, month: 9, day: 29 }),
+              getEndDate: () => ({ year: 2026, month: 10, day: 20 })
+            })
+          })
+        })
+      }),
       getExecutionInfo: () => ({ isPreview: () => preview }),
       search: (query) => {
         calls++;
@@ -76,6 +87,8 @@ test("script imports a full report including today, explicit zero days and unrou
   assert.equal(report.daily.at(-1).conversions, 0.5);
   assert.equal(report.daily[0].impressions, 0);
   assert.equal(report.campaign.budgetAmount, 5);
+  assert.equal(report.campaign.startDate, "2026-09-29");
+  assert.equal(report.campaign.endDate, "2026-10-20");
 });
 test("report calendar days stay consecutive across a daylight saving transition", () => {
   const report = runScript({ date: "2026-03-29" });
