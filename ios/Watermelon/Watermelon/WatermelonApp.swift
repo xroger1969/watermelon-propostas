@@ -242,7 +242,7 @@ struct AIConciergeView: View {
                     if messages.isEmpty {
                         Text("Try asking…").font(.headline)
                         Button {
-                            input = String(localized: "Plan a three-day trip to Lisbon for four people.")
+                            input = String(localized: "Plan a three-day trip to Lisbon for four people.", locale: locale)
                         } label: {
                             Label("Plan a three-day trip to Lisbon for four people.", systemImage: "bubble.left.and.text.bubble.right")
                         }.buttonStyle(.bordered)
@@ -285,8 +285,12 @@ struct AIConciergeView: View {
                                 if let product = store.experiences.first(where: { $0.code == suggestion.code }),
                                    store.liveCodes.contains(suggestion.code) {
                                     if let price = product.availableOptions.first.flatMap({ product.unitPrice(for: $0) }) {
-                                        Text(money(price, product.currency ?? "EUR"))
-                                            .foregroundStyle(Brand.green).font(.subheadline.bold())
+                                        HStack(alignment: .firstTextBaseline) {
+                                            Text(money(price, product.currency ?? "EUR"))
+                                                .foregroundStyle(Brand.green).font(.subheadline.bold())
+                                            Text(product.basis(for: product.availableOptions[0]) == .group ? "per group" : "per person")
+                                                .font(.caption).foregroundStyle(.secondary)
+                                        }
                                     } else {
                                         Text("Price subject to confirmation").font(.caption).foregroundStyle(.secondary)
                                     }
@@ -340,7 +344,7 @@ struct AIConciergeView: View {
                             newConversation()
                         } label: {
                             Label("Start a new conversation", systemImage: "arrow.counterclockwise")
-                        }.buttonStyle(.bordered)
+                        }.buttonStyle(.bordered).disabled(sending)
                     }
                     Text("AI suggestions are indicative. Prices, availability and reservations require confirmation. Do not share payment details in chat.")
                         .font(.caption).foregroundStyle(.secondary)
