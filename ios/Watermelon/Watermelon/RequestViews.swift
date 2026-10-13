@@ -9,6 +9,13 @@ struct ProposalsView: View {
             Section {
                 Text("Choose experiences and ask for a personalized programme. Your request goes directly to Watermelon.")
                     .foregroundStyle(.secondary)
+                Button { store.tab = 1 } label: {
+                    Label("Discover all experiences", systemImage: "safari")
+                }
+                .accessibilityIdentifier("discoverFromProposals")
+                Button { store.tab = 0 } label: {
+                    Label("Plan with Watermelon AI", systemImage: "sparkles")
+                }
                 Button { importLink = true } label: { Label("Open a received proposal", systemImage: "link") }
             }
             Section("My programme") {
@@ -52,6 +59,7 @@ struct ProposalsView: View {
         .navigationTitle("Proposals")
         .sheet(isPresented: $importLink) { NavigationStack { ImportProposalView() } }
         .sheet(isPresented: $sendRequest) { NavigationStack { RequestForm(products: store.cart, proposal: true) } }
+        .safeAreaInset(edge: .bottom) { AIQuickAskBar() }
     }
 }
 
