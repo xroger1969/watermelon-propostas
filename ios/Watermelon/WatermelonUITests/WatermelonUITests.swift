@@ -17,9 +17,10 @@ final class WatermelonUITests: XCTestCase {
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
         XCTAssertTrue(app.navigationBars["Watermelon AI"].waitForExistence(timeout: 15))
-        let suggestion = app.buttons["Plan a three-day trip to Lisbon for four people."]
-        XCTAssertTrue(suggestion.waitForExistence(timeout: 5))
-        suggestion.tap()
+        let input = app.descendants(matching: .any)["aiMessageInput"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap()
+        input.typeText("Plan a three-day trip to Lisbon for four people.")
         app.buttons["aiSendMessage"].tap()
         XCTAssertTrue(app.staticTexts["I can help you plan a trip in Portugal."].waitForExistence(timeout: 10))
     }
@@ -54,13 +55,13 @@ final class WatermelonUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
-        let suggestion = app.buttons["Plan a three-day trip to Lisbon for four people."]
-        XCTAssertTrue(suggestion.waitForExistence(timeout: 15))
-        suggestion.tap()
+        let input = app.descendants(matching: .any)["aiMessageInput"]
+        XCTAssertTrue(input.waitForExistence(timeout: 15))
+        input.tap()
+        input.typeText("Horse riding near Lisbon")
         app.buttons["aiSendMessage"].tap()
         XCTAssertTrue(app.staticTexts["I can help you plan a trip in Portugal."].waitForExistence(timeout: 10))
 
-        let input = app.descendants(matching: .any)["aiMessageInput"]
         XCTAssertTrue(input.waitForExistence(timeout: 5))
         input.tap()
         XCTAssertTrue(app.buttons["dismissAIKeyboard"].waitForExistence(timeout: 5))
