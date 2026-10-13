@@ -467,7 +467,12 @@ export async function POST(request: NextRequest) {
       de: "German", it: "Italian", nl: "Dutch",
     };
     const preferredCode = cleanText(body.language, 20).toLowerCase().split(/[-_]/)[0];
-    const preferredLanguage = languageLabels[preferredCode] || "";
+    const normalizedLocale = cleanText(body.language, 20).toLowerCase().replaceAll("_", "-");
+    const preferredLanguage = normalizedLocale === "pt-br"
+      ? "Brazilian Portuguese"
+      : normalizedLocale === "pt-pt"
+        ? "European Portuguese"
+        : languageLabels[preferredCode] || "";
     const existingCRMReference = cleanText(body.crmReference, 80);
     const conversationId = cleanText(body.conversationId, 120);
 
