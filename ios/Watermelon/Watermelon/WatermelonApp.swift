@@ -394,20 +394,30 @@ struct AIConciergeView: View {
                             .font(.title.bold())
                         Text("Explore unforgettable experiences in Portugal, or tell Watermelon AI what you imagine. We'll help shape a personal programme.")
                             .font(.subheadline)
-                        HStack(spacing: 12) {
+                        HStack(spacing: 8) {
                             Button { store.tab = 1 } label: {
-                                Label("Explore experiences", systemImage: "safari")
+                                Label("Explore", systemImage: "safari").frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.borderedProminent)
                             .tint(.white)
                             .foregroundStyle(Brand.green)
+                            .accessibilityIdentifier("homeExplore")
                             Button { store.tab = 2 } label: {
-                                Label("My proposals", systemImage: "doc.text")
+                                Label("Proposals", systemImage: "doc.text").frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
                             .tint(.white)
+                            .accessibilityIdentifier("homeProposals")
                         }
-                        .font(.subheadline.weight(.semibold))
+                        .font(.caption.weight(.semibold))
+                        .controlSize(.small)
+                        Button { toggleVoice() } label: {
+                            Label("Speak with Watermelon AI", systemImage: "mic.fill")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.white)
+                        .accessibilityIdentifier("homeSpeakAI")
                     }
                     .foregroundStyle(.white)
                     .padding(24)
