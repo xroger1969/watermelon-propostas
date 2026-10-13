@@ -1,1 +1,3 @@
 "NSCalendarsWriteOnlyAccessUsageDescription" = "Adicione uma experiência prevista ao Calendário apenas quando decidir guardá-la.";
+"NSMicrophoneUsageDescription" = "Fale com a Watermelon AI para transcrever os seus pedidos de viagem. O áudio poderá ser processado pelos serviços de voz da Apple.";
+"NSSpeechRecognitionUsageDescription" = "Transcrever os seus pedidos falados para que a Watermelon AI sugira experiências e prepare propostas. O áudio poderá ser processado pelos serviços de voz da Apple.";
