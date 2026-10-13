@@ -23,7 +23,7 @@ function main() {
   fromDate.setUTCDate(fromDate.getUTCDate() - 29);
   var from = fromDate.toISOString().slice(0, 10);
   var metadata = AdsApp.search(
-    "SELECT campaign.id, campaign.name, campaign.status, campaign.start_date, campaign.end_date, " +
+    "SELECT campaign.id, campaign.name, campaign.status, " +
     "campaign.advertising_channel_type, campaign.bidding_strategy_type, campaign.primary_status, " +
     "campaign.primary_status_reasons, campaign.final_url_suffix, campaign_budget.amount_micros " +
     "FROM campaign WHERE campaign.id = " + WATERMELON_CAMPAIGN_ID
@@ -31,6 +31,17 @@ function main() {
   if (!metadata.hasNext()) throw new Error("Watermelon campaign was not found. No report was uploaded.");
   var row = metadata.next();
   var campaign = row.campaign;
+  // In Google Ads Scripts, fetch PMax dates via the campaign object.
+  // Selecting campaign.start_date/end_date through this account's GAQL endpoint fails.
+  var pmaxRows = AdsApp.performanceMaxCampaigns().withIds([WATERMELON_CAMPAIGN_ID]).get();
+  if (!pmaxRows.hasNext()) throw new Error("Watermelon PMax campaign was not found. No report was uploaded.");
+  var pmax = pmaxRows.next();
+  function dateString(value) {
+    if (!value) return null;
+    return String(value.year) + "-" + String(value.month).padStart(2, "0") + "-" + String(value.day).padStart(2, "0");
+  }
+  var campaignStartDate = dateString(pmax.getStartDate());
+  var campaignEndDate = dateString(pmax.getEndDate());
   var days = {};
   // Segmented reports can omit zero-activity dates. The successful complete query
   // below makes these explicit zeros, including today, instead of missing data.
@@ -60,7 +71,7 @@ function main() {
     currency: account.getCurrencyCode(), timeZone: zone, reportDate: today, snapshotAt: new Date().toISOString(),
     campaign: {
       name: campaign.name, status: campaign.status, budgetAmount: Number(row.campaignBudget.amountMicros) / 1000000,
-      startDate: campaign.startDate || null, endDate: campaign.endDate || null,
+      startDate: campaignStartDate, endDate: campaignEndDate,
       campaignType: campaign.advertisingChannelType || null, biddingStrategy: campaign.biddingStrategyType || null,
       primaryStatus: campaign.primaryStatus || null, primaryStatusReasons: campaign.primaryStatusReasons || [],
       urlTags: campaign.finalUrlSuffix || null
