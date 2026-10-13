@@ -15,7 +15,7 @@ permissions:
   contents: read
 concurrency:
   group: watermelon-ios-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   simulator:
     name: Compile and test native iPhone app
