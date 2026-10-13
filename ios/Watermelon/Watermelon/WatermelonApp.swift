@@ -743,7 +743,6 @@ struct AIConciergeView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(.regularMaterial)
-            .accessibilityIdentifier("aiComposerPanel")
         }
         .navigationTitle("Watermelon AI")
         .navigationBarTitleDisplayMode(.inline)
