@@ -1,1 +1,3 @@
 "NSCalendarsWriteOnlyAccessUsageDescription" = "Aggiungi un'esperienza pianificata al calendario solo quando scegli di salvarla.";
+"NSMicrophoneUsageDescription" = "Parla con Watermelon AI per trascrivere le richieste di viaggio. L'audio può essere elaborato dai servizi vocali Apple.";
+"NSSpeechRecognitionUsageDescription" = "Convertire le richieste vocali in testo per Watermelon AI. L'audio può essere elaborato da Apple.";
