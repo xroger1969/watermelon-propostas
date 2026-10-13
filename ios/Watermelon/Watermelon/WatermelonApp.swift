@@ -647,43 +647,93 @@ struct AIConciergeView: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            HStack(alignment: .bottom, spacing: 10) {
-                TextField("Tell Watermelon AI about your trip…", text: $input, axis: .vertical)
-                    .lineLimit(1...4)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($composerFocused)
-                    .accessibilityIdentifier("aiMessageInput")
-                    .submitLabel(.send)
-                    .onSubmit { if canSend { Task { await send() } } }
-                Button { toggleVoice() } label: {
-                    Image(systemName: voice.listening ? "stop.circle.fill" : "mic.circle.fill")
-                        .font(.title)
-                        .foregroundStyle(voice.listening ? Brand.red : Brand.green)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 7) {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(Brand.green)
+                    Text("Talk to Watermelon AI")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(Brand.navy)
+                    Spacer(minLength: 8)
+                    if composerFocused {
+                        Button("Hide keyboard") { composerFocused = false }
+                            .font(.caption.weight(.semibold))
+                            .accessibilityIdentifier("hideAIKeyboard")
+                    }
                 }
-                .accessibilityLabel(voice.listening ? "Stop recording" : "Speak with Watermelon AI")
-                .accessibilityIdentifier("aiMicrophone")
-                Button {
-                    voice.stop()
-                    Task { await send() }
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill").font(.title)
+                ZStack(alignment: .topLeading) {
+                    if input.isEmpty {
+                        Text("Write or speak about your ideal experience…")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 15)
+                            .padding(.vertical, 13)
+                            .allowsHitTesting(false)
+                    }
+                    TextField("", text: $input, axis: .vertical)
+                        .lineLimit(2...5)
+                        .font(.body)
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity, minHeight: 76, alignment: .topLeading)
+                        .focused($composerFocused)
+                        .accessibilityLabel("Tell Watermelon AI about your trip…")
+                        .accessibilityIdentifier("aiMessageInput")
+                        .submitLabel(.send)
+                        .onSubmit {
+                            if canSend { Task { await send() } }
+                        }
                 }
-                .disabled(!canSend)
-                .accessibilityLabel("Send message")
-                .accessibilityIdentifier("aiSendMessage")
-            }
-            .padding(12)
-            .background(.regularMaterial)
-            .overlay(alignment: .topLeading) {
+                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 14))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14)
+                        .strokeBorder(Brand.green.opacity(composerFocused ? 1 : 0.55),
+                                      lineWidth: composerFocused ? 2 : 1)
+                }
+                HStack(spacing: 12) {
+                    Button { toggleVoice() } label: {
+                        Label(voice.listening ? "Stop recording" : "Speak",
+                              systemImage: voice.listening ? "stop.circle.fill" : "mic.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(minHeight: 36)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(voice.listening ? Brand.red : Brand.green)
+                    .accessibilityLabel(voice.listening ? "Stop recording" : "Speak with Watermelon AI")
+                    .accessibilityIdentifier("aiMicrophone")
+                    Spacer(minLength: 8)
+                    Button {
+                        voice.stop()
+                        Task { await send() }
+                    } label: {
+                        Label("Send", systemImage: "arrow.up")
+                            .font(.subheadline.weight(.bold))
+                            .frame(minWidth: 100, minHeight: 36)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Brand.green)
+                    .disabled(!canSend)
+                    .accessibilityLabel("Send message")
+                    .accessibilityIdentifier("aiSendMessage")
+                }
                 if voice.listening {
                     Label("Listening… tap stop when finished", systemImage: "waveform")
                         .font(.caption)
                         .foregroundStyle(Brand.red)
-                        .padding(.horizontal, 12)
-                        .offset(y: -22)
                         .accessibilityIdentifier("aiVoiceListening")
                 }
             }
+            .padding(12)
+            .background(Color(.secondarySystemGroupedBackground),
+                        in: RoundedRectangle(cornerRadius: 20))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20)
+                    .strokeBorder(Brand.green.opacity(0.35), lineWidth: 1)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.regularMaterial)
+            .accessibilityIdentifier("aiComposerPanel")
         }
         .navigationTitle("Watermelon AI")
         .navigationBarTitleDisplayMode(.inline)
