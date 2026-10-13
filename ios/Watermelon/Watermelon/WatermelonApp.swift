@@ -158,7 +158,7 @@ struct AIQuickAskBar: View {
             Button {
                 if question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     isFocused = false
-                    store.tab = 0
+                    store.openAI()
                 } else {
                     ask()
                 }
@@ -169,6 +169,14 @@ struct AIQuickAskBar: View {
             }
             .accessibilityLabel("Open Watermelon AI")
             .accessibilityIdentifier("quickAISend")
+            Button {
+                isFocused = false
+                store.openAI(voice: true)
+            } label: {
+                Image(systemName: "mic.fill").font(.headline)
+            }
+            .accessibilityLabel("Speak with Watermelon AI")
+            .accessibilityIdentifier("quickAIVoice")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -209,7 +217,7 @@ struct ExploreView: View {
                     Text("Discover handpicked experiences, or ask our AI to design a personalised day.")
                         .font(.subheadline)
                     HStack(spacing: 12) {
-                        Button { store.tab = 0 } label: {
+                        Button { store.openAI() } label: {
                             Label("Plan with AI", systemImage: "sparkles")
                         }
                         .buttonStyle(.borderedProminent)
@@ -368,6 +376,10 @@ struct AIConciergeView: View {
     @State private var recommendations: [AIRecommendation] = []
     @State private var ideas: [AITailorMadeIdea] = []
     @FocusState private var composerFocused: Bool
+    @StateObject private var voice = WatermelonVoiceInput()
+    @State private var dictatedPrefix = ""
+    @State private var handledComposerRequest = 0
+    @State private var handledVoiceRequest = 0
 
     private var canSend: Bool { !sending && !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
