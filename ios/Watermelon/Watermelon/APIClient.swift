@@ -148,6 +148,34 @@ struct APIClient {
                               createdAt: Date(), items: selections.map(\.tripItem))
     }
 
+    // Calls the existing Watermelon server: the OpenAI key never ships in the iOS app.
+    func concierge(message: String, history: [AIChatEntry], conversationId: String,
+                   crmReference: String, language: String,
+                   recommendations: [AIRecommendation], ideas: [AITailorMadeIdea]) async throws -> AIConciergeReply {
+        #if DEBUG
+        if isTesting {
+            return AIConciergeReply(reply: "I can help you plan a trip in Portugal.", question: "",
+                                    intentSummary: "Demo", recommendations: [], tailorMadeIdeas: [],
+                                    crmReference: "", crmCreated: false)
+        }
+        #endif
+        let payload: [String: Any] = [
+            "message": String(message.prefix(1200)),
+            "history": history.suffix(8).map { ["role": $0.role, "content": String($0.content.prefix(1200))] },
+            "conversationId": conversationId,
+            "crmReference": crmReference,
+            "language": language,
+            "currentRecommendations": recommendations.prefix(4).map {
+                ["code": $0.code, "title": $0.title, "reason": $0.reason]
+            },
+            "currentTailorMadeIdeas": ideas.prefix(2).map {
+                ["title": $0.title, "concept": $0.concept, "reason": $0.reason]
+            }
+        ]
+        return try await request("/api/ai-concierge", method: "POST",
+                                 body: JSONSerialization.data(withJSONObject: payload))
+    }
+
     func proposal(_ link: ProposalLink) async throws -> Proposal {
         var components = URLComponents()
         components.queryItems = [URLQueryItem(name: "reference", value: link.reference), URLQueryItem(name: "token", value: link.token)]
@@ -164,4 +192,46 @@ struct APIClient {
         let _: Response = try await request("/api/proposal", method: "POST", body: JSONSerialization.data(withJSONObject:
                 ["reference": link.reference, "token": link.token, "action": action, "message": message]))
     }
+}
+
+struct AIChatEntry: Codable, Identifiable {
+    let id: UUID
+    let role: String
+    let content: String
+    init(role: String, content: String, id: UUID = UUID()) {
+        self.id = id
+        self.role = role
+        self.content = content
+    }
+}
+
+struct AIRecommendation: Decodable, Identifiable {
+    let code: String
+    let title: String
+    let reason: String
+    let location: String?
+    let duration: String?
+    let price: Double?
+    let currency: String?
+    let pricingMode: String?
+    let livePrice: Bool?
+    var id: String { code }
+}
+
+struct AITailorMadeIdea: Decodable, Identifiable {
+    let title: String
+    let concept: String
+    let reason: String
+    let status: String
+    var id: String { title }
+}
+
+struct AIConciergeReply: Decodable {
+    let reply: String
+    let question: String
+    let intentSummary: String
+    let recommendations: [AIRecommendation]
+    let tailorMadeIdeas: [AITailorMadeIdea]
+    let crmReference: String
+    let crmCreated: Bool
 }
