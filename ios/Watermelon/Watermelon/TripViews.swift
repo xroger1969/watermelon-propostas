@@ -210,7 +210,12 @@ struct MoreView: View {
         }
         .navigationTitle("Watermelon Experiences")
         .confirmationDialog("Remove all saved data on this iPhone?", isPresented: $deleting, titleVisibility: .visible) {
-            Button("Remove saved data", role: .destructive) { store.clear() }
+            Button("Remove saved data", role: .destructive) {
+                store.clear()
+                UserDefaults.standard.removeObject(forKey: "watermelon.ai.crmReference")
+                UserDefaults.standard.removeObject(forKey: "watermelon.ai.savedCRMReferences")
+                UserDefaults.standard.removeObject(forKey: "watermelon.ai.conversationId")
+            }
             Button("Cancel", role: .cancel) { }
         } message: { Text("This removes local favorites and travel details. Requests already sent to Watermelon remain with Watermelon.") }
     }

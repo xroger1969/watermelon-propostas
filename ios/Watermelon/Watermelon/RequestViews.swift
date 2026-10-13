@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProposalsView: View {
     @EnvironmentObject private var store: TravelStore
+    @AppStorage("watermelon.ai.savedCRMReferences") private var savedCRMReferences = ""
     @State private var importLink = false
     @State private var sendRequest = false
     var body: some View {
@@ -27,6 +28,21 @@ struct ProposalsView: View {
                 if !store.cart.isEmpty {
                     Button { sendRequest = true } label: { Label("Request my proposal", systemImage: "paperplane.fill") }
                         .accessibilityIdentifier("requestProposal")
+                }
+            }
+            if !savedCRMReferences.isEmpty {
+                Section("AI proposal enquiries") {
+                    ForEach(savedCRMReferences.split(separator: "\n").map(String.init), id: \.self) { reference in
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(reference)
+                                .font(.headline.monospaced())
+                                .textSelection(.enabled)
+                            Text("Awaiting Watermelon response")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .accessibilityIdentifier("savedAIReference")
+                    }
                 }
             }
             if !store.saved.links.isEmpty {

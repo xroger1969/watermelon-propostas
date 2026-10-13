@@ -93,6 +93,32 @@ final class WatermelonUITests: XCTestCase {
     }
 
     @MainActor
+    func testProminentAIComposerStaysAvailableAcrossConversationAndExplore() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Talk to Watermelon AI"].waitForExistence(timeout: 15))
+        let input = app.descendants(matching: .any)["aiMessageInput"]
+        XCTAssertTrue(input.exists)
+        XCTAssertTrue(app.buttons["aiMicrophone"].exists)
+        XCTAssertTrue(app.buttons["aiSendMessage"].exists)
+
+        input.tap()
+        input.typeText("A family tour around Lisbon")
+        app.buttons["aiSendMessage"].tap()
+        XCTAssertTrue(app.staticTexts["I can help you plan a trip in Portugal."].waitForExistence(timeout: 10))
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Talk to Watermelon AI"].exists)
+
+        app.tabBars.buttons["Explore"].tap()
+        XCTAssertTrue(app.staticTexts["Ask Watermelon AI"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["quickAIInput"].exists)
+        app.tabBars.buttons["Proposals"].tap()
+        XCTAssertTrue(app.staticTexts["Ask Watermelon AI"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
     func testNativeNavigationAndProposalSelectionWithoutRealCRMRequests() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]

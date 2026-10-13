@@ -147,43 +147,53 @@ struct AIQuickAskBar: View {
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "sparkles")
+        VStack(alignment: .leading, spacing: 7) {
+            Label("Ask Watermelon AI", systemImage: "sparkles")
+                .font(.subheadline.weight(.bold))
                 .foregroundStyle(Brand.green)
-                .accessibilityHidden(true)
-            TextField("Ask Watermelon AI anything…", text: $question)
-                .submitLabel(.send)
-                .focused($isFocused)
-                .accessibilityIdentifier("quickAIInput")
-                .onSubmit { ask() }
-            Button {
-                if question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            HStack(alignment: .bottom, spacing: 10) {
+                TextField("Ask Watermelon AI anything…", text: $question, axis: .vertical)
+                    .lineLimit(2...3)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, minHeight: 56, alignment: .topLeading)
+                    .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 12))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(Brand.green.opacity(isFocused ? 1 : 0.45),
+                                          lineWidth: isFocused ? 2 : 1)
+                    }
+                    .submitLabel(.send)
+                    .focused($isFocused)
+                    .accessibilityIdentifier("quickAIInput")
+                    .onSubmit { ask() }
+                Button {
                     isFocused = false
-                    store.openAI()
-                } else {
-                    ask()
+                    store.openAI(voice: true)
+                } label: {
+                    Image(systemName: "mic.fill").font(.title3)
+                        .frame(width: 36, height: 36)
                 }
-            } label: {
-                Image(systemName: question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                      ? "arrow.up.right.circle.fill" : "arrow.up.circle.fill")
-                    .font(.title2)
+                .accessibilityLabel("Speak with Watermelon AI")
+                .accessibilityIdentifier("quickAIVoice")
+                Button {
+                    if question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        isFocused = false
+                        store.openAI()
+                    } else { ask() }
+                } label: {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.title)
+                        .frame(width: 36, height: 36)
+                }
+                .accessibilityLabel("Open Watermelon AI")
+                .accessibilityIdentifier("quickAISend")
             }
-            .accessibilityLabel("Open Watermelon AI")
-            .accessibilityIdentifier("quickAISend")
-            Button {
-                isFocused = false
-                store.openAI(voice: true)
-            } label: {
-                Image(systemName: "mic.fill").font(.headline)
-            }
-            .accessibilityLabel("Speak with Watermelon AI")
-            .accessibilityIdentifier("quickAIVoice")
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(12)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Brand.green.opacity(0.15)))
-        .padding(.horizontal, 12)
+        .overlay(RoundedRectangle(cornerRadius: 18)
+            .strokeBorder(Brand.green.opacity(0.35), lineWidth: 1))
+        .padding(.horizontal, 10)
         .padding(.vertical, 6)
     }
 
@@ -376,6 +386,7 @@ struct AIConciergeView: View {
     @Environment(\.locale) private var locale
     @AppStorage("watermelon.ai.conversationId") private var conversationId = UUID().uuidString
     @AppStorage("watermelon.ai.crmReference") private var crmReference = ""
+    @AppStorage("watermelon.ai.savedCRMReferences") private var savedCRMReferences = ""
     @State private var messages: [AIChatEntry] = []
     @State private var input = ""
     @State private var sending = false
@@ -647,43 +658,92 @@ struct AIConciergeView: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            HStack(alignment: .bottom, spacing: 10) {
-                TextField("Tell Watermelon AI about your trip…", text: $input, axis: .vertical)
-                    .lineLimit(1...4)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($composerFocused)
-                    .accessibilityIdentifier("aiMessageInput")
-                    .submitLabel(.send)
-                    .onSubmit { if canSend { Task { await send() } } }
-                Button { toggleVoice() } label: {
-                    Image(systemName: voice.listening ? "stop.circle.fill" : "mic.circle.fill")
-                        .font(.title)
-                        .foregroundStyle(voice.listening ? Brand.red : Brand.green)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 7) {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(Brand.green)
+                    Text("Talk to Watermelon AI")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(Brand.navy)
+                    Spacer(minLength: 8)
+                    if composerFocused {
+                        Button("Hide keyboard") { composerFocused = false }
+                            .font(.caption.weight(.semibold))
+                            .accessibilityIdentifier("hideAIKeyboard")
+                    }
                 }
-                .accessibilityLabel(voice.listening ? "Stop recording" : "Speak with Watermelon AI")
-                .accessibilityIdentifier("aiMicrophone")
-                Button {
-                    voice.stop()
-                    Task { await send() }
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill").font(.title)
+                ZStack(alignment: .topLeading) {
+                    if input.isEmpty {
+                        Text("Write or speak about your ideal experience…")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 15)
+                            .padding(.vertical, 13)
+                            .allowsHitTesting(false)
+                    }
+                    TextField("", text: $input, axis: .vertical)
+                        .lineLimit(2...5)
+                        .font(.body)
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity, minHeight: 76, alignment: .topLeading)
+                        .focused($composerFocused)
+                        .accessibilityLabel("Tell Watermelon AI about your trip…")
+                        .accessibilityIdentifier("aiMessageInput")
+                        .submitLabel(.send)
+                        .onSubmit {
+                            if canSend { Task { await send() } }
+                        }
                 }
-                .disabled(!canSend)
-                .accessibilityLabel("Send message")
-                .accessibilityIdentifier("aiSendMessage")
-            }
-            .padding(12)
-            .background(.regularMaterial)
-            .overlay(alignment: .topLeading) {
+                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 14))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14)
+                        .strokeBorder(Brand.green.opacity(composerFocused ? 1 : 0.55),
+                                      lineWidth: composerFocused ? 2 : 1)
+                }
+                HStack(spacing: 12) {
+                    Button { toggleVoice() } label: {
+                        Label(voice.listening ? "Stop recording" : "Speak",
+                              systemImage: voice.listening ? "stop.circle.fill" : "mic.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(minHeight: 36)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(voice.listening ? Brand.red : Brand.green)
+                    .accessibilityLabel(voice.listening ? "Stop recording" : "Speak with Watermelon AI")
+                    .accessibilityIdentifier("aiMicrophone")
+                    Spacer(minLength: 8)
+                    Button {
+                        voice.stop()
+                        Task { await send() }
+                    } label: {
+                        Label("Send", systemImage: "arrow.up")
+                            .font(.subheadline.weight(.bold))
+                            .frame(minWidth: 100, minHeight: 36)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Brand.green)
+                    .disabled(!canSend)
+                    .accessibilityLabel("Send message")
+                    .accessibilityIdentifier("aiSendMessage")
+                }
                 if voice.listening {
                     Label("Listening… tap stop when finished", systemImage: "waveform")
                         .font(.caption)
                         .foregroundStyle(Brand.red)
-                        .padding(.horizontal, 12)
-                        .offset(y: -22)
                         .accessibilityIdentifier("aiVoiceListening")
                 }
             }
+            .padding(12)
+            .background(Color(.secondarySystemGroupedBackground),
+                        in: RoundedRectangle(cornerRadius: 20))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20)
+                    .strokeBorder(Brand.green.opacity(0.35), lineWidth: 1)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.regularMaterial)
         }
         .navigationTitle("Watermelon AI")
         .navigationBarTitleDisplayMode(.inline)
@@ -695,6 +755,13 @@ struct AIConciergeView: View {
             }
         }
         .onAppear {
+            // Older versions saved only the CRM reference, not the conversation.
+            // Archive that receipt instead of presenting it as a new chat.
+            if messages.isEmpty && !crmReference.isEmpty {
+                archiveAIReference(crmReference)
+                crmReference = ""
+                conversationId = UUID().uuidString
+            }
             consumePendingQuestion()
             handleAIRequests()
         }
@@ -742,7 +809,18 @@ struct AIConciergeView: View {
         Task { await send() }
     }
 
+    private func archiveAIReference(_ reference: String) {
+        let safe = reference.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !safe.isEmpty else { return }
+        var refs = savedCRMReferences.split(separator: "\n").map(String.init)
+        if !refs.contains(safe) {
+            refs.insert(safe, at: 0)
+            savedCRMReferences = refs.prefix(30).joined(separator: "\n")
+        }
+    }
+
     private func newConversation() {
+        if !crmReference.isEmpty { archiveAIReference(crmReference) }
         messages = []
         input = ""
         recommendations = []
@@ -770,7 +848,10 @@ struct AIConciergeView: View {
                 crmReference: crmReference, language: locale.identifier,
                 recommendations: recommendations, ideas: ideas
             )
-            if reply.crmCreated, !reply.crmReference.isEmpty { crmReference = reply.crmReference }
+            if reply.crmCreated, !reply.crmReference.isEmpty {
+                crmReference = reply.crmReference
+                archiveAIReference(reply.crmReference)
+            }
             recommendations = reply.recommendations
             ideas = reply.tailorMadeIdeas.filter { $0.status == "tailor_made_concept" }
             if !reply.reply.isEmpty { messages.append(AIChatEntry(role: "assistant", content: reply.reply)) }
