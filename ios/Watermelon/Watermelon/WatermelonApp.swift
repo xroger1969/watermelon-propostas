@@ -141,6 +141,7 @@ struct RootView: View {
 // Compact composer shared by catalogue and proposal screens. A single AI conversation
 // handles all requests, keeping commercial handoff exclusively on the server.
 struct AIQuickAskBar: View {
+    var context: String? = nil
     @EnvironmentObject private var store: TravelStore
     @State private var question = ""
     @FocusState private var isFocused: Bool
@@ -191,7 +192,8 @@ struct AIQuickAskBar: View {
         guard !text.isEmpty else { return }
         isFocused = false
         question = ""
-        store.askAI(text)
+        let request = context.map { "Regarding Watermelon experience: \($0). \(text)" } ?? text
+        store.askAI(request)
     }
 }
 
@@ -355,6 +357,7 @@ struct ExperienceDetail: View {
         .navigationTitle("Experience").navigationBarTitleDisplayMode(.inline)
         .toolbar { Button { store.toggleFavorite(product) } label: { Image(systemName: store.saved.favorites.contains(product.code) ? "heart.fill" : "heart") }.tint(Brand.red) }
         .sheet(isPresented: $request) { NavigationStack { RequestForm(products: [product], proposal: false) } }
+        .safeAreaInset(edge: .bottom) { AIQuickAskBar(context: product.displayTitle) }
     }
     @ViewBuilder private func facts(_ title: LocalizedStringKey, lines: [String]?) -> some View {
         if let lines, !lines.isEmpty {
