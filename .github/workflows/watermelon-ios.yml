@@ -78,7 +78,7 @@ jobs:
   testflight:
     name: Sign and upload Watermelon to TestFlight
     needs: simulator
-    if: github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.send_to_testflight) || (github.event_name == 'push' && vars.WATERMELON_TESTFLIGHT_ENABLED == 'true'))
+    if: github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.send_to_testflight) || (github.event_name == 'push' && (vars.WATERMELON_TESTFLIGHT_ENABLED == 'true' || contains(github.event.head_commit.message, '[watermelon-testflight]'))))
     runs-on: macos-26
     timeout-minutes: 50
     environment: testflight
