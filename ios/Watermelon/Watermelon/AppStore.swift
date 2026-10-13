@@ -16,6 +16,9 @@ final class TravelStore: ObservableObject {
     @Published var persistenceError = ""
     @Published var liveCodes = Set<String>()
     @Published var tab = 0
+    // A prompt from Explore or Proposals is delivered to the single AI tab,
+    // rather than starting a second, disconnected chat.
+    @Published var pendingAIQuestion: String?
     @Published var openingLink: ProposalLink?
     var lastRefresh: Date?
     let api: APIClient
@@ -34,6 +37,13 @@ final class TravelStore: ObservableObject {
         if let data = try? Data(contentsOf: fileURL), let decoded = try? JSONDecoder().decode(Saved.self, from: data) {
             saved = decoded
         } else { saved = Saved(catalog: APIClient.bundledCatalog()) }
+    }
+
+    func askAI(_ question: String) {
+        let text = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { tab = 0; return }
+        pendingAIQuestion = text
+        tab = 0
     }
 
     var experiences: [Experience] { saved.catalog }
