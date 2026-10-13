@@ -687,9 +687,44 @@ struct AIConciergeView: View {
                     .accessibilityIdentifier("dismissAIKeyboard")
             }
         }
-        .onAppear { consumePendingQuestion() }
+        .onAppear {
+            consumePendingQuestion()
+            handleAIRequests()
+        }
+        .onDisappear { voice.stop() }
         .onChange(of: store.pendingAIQuestion) { _, _ in consumePendingQuestion() }
+        .onChange(of: store.aiComposerRequest) { _, _ in handleAIRequests() }
+        .onChange(of: store.aiVoiceRequest) { _, _ in handleAIRequests() }
+        .onChange(of: voice.transcript) { _, value in input = dictatedPrefix + value }
         .onChange(of: sending) { _, busy in if !busy { consumePendingQuestion() } }
+        .safeAreaInset(edge: .top) {
+            if !voice.error.isEmpty {
+                Text(voice.error).font(.caption).foregroundStyle(Brand.red)
+                    .padding(8).frame(maxWidth: .infinity)
+                    .background(Color(.secondarySystemGroupedBackground))
+            }
+        }
+    }
+
+    private func handleAIRequests() {
+        if store.aiVoiceRequest > handledVoiceRequest {
+            handledVoiceRequest = store.aiVoiceRequest
+            if !voice.listening { toggleVoice() }
+        } else if store.aiComposerRequest > handledComposerRequest {
+            handledComposerRequest = store.aiComposerRequest
+            composerFocused = true
+        }
+    }
+
+    private func toggleVoice() {
+        if voice.listening {
+            voice.stop()
+        } else {
+            composerFocused = false
+            dictatedPrefix = input.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !dictatedPrefix.isEmpty { dictatedPrefix += " " }
+            Task { await voice.start(locale: locale) }
+        }
     }
 
     private func consumePendingQuestion() {
@@ -715,6 +750,7 @@ struct AIConciergeView: View {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !sending, !text.isEmpty else { return }
         composerFocused = false
+        voice.stop()
         let previous = messages
         input = ""
         errorText = ""
