@@ -1,1 +1,3 @@
 "NSCalendarsWriteOnlyAccessUsageDescription" = "Voeg een geplande ervaring alleen toe aan je agenda wanneer je ervoor kiest die op te slaan.";
+"NSMicrophoneUsageDescription" = "Spreek met Watermelon AI om je reiswensen om te zetten in tekst. Apple-spraakdiensten kunnen audio verwerken.";
+"NSSpeechRecognitionUsageDescription" = "Je gesproken reiswensen omzetten in tekst voor Watermelon AI. Apple kan audio verwerken.";

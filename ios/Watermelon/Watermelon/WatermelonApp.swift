@@ -1,4 +1,6 @@
 import SwiftUI
+import Speech
+import AVFoundation
 
 @main
 @MainActor
@@ -13,6 +15,86 @@ struct WatermelonApp: App {
                 .preferredColorScheme(.light)
                 .onOpenURL { store.open($0) }
         }
+    }
+}
+
+
+@MainActor
+final class WatermelonVoiceInput: ObservableObject {
+    @Published private(set) var listening = false
+    @Published private(set) var transcript = ""
+    @Published var error = ""
+    private let engine = AVAudioEngine()
+    private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
+    private var recognitionTask: SFSpeechRecognitionTask?
+    private var tapInstalled = false
+
+    func start(locale: Locale) async {
+        guard !listening else { return }
+        error = ""
+        transcript = ""
+        let speechAllowed = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0 == .authorized) }
+        }
+        guard speechAllowed else {
+            error = String(localized: "Allow speech recognition in iPhone Settings, or type your request.")
+            return
+        }
+        let micAllowed = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            AVAudioSession.sharedInstance().requestRecordPermission { continuation.resume(returning: $0) }
+        }
+        guard micAllowed else {
+            error = String(localized: "Allow microphone access in iPhone Settings, or type your request.")
+            return
+        }
+        guard let recognizer = SFSpeechRecognizer(locale: locale), recognizer.isAvailable else {
+            error = String(localized: "Voice transcription is unavailable for this language. You can still type your request.")
+            return
+        }
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.record, mode: .measurement, options: .duckOthers)
+            try AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
+            let request = SFSpeechAudioBufferRecognitionRequest()
+            request.shouldReportPartialResults = true
+            recognitionRequest = request
+            let node = engine.inputNode
+            let format = node.outputFormat(forBus: 0)
+            node.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+                request.append(buffer)
+            }
+            tapInstalled = true
+            recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, failure in
+                Task { @MainActor [weak self] in
+                    guard let self, self.listening else { return }
+                    if let result { self.transcript = result.bestTranscription.formattedString }
+                    if let failure {
+                        self.error = failure.localizedDescription
+                        self.stop()
+                    } else if result?.isFinal == true {
+                        self.stop()
+                    }
+                }
+            }
+            engine.prepare()
+            try engine.start()
+            listening = true
+        } catch {
+            stop()
+            self.error = error.localizedDescription
+        }
+    }
+    func stop() {
+        if engine.isRunning { engine.stop() }
+        if tapInstalled {
+            engine.inputNode.removeTap(onBus: 0)
+            tapInstalled = false
+        }
+        recognitionRequest?.endAudio()
+        recognitionTask?.cancel()
+        recognitionTask = nil
+        recognitionRequest = nil
+        listening = false
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 }
 
@@ -59,6 +141,7 @@ struct RootView: View {
 // Compact composer shared by catalogue and proposal screens. A single AI conversation
 // handles all requests, keeping commercial handoff exclusively on the server.
 struct AIQuickAskBar: View {
+    var context: String? = nil
     @EnvironmentObject private var store: TravelStore
     @State private var question = ""
     @FocusState private var isFocused: Bool
@@ -76,7 +159,7 @@ struct AIQuickAskBar: View {
             Button {
                 if question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     isFocused = false
-                    store.tab = 0
+                    store.openAI()
                 } else {
                     ask()
                 }
@@ -87,6 +170,14 @@ struct AIQuickAskBar: View {
             }
             .accessibilityLabel("Open Watermelon AI")
             .accessibilityIdentifier("quickAISend")
+            Button {
+                isFocused = false
+                store.openAI(voice: true)
+            } label: {
+                Image(systemName: "mic.fill").font(.headline)
+            }
+            .accessibilityLabel("Speak with Watermelon AI")
+            .accessibilityIdentifier("quickAIVoice")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -101,7 +192,8 @@ struct AIQuickAskBar: View {
         guard !text.isEmpty else { return }
         isFocused = false
         question = ""
-        store.askAI(text)
+        let request = context.map { "Regarding Watermelon experience: \($0). \(text)" } ?? text
+        store.askAI(request)
     }
 }
 
@@ -126,20 +218,24 @@ struct ExploreView: View {
                     Text("Memorable experiences. A proposal made for you.").font(.headline)
                     Text("Discover handpicked experiences, or ask our AI to design a personalised day.")
                         .font(.subheadline)
-                    HStack(spacing: 12) {
-                        Button { store.tab = 0 } label: {
+                    HStack(spacing: 8) {
+                        Button { store.openAI() } label: {
                             Label("Plan with AI", systemImage: "sparkles")
+                                .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.white)
                         .foregroundStyle(Brand.green)
+                        .accessibilityIdentifier("explorePlanWithAI")
                         Button { store.tab = 2 } label: {
                             Label("My proposals", systemImage: "doc.text")
+                                .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
                         .tint(.white)
                     }
-                    .font(.subheadline.weight(.semibold))
+                    .font(.caption.weight(.semibold))
+                    .controlSize(.small)
                 }
                 .foregroundStyle(.white).padding(24).frame(maxWidth: .infinity, alignment: .leading)
                 .background(LinearGradient(colors: [Brand.navy, Brand.green], startPoint: .topLeading, endPoint: .bottomTrailing))
@@ -261,6 +357,7 @@ struct ExperienceDetail: View {
         .navigationTitle("Experience").navigationBarTitleDisplayMode(.inline)
         .toolbar { Button { store.toggleFavorite(product) } label: { Image(systemName: store.saved.favorites.contains(product.code) ? "heart.fill" : "heart") }.tint(Brand.red) }
         .sheet(isPresented: $request) { NavigationStack { RequestForm(products: [product], proposal: false) } }
+        .safeAreaInset(edge: .bottom) { AIQuickAskBar(context: product.displayTitle) }
     }
     @ViewBuilder private func facts(_ title: LocalizedStringKey, lines: [String]?) -> some View {
         if let lines, !lines.isEmpty {
@@ -286,6 +383,10 @@ struct AIConciergeView: View {
     @State private var recommendations: [AIRecommendation] = []
     @State private var ideas: [AITailorMadeIdea] = []
     @FocusState private var composerFocused: Bool
+    @StateObject private var voice = WatermelonVoiceInput()
+    @State private var dictatedPrefix = ""
+    @State private var handledComposerRequest = 0
+    @State private var handledVoiceRequest = 0
 
     private var canSend: Bool { !sending && !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
@@ -300,20 +401,30 @@ struct AIConciergeView: View {
                             .font(.title.bold())
                         Text("Explore unforgettable experiences in Portugal, or tell Watermelon AI what you imagine. We'll help shape a personal programme.")
                             .font(.subheadline)
-                        HStack(spacing: 12) {
+                        HStack(spacing: 8) {
                             Button { store.tab = 1 } label: {
-                                Label("Explore experiences", systemImage: "safari")
+                                Label("Explore", systemImage: "safari").frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.borderedProminent)
                             .tint(.white)
                             .foregroundStyle(Brand.green)
+                            .accessibilityIdentifier("homeExplore")
                             Button { store.tab = 2 } label: {
-                                Label("My proposals", systemImage: "doc.text")
+                                Label("Proposals", systemImage: "doc.text").frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
                             .tint(.white)
+                            .accessibilityIdentifier("homeProposals")
                         }
-                        .font(.subheadline.weight(.semibold))
+                        .font(.caption.weight(.semibold))
+                        .controlSize(.small)
+                        Button { toggleVoice() } label: {
+                            Label("Speak with Watermelon AI", systemImage: "mic.fill")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.white)
+                        .accessibilityIdentifier("homeSpeakAI")
                     }
                     .foregroundStyle(.white)
                     .padding(24)
@@ -408,6 +519,17 @@ struct AIConciergeView: View {
                         Text("Experiences suggested for you").font(.headline)
                         ForEach(recommendations) { suggestion in
                             VStack(alignment: .leading, spacing: 9) {
+                                if let product = store.experiences.first(where: { $0.code == suggestion.code }) {
+                                    ExperienceImage(url: product.imageURL)
+                                        .frame(height: 130).clipped()
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    NavigationLink {
+                                        ExperienceDetail(product: product)
+                                    } label: {
+                                        Label("View experience", systemImage: "arrow.up.right.square")
+                                    }
+                                    .font(.subheadline.weight(.semibold))
+                                }
                                 Text(suggestion.title).font(.headline)
                                 Text(suggestion.reason).font(.subheadline)
                                 if let product = store.experiences.first(where: { $0.code == suggestion.code }),
@@ -518,9 +640,10 @@ struct AIConciergeView: View {
                 }
             }
             .onChange(of: sending) { _, _ in
-                if let latest = messages.last {
-                    withAnimation { scroll.scrollTo(latest.id, anchor: .bottom) }
-                }
+                withAnimation { scroll.scrollTo("chatBottom", anchor: .bottom) }
+            }
+            .onChange(of: composerFocused) { _, focused in
+                if focused { withAnimation { scroll.scrollTo("chatBottom", anchor: .bottom) } }
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -532,7 +655,15 @@ struct AIConciergeView: View {
                     .accessibilityIdentifier("aiMessageInput")
                     .submitLabel(.send)
                     .onSubmit { if canSend { Task { await send() } } }
+                Button { toggleVoice() } label: {
+                    Image(systemName: voice.listening ? "stop.circle.fill" : "mic.circle.fill")
+                        .font(.title)
+                        .foregroundStyle(voice.listening ? Brand.red : Brand.green)
+                }
+                .accessibilityLabel(voice.listening ? "Stop recording" : "Speak with Watermelon AI")
+                .accessibilityIdentifier("aiMicrophone")
                 Button {
+                    voice.stop()
                     Task { await send() }
                 } label: {
                     Image(systemName: "arrow.up.circle.fill").font(.title)
@@ -543,6 +674,16 @@ struct AIConciergeView: View {
             }
             .padding(12)
             .background(.regularMaterial)
+            .overlay(alignment: .topLeading) {
+                if voice.listening {
+                    Label("Listening… tap stop when finished", systemImage: "waveform")
+                        .font(.caption)
+                        .foregroundStyle(Brand.red)
+                        .padding(.horizontal, 12)
+                        .offset(y: -22)
+                        .accessibilityIdentifier("aiVoiceListening")
+                }
+            }
         }
         .navigationTitle("Watermelon AI")
         .navigationBarTitleDisplayMode(.inline)
@@ -553,9 +694,44 @@ struct AIConciergeView: View {
                     .accessibilityIdentifier("dismissAIKeyboard")
             }
         }
-        .onAppear { consumePendingQuestion() }
+        .onAppear {
+            consumePendingQuestion()
+            handleAIRequests()
+        }
+        .onDisappear { voice.stop() }
         .onChange(of: store.pendingAIQuestion) { _, _ in consumePendingQuestion() }
+        .onChange(of: store.aiComposerRequest) { _, _ in handleAIRequests() }
+        .onChange(of: store.aiVoiceRequest) { _, _ in handleAIRequests() }
+        .onChange(of: voice.transcript) { _, value in input = dictatedPrefix + value }
         .onChange(of: sending) { _, busy in if !busy { consumePendingQuestion() } }
+        .safeAreaInset(edge: .top) {
+            if !voice.error.isEmpty {
+                Text(voice.error).font(.caption).foregroundStyle(Brand.red)
+                    .padding(8).frame(maxWidth: .infinity)
+                    .background(Color(.secondarySystemGroupedBackground))
+            }
+        }
+    }
+
+    private func handleAIRequests() {
+        if store.aiVoiceRequest > handledVoiceRequest {
+            handledVoiceRequest = store.aiVoiceRequest
+            if !voice.listening { toggleVoice() }
+        } else if store.aiComposerRequest > handledComposerRequest {
+            handledComposerRequest = store.aiComposerRequest
+            composerFocused = true
+        }
+    }
+
+    private func toggleVoice() {
+        if voice.listening {
+            voice.stop()
+        } else {
+            composerFocused = false
+            dictatedPrefix = input.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !dictatedPrefix.isEmpty { dictatedPrefix += " " }
+            Task { await voice.start(locale: locale) }
+        }
     }
 
     private func consumePendingQuestion() {
@@ -581,6 +757,7 @@ struct AIConciergeView: View {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !sending, !text.isEmpty else { return }
         composerFocused = false
+        voice.stop()
         let previous = messages
         input = ""
         errorText = ""

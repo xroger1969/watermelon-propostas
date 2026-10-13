@@ -15,5 +15,7 @@
     <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
     <key>UISupportedInterfaceOrientations~ipad</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationPortraitUpsideDown</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
     <key>NSCalendarsWriteOnlyAccessUsageDescription</key><string>Add a planned experience to your calendar only when you choose to save it.</string>
+    <key>NSMicrophoneUsageDescription</key><string>Speak to Watermelon AI to transcribe your travel requests. Audio may be processed by Apple speech services.</string>
+    <key>NSSpeechRecognitionUsageDescription</key><string>Turn your spoken travel requests into text so Watermelon AI can suggest experiences and plan a proposal. Audio may be processed by Apple speech services.</string>
     <key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>pt.watermelonexperiences.app</string><key>CFBundleURLSchemes</key><array><string>watermelonexperiences</string></array></dict></array>
 </dict></plist>

@@ -75,6 +75,24 @@ final class WatermelonUITests: XCTestCase {
     }
 
     @MainActor
+    func testVoiceAndCatalogueNavigationAreDiscoverableWithoutLiveMicrophone() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
+        app.launch()
+        XCTAssertTrue(app.buttons["homeExplore"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["homeProposals"].exists)
+        XCTAssertTrue(app.buttons["homeSpeakAI"].exists)
+        XCTAssertTrue(app.buttons["aiMicrophone"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["aiMessageInput"].exists)
+        app.buttons["homeExplore"].tap()
+        XCTAssertTrue(app.buttons["explorePlanWithAI"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["quickAIVoice"].exists)
+        app.buttons["explorePlanWithAI"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["aiMessageInput"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["aiMicrophone"].exists)
+    }
+
+    @MainActor
     func testNativeNavigationAndProposalSelectionWithoutRealCRMRequests() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]

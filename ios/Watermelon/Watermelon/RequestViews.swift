@@ -13,7 +13,7 @@ struct ProposalsView: View {
                     Label("Discover all experiences", systemImage: "safari")
                 }
                 .accessibilityIdentifier("discoverFromProposals")
-                Button { store.tab = 0 } label: {
+                Button { store.openAI() } label: {
                     Label("Plan with Watermelon AI", systemImage: "sparkles")
                 }
                 Button { importLink = true } label: { Label("Open a received proposal", systemImage: "link") }
