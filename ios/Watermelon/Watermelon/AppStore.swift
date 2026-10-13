@@ -19,6 +19,8 @@ final class TravelStore: ObservableObject {
     // A prompt from Explore or Proposals is delivered to the single AI tab,
     // rather than starting a second, disconnected chat.
     @Published var pendingAIQuestion: String?
+    @Published var aiComposerRequest = 0
+    @Published var aiVoiceRequest = 0
     @Published var openingLink: ProposalLink?
     var lastRefresh: Date?
     let api: APIClient
@@ -37,6 +39,12 @@ final class TravelStore: ObservableObject {
         if let data = try? Data(contentsOf: fileURL), let decoded = try? JSONDecoder().decode(Saved.self, from: data) {
             saved = decoded
         } else { saved = Saved(catalog: APIClient.bundledCatalog()) }
+    }
+
+    func openAI(voice: Bool = false) {
+        tab = 0
+        if voice { aiVoiceRequest += 1 }
+        else { aiComposerRequest += 1 }
     }
 
     func askAI(_ question: String) {
