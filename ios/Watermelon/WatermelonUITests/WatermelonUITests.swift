@@ -17,10 +17,9 @@ final class WatermelonUITests: XCTestCase {
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
         XCTAssertTrue(app.navigationBars["Watermelon AI"].waitForExistence(timeout: 15))
-        let text = app.textFields["aiMessageInput"]
-        XCTAssertTrue(text.waitForExistence(timeout: 5))
-        text.tap()
-        text.typeText("I want a Lisbon trip")
+        let suggestion = app.buttons["Plan a three-day trip to Lisbon for four people."]
+        XCTAssertTrue(suggestion.waitForExistence(timeout: 5))
+        suggestion.tap()
         app.buttons["aiSendMessage"].tap()
         XCTAssertTrue(app.staticTexts["I can help you plan a trip in Portugal."].waitForExistence(timeout: 10))
     }
