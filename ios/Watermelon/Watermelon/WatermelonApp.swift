@@ -56,6 +56,55 @@ struct RootView: View {
     }
 }
 
+// Compact composer shared by catalogue and proposal screens. A single AI conversation
+// handles all requests, keeping commercial handoff exclusively on the server.
+struct AIQuickAskBar: View {
+    @EnvironmentObject private var store: TravelStore
+    @State private var question = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sparkles")
+                .foregroundStyle(Brand.green)
+                .accessibilityHidden(true)
+            TextField("Ask Watermelon AI anything…", text: $question)
+                .submitLabel(.send)
+                .focused($isFocused)
+                .accessibilityIdentifier("quickAIInput")
+                .onSubmit { ask() }
+            Button {
+                if question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    isFocused = false
+                    store.tab = 0
+                } else {
+                    ask()
+                }
+            } label: {
+                Image(systemName: question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                      ? "arrow.up.right.circle.fill" : "arrow.up.circle.fill")
+                    .font(.title2)
+            }
+            .accessibilityLabel("Open Watermelon AI")
+            .accessibilityIdentifier("quickAISend")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Brand.green.opacity(0.15)))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+
+    private func ask() {
+        let text = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        isFocused = false
+        question = ""
+        store.askAI(text)
+    }
+}
+
 struct ExploreView: View {
     @EnvironmentObject private var store: TravelStore
     @State private var search = ""
@@ -75,7 +124,22 @@ struct ExploreView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Portugal, your way.").font(.largeTitle.bold())
                     Text("Memorable experiences. A proposal made for you.").font(.headline)
-                    Label("Watermelon Experiences", systemImage: "location.fill").font(.subheadline)
+                    Text("Discover handpicked experiences, or ask our AI to design a personalised day.")
+                        .font(.subheadline)
+                    HStack(spacing: 12) {
+                        Button { store.tab = 0 } label: {
+                            Label("Plan with AI", systemImage: "sparkles")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.white)
+                        .foregroundStyle(Brand.green)
+                        Button { store.tab = 2 } label: {
+                            Label("My proposals", systemImage: "doc.text")
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.white)
+                    }
+                    .font(.subheadline.weight(.semibold))
                 }
                 .foregroundStyle(.white).padding(24).frame(maxWidth: .infinity, alignment: .leading)
                 .background(LinearGradient(colors: [Brand.navy, Brand.green], startPoint: .topLeading, endPoint: .bottomTrailing))
@@ -117,6 +181,7 @@ struct ExploreView: View {
             }.tint(favoritesOnly ? Brand.red : Brand.green).accessibilityIdentifier("favoritesFilter")
         }
         .refreshable { await store.refresh() }
+        .safeAreaInset(edge: .bottom) { AIQuickAskBar() }
     }
 }
 
@@ -220,6 +285,7 @@ struct AIConciergeView: View {
     @State private var errorText = ""
     @State private var recommendations: [AIRecommendation] = []
     @State private var ideas: [AITailorMadeIdea] = []
+    @FocusState private var composerFocused: Bool
 
     private var canSend: Bool { !sending && !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
@@ -228,10 +294,26 @@ struct AIConciergeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     VStack(alignment: .leading, spacing: 12) {
-                        Image(systemName: "sparkles").font(.largeTitle)
-                        Text("Your personal travel concierge").font(.largeTitle.bold())
-                        Text("Describe your trip. Watermelon AI will suggest real experiences or a tailor-made concept, and help you request a proposal.")
+                        Label("WATERMELON EXPERIENCES", systemImage: "sparkles")
+                            .font(.caption.bold()).tracking(1.3)
+                        Text("Discover more. Travel your way.")
+                            .font(.title.bold())
+                        Text("Explore unforgettable experiences in Portugal, or tell Watermelon AI what you imagine. We'll help shape a personal programme.")
                             .font(.subheadline)
+                        HStack(spacing: 12) {
+                            Button { store.tab = 1 } label: {
+                                Label("Explore experiences", systemImage: "safari")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.white)
+                            .foregroundStyle(Brand.green)
+                            Button { store.tab = 2 } label: {
+                                Label("My proposals", systemImage: "doc.text")
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.white)
+                        }
+                        .font(.subheadline.weight(.semibold))
                     }
                     .foregroundStyle(.white)
                     .padding(24)
@@ -240,11 +322,20 @@ struct AIConciergeView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 24))
 
                     if messages.isEmpty {
-                        Text("Try asking…").font(.headline)
+                        Text("Tell us what you'd love to experience").font(.headline)
+                        Text("Find something from our catalogue, or create something entirely your own.")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                        Text("Try asking…").font(.subheadline.weight(.semibold))
                         Button {
                             input = String(localized: "Plan a three-day trip to Lisbon for four people.", locale: locale)
                         } label: {
                             Label("Plan a three-day trip to Lisbon for four people.", systemImage: "bubble.left.and.text.bubble.right")
+                        }.buttonStyle(.bordered)
+                        Button {
+                            input = String(localized: "I'd love to go horse riding by the sea. What can you suggest?", locale: locale)
+                            composerFocused = true
+                        } label: {
+                            Label("Horse riding by the sea", systemImage: "figure.equestrian.sports")
                         }.buttonStyle(.bordered)
                         Button {
                             store.tab = 1
@@ -310,6 +401,20 @@ struct AIConciergeView: View {
                         }
                     }
 
+                    if !recommendations.isEmpty {
+                        Button {
+                            input = String(localized: "I'd like a tailor-made experience inspired by your suggestions. What could Watermelon design for me?", locale: locale)
+                            composerFocused = false
+                            Task { await send() }
+                        } label: {
+                            Label("Prefer a tailor-made experience?", systemImage: "sparkles.rectangle.stack")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(sending)
+                        .accessibilityIdentifier("requestTailorMade")
+                    }
+
                     if !ideas.isEmpty {
                         Text("Tailor-made ideas").font(.headline)
                         ForEach(ideas) { idea in
@@ -324,6 +429,20 @@ struct AIConciergeView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
                         }
+                    }
+
+                    if !ideas.isEmpty && crmReference.isEmpty {
+                        Button {
+                            input = String(localized: "I'd like to request a proposal for one of these tailor-made ideas. Please ask me for the details needed to send my request.", locale: locale)
+                            composerFocused = false
+                            Task { await send() }
+                        } label: {
+                            Label("Request a tailor-made proposal", systemImage: "paperplane")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(sending)
+                        .accessibilityIdentifier("aiTailorProposal")
                     }
 
                     if !crmReference.isEmpty {
@@ -355,11 +474,16 @@ struct AIConciergeView: View {
                 .padding(16)
                 .frame(maxWidth: 800).frame(maxWidth: .infinity)
             }
+            .scrollDismissesKeyboard(.interactively)
             .onChange(of: messages.count) { _, _ in
-                withAnimation { scroll.scrollTo("chatBottom", anchor: .bottom) }
+                if let latest = messages.last {
+                    withAnimation { scroll.scrollTo(latest.id, anchor: .bottom) }
+                }
             }
             .onChange(of: sending) { _, _ in
-                withAnimation { scroll.scrollTo("chatBottom", anchor: .bottom) }
+                if let latest = messages.last {
+                    withAnimation { scroll.scrollTo(latest.id, anchor: .bottom) }
+                }
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -367,6 +491,7 @@ struct AIConciergeView: View {
                 TextField("Tell Watermelon AI about your trip…", text: $input, axis: .vertical)
                     .lineLimit(1...4)
                     .textFieldStyle(.roundedBorder)
+                    .focused($composerFocused)
                     .accessibilityIdentifier("aiMessageInput")
                     .submitLabel(.send)
                     .onSubmit { if canSend { Task { await send() } } }
@@ -384,6 +509,24 @@ struct AIConciergeView: View {
         }
         .navigationTitle("Watermelon AI")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { composerFocused = false }
+                    .accessibilityIdentifier("dismissAIKeyboard")
+            }
+        }
+        .onAppear { consumePendingQuestion() }
+        .onChange(of: store.pendingAIQuestion) { _, _ in consumePendingQuestion() }
+        .onChange(of: sending) { _, busy in if !busy { consumePendingQuestion() } }
+    }
+
+    private func consumePendingQuestion() {
+        guard !sending, let question = store.pendingAIQuestion else { return }
+        store.pendingAIQuestion = nil
+        composerFocused = false
+        input = question
+        Task { await send() }
     }
 
     private func newConversation() {
@@ -400,6 +543,7 @@ struct AIConciergeView: View {
     private func send() async {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !sending, !text.isEmpty else { return }
+        composerFocused = false
         let previous = messages
         input = ""
         errorText = ""
