@@ -1381,6 +1381,79 @@ export default function AdminCRM() {
     }
   }
 
+
+  async function confirmProposalPayment(request: CRMRequest) {
+    if (!supabase || request.status !== "awaiting_payment" || request.kind === "direct_booking") return;
+    const proposal = request.proposals[0];
+    if (!proposal || proposal.status !== "accepted" || proposal.payment_status !== "awaiting") {
+      setMessage("Não existe um pagamento de proposta pendente.");
+      return;
+    }
+    const input = window.prompt("Método recebido: paypal, revolut ou bank_transfer", proposal.payment_method || "");
+    if (input === null) return;
+    const method = input.trim().toLowerCase().replace(/[ -]+/g, "_");
+    if (!["paypal", "revolut", "bank_transfer"].includes(method)) {
+      setMessage("Indica paypal, revolut ou bank_transfer.");
+      return;
+    }
+    const reference = window.prompt("Referência do pagamento (opcional)", proposal.payment_reference || "");
+    if (reference === null || !window.confirm("Confirmas que o pagamento foi efetivamente recebido?")) return;
+    setEditing(request.id);
+    setMessage("");
+    const { error } = await supabase.rpc("watermelon_mark_proposal_paid", {
+      p_proposal_id: proposal.id, p_method: method, p_reference: reference.trim() || null,
+    });
+    if (error) setMessage(error.message);
+    else {
+      await loadCRM();
+      setMessage("Pagamento confirmado. Próxima ação: agendar o serviço.");
+    }
+    setEditing(null);
+  }
+
+  async function registerServiceSchedule(request: CRMRequest) {
+    if (!supabase || request.status !== "confirmed" || paymentStatusForRequest(request) !== "paid" ||
+        request.activities.some((a) => a.activity_type === "service_scheduled")) return;
+    const value = window.prompt("Data confirmada do serviço (AAAA-MM-DD)",
+      request.proposals[0]?.items[0]?.proposed_date || request.items[0]?.requested_date || "");
+    if (value === null) return;
+    const date = value.trim();
+    const parsed = new Date(date + "T00:00:00Z");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(parsed.getTime()) ||
+        parsed.toISOString().slice(0, 10) !== date) {
+      setMessage("Data inválida. Usa AAAA-MM-DD.");
+      return;
+    }
+    const time = window.prompt("Hora acordada (opcional)", request.items[0]?.preferred_time || "");
+    if (time === null || !window.confirm("Confirmas que o serviço está agendado em " + date +
+      (time.trim() ? " às " + time.trim() : "") + "?")) return;
+    setEditing(request.id);
+    setMessage("");
+    const { error } = await supabase.from("watermelon_activities").insert({
+      request_id: request.id, contact_id: request.contact?.id || null,
+      activity_type: "service_scheduled",
+      summary: "Serviço agendado para " + date + (time.trim() ? " · " + time.trim() : ""),
+      metadata: { service_date: date, service_time: time.trim() },
+      actor_email: actorEmail || null,
+    });
+    if (error) setMessage("Erro ao registar agendamento: " + error.message);
+    else {
+      await loadCRM();
+      setMessage("Agendamento registado. Já podes iniciar ou concluir o serviço.");
+    }
+    setEditing(null);
+  }
+
+  function focusConversation(request: CRMRequest) {
+    if (!request.contact?.phone && !request.contact?.email) {
+      setMessage("Este cliente não tem contacto disponível.");
+      return;
+    }
+    document.getElementById("crm-contact-" + request.id)?.scrollIntoView({
+      behavior: "smooth", block: "start",
+    });
+  }
+
   async function changeStatus(request: CRMRequest, status: CRMStatus) {
     if (!supabase || request.status === status) return;
 
@@ -2629,6 +2702,22 @@ export default function AdminCRM() {
           const aiIntent = extractAiNote(request.customer_notes, ["Intent"]);
           const aiRequestedPlan = cleanAiSpecialRequest(first?.special_request);
           const latestProposal = request.proposals[0] || null;
+          const paid = paymentStatusForRequest(request) === "paid";
+          const scheduled = request.activities.some((a) => a.activity_type === "service_scheduled");
+          const closed = ["declined", "cancelled", "completed", "no_show"].includes(request.status);
+          const step = request.status === "completed" ? 4
+            : request.status === "in_service" || (request.status === "confirmed" && scheduled) ? 3
+            : ["awaiting_payment", "confirmed"].includes(request.status) ? 2
+            : ["proposal_sent", "accepted"].includes(request.status) ? 1 : 0;
+          const nextAction = closed ? "Processo encerrado"
+            : request.status === "new" ? "Analisar pedido"
+            : request.status === "accepted" ? "Pedir informações ou enviar pagamento"
+            : request.status === "awaiting_payment" ? "Aguardar pagamento ou confirmar receção"
+            : request.status === "confirmed" && paid && !scheduled ? "Agendar o serviço"
+            : request.status === "confirmed" && scheduled ? "Serviço agendado"
+            : request.status === "in_service" ? "Concluir o serviço"
+            : request.status === "proposal_sent" ? "Aguardar resposta ou rever proposta"
+            : "Rever pedido e preparar a proposta";
           const canAcceptProposalRequest =
             request.kind === "personalized_proposal" &&
             ["new", "in_review", "awaiting_customer", "proposal_drafting", "proposal_sent", "customer_replied"].includes(
@@ -2637,8 +2726,9 @@ export default function AdminCRM() {
           const canPrepareProposalPayment =
             request.kind === "personalized_proposal" &&
             Boolean(latestProposal) &&
-            latestProposal?.payment_status !== "paid" &&
-            !["confirmed", "declined", "cancelled"].includes(request.status);
+            latestProposal?.status === "accepted" &&
+            latestProposal?.payment_status === "not_requested" &&
+            request.status === "accepted";
 
           return (
             <article className="crm-request-card" key={request.id}>
@@ -2657,10 +2747,210 @@ export default function AdminCRM() {
                   </p>
                 </div>
                 <span className={"crm-status crm-status-" + request.status}>
-                  {STATUS_LABELS[request.status]}
+                  {request.status === "confirmed" && paid
+                    ? scheduled ? "Agendado" : "Pagamento recebido · a agendar"
+                    : STATUS_LABELS[request.status]}
                 </span>
               </header>
+              <section className="crm-flow-summary" aria-label="Próximos passos">
+                <ol className="crm-flow-steps">
+                  {["Pedido", "Proposta", "Pagamento", "Agendamento", "Concluído"].map((label, i) => (
+                    <li key={label} className={i < step ? "done" : i === step ? "current" : ""}>{label}</li>
+                  ))}
+                </ol>
+                <p><strong>Próxima ação:</strong> {nextAction}</p>
+                <div className="crm-flow-buttons">
+                  {request.status === "new" && (
+                    <button className="button button-primary" type="button" disabled={busy}
+                      onClick={() => void changeStatus(request, "in_review")}>Analisar pedido</button>
+                  )}
+                  {request.kind === "direct_booking" &&
+                    ["new", "in_review", "awaiting_customer", "customer_replied"].includes(request.status) && (
+                    <button className="button button-primary" type="button" disabled={busy}
+                      onClick={() => void acceptDirectBooking(request)}>Aceitar pedido</button>
+                  )}
+                  {canAcceptProposalRequest && (
+                    <button className="button button-primary" type="button" disabled={busy}
+                      onClick={() => void acceptProposalRequest(request, false)}>Aceitar pedido</button>
+                  )}
+                  {!closed && (request.contact?.phone || request.contact?.email) && (
+                    <button className="button button-outline" type="button" disabled={busy}
+                      onClick={() => focusConversation(request)}>Pedir informações</button>
+                  )}
+                  {request.kind === "personalized_proposal" && request.status === "accepted" &&
+                    latestProposal?.status === "accepted" && latestProposal.payment_status === "not_requested" && (
+                    <button className="button button-primary" type="button" disabled={busy}
+                      onClick={() => void acceptProposalRequest(request, true)}>Enviar pedido de pagamento</button>
+                  )}
+                  {request.kind === "direct_booking" && request.status === "accepted" && (
+                    <button className="button button-primary" type="button" disabled={busy}
+                      onClick={() => void prepareDirectBookingPayment(request)}>Enviar pedido de pagamento</button>
+                  )}
+                  {request.kind === "personalized_proposal" && request.status === "awaiting_payment" &&
+                    latestProposal?.status === "accepted" && latestProposal.payment_status === "awaiting" && (
+                    <button className="button button-primary" type="button" disabled={busy}
+                      onClick={() => void confirmProposalPayment(request)}>Confirmar pagamento recebido</button>
+                  )}
+                  {request.kind === "direct_booking" && request.status === "awaiting_payment" && (
+                    <button className="button button-primary" type="button" disabled={busy}
+                      onClick={() => void markDirectBookingPaid(request)}>Confirmar pagamento recebido</button>
+                  )}
+                  {request.status === "confirmed" && paid && !scheduled && (
+                    <button className="button button-primary" type="button" disabled={busy}
+                      onClick={() => void registerServiceSchedule(request)}>Agendar serviço</button>
+                  )}
+                  {request.status === "confirmed" && paid && scheduled && (
+                    <button className="button button-primary" type="button" disabled={busy}
+                      onClick={() => void setOperationalStatus(request, "in_service")}>Iniciar serviço</button>
+                  )}
+                  {request.status === "in_service" && (
+                    <button className="button button-primary" type="button" disabled={busy}
+                      onClick={() => void setOperationalStatus(request, "completed")}>Concluir serviço</button>
+                  )}
+                  {["accepted", "awaiting_payment", "confirmed", "in_service"].includes(request.status) ? (
+                    <button className="button button-ghost" type="button" disabled={busy}
+                      onClick={() => void cancelBooking(request)}>Cancelar</button>
+                  ) : !closed && request.kind === "direct_booking" ? (
+                    <button className="button button-ghost" type="button" disabled={busy}
+                      onClick={() => void declineDirectBooking(request)}>Recusar</button>
+                  ) : !closed ? (
+                    <button className="button button-ghost" type="button" disabled={busy}
+                      onClick={() => void changeStatus(request, "declined")}>Recusar</button>
+                  ) : null}
+                </div>
+              </section>
 
+              <details className="crm-extra-actions"><summary>Outras ações do pedido</summary>
+              <footer className="crm-request-actions crm-flow-actions">
+                {request.status === "new" && (
+                  <button
+                    className="button button-outline"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void changeStatus(request, "in_review")}
+                  >
+                    Start review
+                  </button>
+                )}
+
+                {request.kind === "direct_booking" &&
+                  ["new", "in_review", "awaiting_customer", "customer_replied"].includes(request.status) && (
+                    <button
+                      className="button button-primary"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void acceptDirectBooking(request)}
+                    >
+                      Accept booking request
+                    </button>
+                  )}
+
+                {request.kind === "direct_booking" && request.status === "accepted" && (
+                  <button
+                    className="button button-primary"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void prepareDirectBookingPayment(request)}
+                  >
+                    Send payment options
+                  </button>
+                )}
+
+                {request.kind === "direct_booking" && request.status === "awaiting_payment" && (
+                  <button
+                    className="button button-primary"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void markDirectBookingPaid(request)}
+                  >
+                    Mark payment received
+                  </button>
+                )}
+
+                {canAcceptProposalRequest && (
+                  <button
+                    className="button button-primary"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void acceptProposalRequest(request, false)}
+                  >
+                    Accept request
+                  </button>
+                )}
+
+                {canAcceptProposalRequest && latestProposal && (
+                  <button
+                    className="button button-outline"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void acceptProposalRequest(request, true)}
+                  >
+                    Accept + payment link
+                  </button>
+                )}
+
+                {!canAcceptProposalRequest &&
+                  canPrepareProposalPayment && (
+                    <button
+                      className="button button-primary"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void acceptProposalRequest(request, true)}
+                    >
+                      Send payment link
+                    </button>
+                  )}
+
+                {request.kind === "personalized_proposal" &&
+                  request.status === "awaiting_payment" &&
+                  latestProposal?.payment_token && (
+                    <button
+                      className="button button-outline"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void resendPaymentLink(request)}
+                    >
+                      Resend payment link
+                    </button>
+                  )}
+
+                {request.kind !== "direct_booking" &&
+                  !["accepted", "awaiting_payment", "confirmed", "in_service", "completed", "no_show", "declined", "cancelled"].includes(request.status) && (
+                    <button
+                      className="button button-ghost"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void changeStatus(request, "declined")}
+                    >
+                      Decline
+                    </button>
+                  )}
+
+                {request.kind === "direct_booking" &&
+                  ["new", "in_review", "awaiting_customer", "customer_replied"].includes(request.status) && (
+                    <button
+                      className="button button-ghost"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void declineDirectBooking(request)}
+                    >
+                      Decline
+                    </button>
+                  )}
+
+                <details className="crm-danger-zone crm-danger-zone-request">
+                  <summary>Other actions</summary>
+                  <button
+                    className="button crm-danger-button"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void deleteRequestPermanently(request)}
+                  >
+                    Delete permanently
+                  </button>
+                </details>
+              </footer>
+              </details>
               <div className="crm-request-body">
                 <section className="crm-customer-panel">
                   <div><span>Phone / WhatsApp</span><strong>{request.contact?.phone || "—"}</strong></div>
@@ -2792,8 +3082,8 @@ export default function AdminCRM() {
                   )}
 
                 {["accepted", "awaiting_payment", "confirmed", "in_service", "completed", "no_show", "cancelled"].includes(request.status) && (
-                  <section className="crm-review-note">
-                    <strong>Booking operations</strong>
+                  <details className="crm-review-note crm-operation-details">
+                    <summary>Operações internas · notas, referências e ações adicionais</summary>
                     <span>
                       {request.external_booking_reference
                         ? (request.external_booking_channel || "External") + " · " + request.external_booking_reference
@@ -2820,7 +3110,7 @@ export default function AdminCRM() {
                         {request.external_booking_reference ? "Edit external reference" : "Add external reference"}
                       </button>
 
-                      {request.status === "confirmed" && (
+                      {request.status === "confirmed" && scheduled && (
                         <>
                           {request.contact?.phone && (
                             <>
@@ -2931,9 +3221,10 @@ export default function AdminCRM() {
                       paymentStatusForRequest(request) === "refunded" && (
                         <small>Refund recorded.</small>
                       )}
-                  </section>
+                  </details>
                 )}
 
+                <div id={"crm-contact-" + request.id}>
                 {request.contact?.phone && (
                   <WhatsAppConversation
                     request={request}
@@ -2948,6 +3239,7 @@ export default function AdminCRM() {
                   />
                 )}
 
+                </div>
                 {request.activities.length > 0 && (
                   <details className="crm-activity">
                     <summary>Activity · {request.activities.length}</summary>
@@ -2963,136 +3255,7 @@ export default function AdminCRM() {
                 )}
               </div>
 
-              <footer className="crm-request-actions">
-                {request.status === "new" && (
-                  <button
-                    className="button button-outline"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void changeStatus(request, "in_review")}
-                  >
-                    Start review
-                  </button>
-                )}
-
-                {request.kind === "direct_booking" &&
-                  ["new", "in_review", "awaiting_customer", "customer_replied"].includes(request.status) && (
-                    <button
-                      className="button button-primary"
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void acceptDirectBooking(request)}
-                    >
-                      Accept booking request
-                    </button>
-                  )}
-
-                {request.kind === "direct_booking" && request.status === "accepted" && (
-                  <button
-                    className="button button-primary"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void prepareDirectBookingPayment(request)}
-                  >
-                    Send payment options
-                  </button>
-                )}
-
-                {request.kind === "direct_booking" && request.status === "awaiting_payment" && (
-                  <button
-                    className="button button-primary"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void markDirectBookingPaid(request)}
-                  >
-                    Mark payment received
-                  </button>
-                )}
-
-                {canAcceptProposalRequest && (
-                  <button
-                    className="button button-primary"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void acceptProposalRequest(request, false)}
-                  >
-                    Accept request
-                  </button>
-                )}
-
-                {canAcceptProposalRequest && latestProposal && (
-                  <button
-                    className="button button-outline"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void acceptProposalRequest(request, true)}
-                  >
-                    Accept + payment link
-                  </button>
-                )}
-
-                {!canAcceptProposalRequest &&
-                  canPrepareProposalPayment &&
-                  request.status !== "awaiting_payment" && (
-                    <button
-                      className="button button-primary"
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void acceptProposalRequest(request, true)}
-                    >
-                      Send payment link
-                    </button>
-                  )}
-
-                {request.kind === "personalized_proposal" &&
-                  request.status === "awaiting_payment" &&
-                  latestProposal?.payment_token && (
-                    <button
-                      className="button button-outline"
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void resendPaymentLink(request)}
-                    >
-                      Resend payment link
-                    </button>
-                  )}
-
-                {request.kind !== "direct_booking" &&
-                  !["confirmed", "in_service", "completed", "no_show", "declined", "cancelled"].includes(request.status) && (
-                    <button
-                      className="button button-ghost"
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void changeStatus(request, "declined")}
-                    >
-                      Decline
-                    </button>
-                  )}
-
-                {request.kind === "direct_booking" &&
-                  ["new", "in_review", "awaiting_customer", "customer_replied"].includes(request.status) && (
-                    <button
-                      className="button button-ghost"
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void declineDirectBooking(request)}
-                    >
-                      Decline
-                    </button>
-                  )}
-
-                <details className="crm-danger-zone crm-danger-zone-request">
-                  <summary>Other actions</summary>
-                  <button
-                    className="button crm-danger-button"
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void deleteRequestPermanently(request)}
-                  >
-                    Delete permanently
-                  </button>
-                </details>
-              </footer>
+              
             </article>
           );
         })}
