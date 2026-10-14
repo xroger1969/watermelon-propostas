@@ -2760,8 +2760,20 @@ export default function AdminCRM() {
                 </ol>
                 <p><strong>Próxima ação:</strong> {nextAction}</p>
                 <div className="crm-flow-buttons">
-                  {!closed && ["new", "in_review", "awaiting_customer", "proposal_sent", "customer_replied", "accepted"].includes(request.status) &&
-                    (request.contact?.phone || request.contact?.email) && (
+                  {request.status === "new" && (
+                    <button className="button button-primary" type="button" disabled={busy}
+                      onClick={() => void changeStatus(request, "in_review")}>Analisar pedido</button>
+                  )}
+                  {request.kind === "direct_booking" &&
+                    ["new", "in_review", "awaiting_customer", "customer_replied"].includes(request.status) && (
+                    <button className="button button-primary" type="button" disabled={busy}
+                      onClick={() => void acceptDirectBooking(request)}>Aceitar pedido</button>
+                  )}
+                  {canAcceptProposalRequest && (
+                    <button className="button button-primary" type="button" disabled={busy}
+                      onClick={() => void acceptProposalRequest(request, false)}>Aceitar pedido</button>
+                  )}
+                  {!closed && (request.contact?.phone || request.contact?.email) && (
                     <button className="button button-outline" type="button" disabled={busy}
                       onClick={() => focusConversation(request)}>Pedir informações</button>
                   )}
@@ -2795,10 +2807,16 @@ export default function AdminCRM() {
                     <button className="button button-primary" type="button" disabled={busy}
                       onClick={() => void setOperationalStatus(request, "completed")}>Concluir serviço</button>
                   )}
-                  {["accepted", "awaiting_payment"].includes(request.status) && (
+                  {["accepted", "awaiting_payment", "confirmed", "in_service"].includes(request.status) ? (
                     <button className="button button-ghost" type="button" disabled={busy}
                       onClick={() => void cancelBooking(request)}>Cancelar</button>
-                  )}
+                  ) : !closed && request.kind === "direct_booking" ? (
+                    <button className="button button-ghost" type="button" disabled={busy}
+                      onClick={() => void declineDirectBooking(request)}>Recusar</button>
+                  ) : !closed ? (
+                    <button className="button button-ghost" type="button" disabled={busy}
+                      onClick={() => void changeStatus(request, "declined")}>Recusar</button>
+                  ) : null}
                 </div>
               </section>
 
