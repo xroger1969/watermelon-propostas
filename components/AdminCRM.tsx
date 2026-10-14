@@ -3060,7 +3060,7 @@ export default function AdminCRM() {
                       <span>
                         You can ask the customer questions and continue by WhatsApp or email as long as needed. Nothing is accepted and no payment is requested until you choose <b>Accept booking request</b>.
                       </span>
-                    </details>
+                    </section>
                   )}
 
                 {["accepted", "awaiting_payment", "confirmed", "in_service", "completed", "no_show", "cancelled"].includes(request.status) && (
@@ -3203,7 +3203,7 @@ export default function AdminCRM() {
                       paymentStatusForRequest(request) === "refunded" && (
                         <small>Refund recorded.</small>
                       )}
-                  </section>
+                  </details>
                 )}
 
                 <div id={"crm-contact-" + request.id}>
