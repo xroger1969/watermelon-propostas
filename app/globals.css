@@ -2241,6 +2241,43 @@ button { cursor: pointer; }
   color: var(--green);
   font-size: 18px;
 }
+.crm-results-heading > .admin-topbar-actions {
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.crm-results-heading .admin-topbar-actions > strong {
+  display: grid;
+  place-items: center;
+  min-width: 38px;
+  min-height: 38px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--mint);
+  color: var(--green);
+  font-size: 18px;
+}
+.crm-bulk-delete-button {
+  font-size: 12px;
+  min-height: 40px;
+  padding: 9px 12px;
+}
+@media (max-width: 720px) {
+  .crm-results-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .crm-results-heading > .admin-topbar-actions {
+    display: flex;
+    width: auto;
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
+  .crm-results-heading .admin-topbar-actions .crm-bulk-delete-button {
+    width: auto;
+    min-height: 40px;
+  }
+}
 .crm-contact-list {
   display: grid;
   gap: 14px;

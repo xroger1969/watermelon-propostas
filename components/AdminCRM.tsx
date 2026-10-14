@@ -348,6 +348,7 @@ export default function AdminCRM() {
   const [workspaceView, setWorkspaceView] = useState<"operations" | "marketing">("operations");
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [pushSupported, setPushSupported] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -917,6 +918,83 @@ export default function AdminCRM() {
     setMessage("Request " + request.reference + " was permanently deleted.");
     await loadCRM();
     setEditing(null);
+  }
+
+
+  // Delete only the records currently displayed, never invisible search matches.
+  // The owner-only database function checks the same IDs/status atomically.
+  async function deleteAllShown() {
+    if (!supabase || bulkDeleting || loading || editing) return;
+    const isContacts = filter === "contacts";
+    const selectedIds = (isContacts ? filteredContacts : filtered).map((item) => item.id);
+    const count = selectedIds.length;
+    if (!count) return;
+    if (count > 500) {
+      setMessage("For safety, bulk deletion is limited to 500 records at a time. Narrow the search.");
+      return;
+    }
+
+    const section = viewTitle;
+    const confirmed = window.confirm(
+      "Permanently delete ALL " + count + " currently shown " +
+      (isContacts ? "contacts" : "requests") + " in " + section + "?\n\n" +
+      (query.trim() ? "Your search filter is active: only matching records will be deleted.\n\n" : "") +
+      (isContacts
+        ? "Contacts with linked requests cannot be deleted until their requests are removed. Standalone messages and activity are also erased."
+        : "Messages, proposals, activity and linked booking records will also be erased.") +
+      "\n\nThis cannot be undone."
+    );
+    if (!confirmed) return;
+
+    const activeRequests = !isContacts && filtered.some((item) =>
+      !["declined", "cancelled", "completed", "no_show"].includes(item.status));
+    if (activeRequests && !window.confirm(
+      "WARNING: Some of these requests are active or upcoming. Do you still want to permanently delete them?"
+    )) return;
+
+    const includesPaid = !isContacts && filtered.some((item) =>
+      ["paid", "refunded"].includes(item.booking?.payment_status || "") ||
+      item.proposals.some((proposal) => ["paid", "refunded"].includes(proposal.payment_status))
+    );
+    if (includesPaid && !window.confirm(
+      "FINANCIAL RECORDS: The selected requests include paid or refunded bookings or proposals. " +
+      "Check accounting and statutory retention obligations before deletion. Continue?"
+    )) return;
+
+    const confirmation = "DELETE " + count;
+    if (window.prompt('Type "' + confirmation + '" to confirm permanent deletion:', "") !== confirmation) {
+      setMessage("Bulk deletion cancelled.");
+      return;
+    }
+
+    setBulkDeleting(true);
+    setMessage("");
+    try {
+      const { data, error } = isContacts
+        ? await supabase.rpc("watermelon_bulk_delete_contacts", {
+            p_contact_ids: selectedIds, p_confirm_count: count,
+          })
+        : await supabase.rpc("watermelon_bulk_delete_requests", {
+            p_request_ids: selectedIds,
+            p_expected_status: filter === "all" || filter === "in_progress" ||
+              filter === "today" || filter === "upcoming" ? null : filter,
+            p_confirm_count: count,
+            p_allow_paid: includesPaid,
+          });
+      if (error) throw error;
+      if (!data || data.ok !== true || data.deleted !== count) {
+        throw new Error("The server could not confirm the full deletion.");
+      }
+      // A new realtime snapshot can otherwise race with the deletion refresh.
+      await loadCRM();
+      setMessage(count + (isContacts ? " contacts" : " requests") +
+        " permanently deleted from " + section + ".");
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : "Bulk deletion failed. No records were deleted.");
+      await loadCRM();
+    } finally {
+      setBulkDeleting(false);
+    }
   }
 
   async function deleteContactPermanently(
@@ -2412,6 +2490,18 @@ export default function AdminCRM() {
             </button>
           )}
           <strong>{filter === "contacts" ? filteredContacts.length : filtered.length}</strong>
+          {(filter === "contacts" ? filteredContacts.length : filtered.length) > 0 && (
+            <button
+              className="button crm-danger-button crm-bulk-delete-button"
+              type="button"
+              disabled={loading || bulkDeleting || editing !== null}
+              onClick={() => void deleteAllShown()}
+              title="Permanently delete every currently displayed record in this section"
+            >
+              {bulkDeleting ? "Deleting…" : "Delete all shown (" +
+                (filter === "contacts" ? filteredContacts.length : filtered.length) + ")"}
+            </button>
+          )}
         </div>
       </div>
 

@@ -240,6 +240,14 @@ export default function CRMMarketingPerformance() {
               ? "Automatic imports have not started. Authorize the report script in Google Ads to activate them. "
               : reportState.stale ? "The scheduled import has stopped or is delayed. Check the script in Google Ads. " : ""}
             Reload report reads the saved data.
+            {summary.reportStatus?.lastReceivedAt
+              ? " Last successful import: " + syncLabel(summary.reportStatus.lastReceivedAt) + " (Lisbon)."
+              : ""}
+          </span>
+          <span>
+            The hourly schedule is configured separately in Google Ads → Tools → Bulk actions → Scripts.
+            Check the script's execution history, authorization and frequency. Editing code on this website
+            does not update the script stored in Google Ads.
           </span>
         </div>
       )}
