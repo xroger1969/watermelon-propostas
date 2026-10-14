@@ -22,6 +22,8 @@ begin
   limit 1;
 
   v_status := case
+    -- Preserve the service state when payment fields are already marked paid.
+    when new.status in ('in_service', 'completed', 'no_show') then new.status
     when new.status = 'confirmed' then 'confirmed'
     when new.status = 'declined' then 'declined'
     when new.status = 'cancelled' then 'cancelled'
