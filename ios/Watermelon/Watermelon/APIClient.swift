@@ -176,6 +176,40 @@ struct APIClient {
                                  body: JSONSerialization.data(withJSONObject: payload))
     }
 
+    // The deliberate human handoff works independently from the generative AI API.
+    func submitTailorMade(name: String, phone: String, email: String,
+                          requestedDate: String?, guests: Int, notes: String,
+                          history: [AIChatEntry], ideas: [AITailorMadeIdea],
+                          conversationId: String, consent: Bool) async throws -> String {
+        #if DEBUG
+        if isTesting { return "WM-TEST-TAILOR" }
+        #endif
+        let payload: [String: Any] = [
+            "conversationId": conversationId,
+            "customerName": name.trimmingCharacters(in: .whitespacesAndNewlines),
+            "customerPhone": phone.trimmingCharacters(in: .whitespacesAndNewlines),
+            "customerEmail": email.trimmingCharacters(in: .whitespacesAndNewlines),
+            "requestedDate": requestedDate ?? "",
+            "guests": guests,
+            "notes": String(notes.prefix(1500)),
+            "consent": consent,
+            "history": history.suffix(8).map {
+                ["role": $0.role, "content": String($0.content.prefix(600))]
+            },
+            "ideas": ideas.prefix(2).map {
+                ["title": $0.title, "concept": $0.concept, "reason": $0.reason]
+            },
+        ]
+        let receipt: ReceiptResponse = try await request(
+            "/api/ai-tailor-request", method: "POST",
+            body: JSONSerialization.data(withJSONObject: payload)
+        )
+        guard receipt.status == "new" || receipt.status == "received" else {
+            throw WatermelonError.message(String(localized: "Please check the request status in Watermelon."))
+        }
+        return receipt.reference
+    }
+
     func proposal(_ link: ProposalLink) async throws -> Proposal {
         var components = URLComponents()
         components.queryItems = [URLQueryItem(name: "reference", value: link.reference), URLQueryItem(name: "token", value: link.token)]
