@@ -146,4 +146,27 @@ final class WatermelonUITests: XCTestCase {
         for _ in 0..<8 where !remove.exists { app.swipeUp() }
         XCTAssertTrue(remove.waitForExistence(timeout: 5))
     }
+    @MainActor
+    func testTailorMadeButtonOpensDirectCRMFormWithoutAnotherAICall() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
+        app.launch()
+        let input = app.descendants(matching: .any)["aiMessageInput"]
+        XCTAssertTrue(input.waitForExistence(timeout: 15))
+        input.tap()
+        input.typeText("A custom Lisbon itinerary with vegan lunch and unusual pickup hours")
+        app.buttons["aiSendMessage"].tap()
+        XCTAssertTrue(app.staticTexts["I can help you plan a trip in Portugal."].waitForExistence(timeout: 10))
+        let handoff = app.buttons["aiTailorProposal"]
+        for _ in 0..<6 where !handoff.isHittable { app.swipeUp() }
+        XCTAssertTrue(handoff.waitForExistence(timeout: 5))
+        handoff.tap()
+        XCTAssertTrue(app.navigationBars["Tailor-made proposal"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["tailorCustomerName"].exists)
+        XCTAssertTrue(app.textFields["tailorCustomerPhone"].exists)
+        XCTAssertTrue(app.buttons["tailorSubmit"].exists)
+        XCTAssertFalse(app.buttons["tailorSubmit"].isEnabled)
+    }
+
+
 }
