@@ -9,6 +9,7 @@ import EmailConversation from "@/components/EmailConversation";
 import CRMAnalytics from "@/components/CRMAnalytics";
 import CRMMarketingPerformance from "@/components/CRMMarketingPerformance";
 import { countCRMRequests, IN_PROGRESS_STATUSES, type CRMStatus } from "@/lib/crm-dashboard";
+import { allowedOperationalStatuses, hasPersistedOperationalStatus, type OperationalStatus } from "@/lib/crm-operations";
 import { requireWhatsAppDeliveryMode, wasWhatsAppMessageSubmitted } from "@/lib/whatsapp-delivery";
 
 type CRMContact = {
@@ -160,8 +161,8 @@ const STATUS_LABELS: Record<CRMStatus, string> = {
   accepted: "Accepted",
   awaiting_payment: "Awaiting payment",
   confirmed: "Confirmed",
-  in_service: "In service",
-  completed: "Completed",
+  in_service: "Em serviço",
+  completed: "Concluído",
   no_show: "No-show",
   declined: "Declined",
   cancelled: "Cancelled",
@@ -359,6 +360,7 @@ export default function AdminCRM() {
   const loadSequenceRef = useRef(0);
   const latestMessageIdRef = useRef("");
   const crmLoadedRef = useRef(false);
+  const operationPendingRef = useRef(false);
 
   const supabase = useMemo(() => {
     try {
@@ -1439,7 +1441,7 @@ export default function AdminCRM() {
     if (error) setMessage("Erro ao registar agendamento: " + error.message);
     else {
       await loadCRM();
-      setMessage("Agendamento registado. Já podes iniciar ou concluir o serviço.");
+      setMessage("Agendamento registado. Próxima ação: iniciar o serviço.");
     }
     setEditing(null);
   }
@@ -1935,39 +1937,70 @@ export default function AdminCRM() {
 
   async function setOperationalStatus(
     request: CRMRequest,
-    status: "in_service" | "completed" | "no_show"
+    status: OperationalStatus
   ) {
-    if (!supabase) return;
+    if (!supabase || operationPendingRef.current) return;
+    const allowed = allowedOperationalStatuses(
+      request.status,
+      paymentStatusForRequest(request) === "paid",
+      request.activities.some((a) => a.activity_type === "service_scheduled")
+    );
+    if (!allowed.includes(status)) {
+      await loadCRM();
+      setMessage("Esta ação não está disponível neste estado. Confirma o pagamento e o agendamento antes de iniciar; inicia o serviço antes de concluir.");
+      return;
+    }
 
     const label =
       status === "in_service"
-        ? "Check in this booking and mark the experience as started?"
+        ? "Confirmas que o serviço vai começar?"
         : status === "completed"
-          ? "Mark this experience as completed?"
-          : "Mark this guest as a no-show?";
+          ? "Confirmas que o serviço terminou e deve passar a Concluído?"
+          : "Confirmas que o cliente não compareceu?";
 
     if (!window.confirm(label)) return;
 
+    operationPendingRef.current = true;
     setEditing(request.id);
     setMessage("");
 
-    const { error } = await supabase.rpc("watermelon_set_request_operation_status", {
-      p_request_id: request.id,
-      p_status: status,
-    });
+    try {
+      const { data: savedStatus, error } = await supabase.rpc("watermelon_set_request_operation_status", {
+        p_request_id: request.id,
+        p_status: status,
+      });
+      if (error) throw new Error(error.message);
+      if (savedStatus !== status) throw new Error("A operação não confirmou o estado solicitado.");
 
-    if (error) setMessage(error.message);
-    else {
+      const { data: verified, error: verifyError } = await supabase
+        .from("watermelon_requests")
+        .select("status, linked_booking_id, booking:watermelon_booking_requests!watermelon_requests_linked_booking_id_fkey(status)")
+        .eq("id", request.id)
+        .single();
+      if (verifyError) throw new Error(verifyError.message);
+      if (!hasPersistedOperationalStatus(verified, status)) {
+        throw new Error("O pedido e a reserva não ficaram no mesmo estado. Atualiza e confirma antes de tentar novamente.");
+      }
+
+      setRequests((current) => current.map((item) => item.id === request.id
+        ? { ...item, status, booking: item.booking ? { ...item.booking, status } : null }
+        : item));
+      setFilter(status);
       await loadCRM();
       setMessage(
         status === "in_service"
-          ? "Check-in recorded."
+          ? "Serviço iniciado. Próxima ação: concluir o serviço."
           : status === "completed"
-            ? "Experience marked as completed."
-            : "No-show recorded."
+            ? "Serviço concluído. Já podes preparar o agradecimento."
+            : "Ausência do cliente registada."
       );
+    } catch (error) {
+      await loadCRM();
+      setMessage(error instanceof Error ? error.message : "Não foi possível confirmar a atualização do serviço.");
+    } finally {
+      operationPendingRef.current = false;
+      setEditing(null);
     }
-    setEditing(null);
   }
 
   async function cancelBooking(request: CRMRequest) {
@@ -2729,17 +2762,22 @@ export default function AdminCRM() {
           const latestProposal = request.proposals[0] || null;
           const paid = paymentStatusForRequest(request) === "paid";
           const scheduled = request.activities.some((a) => a.activity_type === "service_scheduled");
+          const operationActions = allowedOperationalStatuses(request.status, paid, scheduled);
+          const canStartService = operationActions.includes("in_service");
+          const canCompleteService = operationActions.includes("completed");
           const closed = ["declined", "cancelled", "completed", "no_show"].includes(request.status);
-          const step = request.status === "completed" ? 4
-            : request.status === "in_service" || (request.status === "confirmed" && scheduled) ? 3
+          const step = request.status === "completed" ? 5
+            : request.status === "in_service" ? 4
+            : request.status === "confirmed" && scheduled ? 3
             : ["awaiting_payment", "confirmed"].includes(request.status) ? 2
             : ["proposal_sent", "accepted"].includes(request.status) ? 1 : 0;
-          const nextAction = closed ? "Processo encerrado"
+          const nextAction = request.status === "completed" ? "Preparar agradecimento"
+            : closed ? "Processo encerrado"
             : request.status === "new" ? "Analisar pedido"
             : request.status === "accepted" ? "Pedir informações ou enviar pagamento"
             : request.status === "awaiting_payment" ? "Aguardar pagamento ou confirmar receção"
             : request.status === "confirmed" && paid && !scheduled ? "Agendar o serviço"
-            : request.status === "confirmed" && scheduled ? "Serviço agendado"
+            : canStartService ? "Iniciar o serviço"
             : request.status === "in_service" ? "Concluir o serviço"
             : request.status === "proposal_sent" ? "Aguardar resposta ou rever proposta"
             : "Rever pedido e preparar a proposta";
@@ -2779,7 +2817,7 @@ export default function AdminCRM() {
               </header>
               <section className="crm-flow-summary" aria-label="Próximos passos">
                 <ol className="crm-flow-steps">
-                  {["Pedido", "Proposta", "Pagamento", "Agendamento", "Concluído"].map((label, i) => (
+                  {["Pedido", "Proposta", "Pagamento", "Agendamento", "Em serviço", "Concluído"].map((label, i) => (
                     <li key={label} className={i < step ? "done" : i === step ? "current" : ""}>{label}</li>
                   ))}
                 </ol>
@@ -2824,19 +2862,15 @@ export default function AdminCRM() {
                     <button className="button button-primary" type="button" disabled={busy}
                       onClick={() => void registerServiceSchedule(request)}>Agendar serviço</button>
                   )}
-                  {request.status === "confirmed" && paid && scheduled && (
-                    <>
-                      <button className="button button-primary" type="button" disabled={busy}
-                        onClick={() => void setOperationalStatus(request, "completed")}>Concluir serviço</button>
-                      <button className="button button-outline" type="button" disabled={busy}
-                        onClick={() => void setOperationalStatus(request, "in_service")}>Iniciar serviço</button>
-                    </>
+                  {canStartService && (
+                    <button className="button button-primary" type="button" disabled={busy}
+                      onClick={() => void setOperationalStatus(request, "in_service")}>Iniciar serviço</button>
                   )}
                   {request.status === "completed" && (
                     <button className="button button-primary" type="button" disabled={busy}
                       onClick={() => void prepareThankYouMessage(request)}>Preparar agradecimento</button>
                   )}
-                  {request.status === "in_service" && (
+                  {canCompleteService && (
                     <button className="button button-primary" type="button" disabled={busy}
                       onClick={() => void setOperationalStatus(request, "completed")}>Concluir serviço</button>
                   )}
@@ -3105,7 +3139,7 @@ export default function AdminCRM() {
                 )}
 
                 {request.kind === "direct_booking" &&
-                  !["accepted", "awaiting_payment", "confirmed", "declined", "cancelled"].includes(request.status) && (
+                  !["accepted", "awaiting_payment", "confirmed", "in_service", "completed", "no_show", "declined", "cancelled"].includes(request.status) && (
                     <section className="crm-review-note">
                       <strong>Request still under review</strong>
                       <span>
@@ -3143,7 +3177,7 @@ export default function AdminCRM() {
                         {request.external_booking_reference ? "Edit external reference" : "Add external reference"}
                       </button>
 
-                      {request.status === "confirmed" && scheduled && (
+                      {canStartService && (
                         <>
                           {request.contact?.phone && (
                             <>
@@ -3171,15 +3205,7 @@ export default function AdminCRM() {
                             disabled={busy}
                             onClick={() => void setOperationalStatus(request, "in_service")}
                           >
-                            Check-in / start
-                          </button>
-                          <button
-                            className="button button-outline"
-                            type="button"
-                            disabled={busy}
-                            onClick={() => void setOperationalStatus(request, "completed")}
-                          >
-                            Complete directly
+                            Iniciar serviço
                           </button>
                           <button
                             className="button button-ghost"
@@ -3192,7 +3218,7 @@ export default function AdminCRM() {
                         </>
                       )}
 
-                      {request.status === "in_service" && (
+                      {canCompleteService && (
                         <>
                           <button
                             className="button button-primary"
@@ -3200,7 +3226,7 @@ export default function AdminCRM() {
                             disabled={busy}
                             onClick={() => void setOperationalStatus(request, "completed")}
                           >
-                            Mark completed
+                            Concluir serviço
                           </button>
                           <button
                             className="button button-ghost"
