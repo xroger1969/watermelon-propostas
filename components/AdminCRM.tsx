@@ -1956,16 +1956,29 @@ export default function AdminCRM() {
       p_status: status,
     });
 
-    if (error) setMessage(error.message);
-    else {
+    if (error) {
+      setMessage(error.message);
+    } else {
+      const { data: verified, error: verifyError } = await supabase
+        .from("watermelon_requests")
+        .select("status, linked_booking_id, booking:watermelon_booking_requests!watermelon_requests_linked_booking_id_fkey(status)")
+        .eq("id", request.id)
+        .single();
+      const booking = verified?.booking as { status?: string } | { status?: string }[] | null | undefined;
+      const bookingStatus = Array.isArray(booking) ? booking[0]?.status : booking?.status;
+      if (verifyError || verified?.status !== status || (verified?.linked_booking_id && bookingStatus !== status)) {
+        setMessage("Status mismatch after saving. Please refresh and check this booking before trying again.");
+      } else {
+        setFilter(status);
+        setMessage(
+          status === "in_service"
+            ? "Check-in recorded."
+            : status === "completed"
+              ? "Experience marked as completed. You can now prepare the thank-you message."
+              : "No-show recorded."
+        );
+      }
       await loadCRM();
-      setMessage(
-        status === "in_service"
-          ? "Check-in recorded."
-          : status === "completed"
-            ? "Experience marked as completed."
-            : "No-show recorded."
-      );
     }
     setEditing(null);
   }
