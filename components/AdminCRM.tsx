@@ -961,12 +961,10 @@ export default function AdminCRM() {
       "Check accounting and statutory retention obligations before deletion. Continue?"
     )) return;
 
-    const confirmation = "DELETE " + count;
-    if (window.prompt('Type "' + confirmation + '" to confirm permanent deletion:', "") !== confirmation) {
-      setMessage("Bulk deletion cancelled.");
-      return;
-    }
-
+    // The initial confirmation shows the section, exact count and irreversible
+    // consequences. Do not demand an additional browser prompt with a magic phrase:
+    // browser popups are confusing on mobile and make a confirmed action appear broken.
+    // High-risk active and paid records still require extra confirmations above.
     setBulkDeleting(true);
     setMessage("");
     try {
