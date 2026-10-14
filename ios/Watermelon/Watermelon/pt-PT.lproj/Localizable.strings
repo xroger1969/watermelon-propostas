@@ -188,3 +188,20 @@
 "Speak" = "Falar";
 "Send" = "Enviar";
 "Ask Watermelon AI" = "Pergunte à Watermelon AI";
+
+// Direct tailor-made CRM handoff
+"Watermelon will receive your request for personal review." = "A Watermelon vai receber o seu pedido para análise personalizada.";
+"Your existing Watermelon AI conversation and tailor-made ideas will be attached automatically. This is not a reservation or a confirmed price." = "A conversa com a Watermelon AI e as ideias à medida serão anexadas automaticamente. Isto não é uma reserva nem um preço confirmado.";
+"Your tailor-made programme" = "O seu programa à medida";
+"Contact for your proposal" = "Contacto para a sua proposta";
+"Phone / WhatsApp *" = "Telefone / WhatsApp *";
+"Email (optional)" = "Email (opcional)";
+"Programme details" = "Detalhes do programa";
+"I have a preferred date" = "Tenho uma data preferida";
+"Preferred date" = "Data preferida";
+"Travellers: %lld" = "Participantes: %lld";
+"Additional requests (hours, meals, transport or other extras)" = "Pedidos adicionais (horários, refeições, transporte ou outros extras)";
+"Dates, availability and final prices are confirmed by Watermelon." = "As datas, a disponibilidade e os preços finais são confirmados pela Watermelon.";
+"Sending request…" = "A enviar o pedido…";
+"Send to Watermelon CRM" = "Enviar para o CRM Watermelon";
+"Tailor-made proposal" = "Proposta à medida";
