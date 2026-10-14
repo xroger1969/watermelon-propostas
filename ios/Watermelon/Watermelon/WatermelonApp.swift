@@ -392,6 +392,7 @@ struct AIConciergeView: View {
     @State private var errorText = ""
     @State private var recommendations: [AIRecommendation] = []
     @State private var ideas: [AITailorMadeIdea] = []
+    @State private var showingTailorForm = false
     @FocusState private var composerFocused: Bool
     @StateObject private var voice = WatermelonVoiceInput()
     @State private var dictatedPrefix = ""
@@ -600,17 +601,17 @@ struct AIConciergeView: View {
                         }
                     }
 
-                    if !ideas.isEmpty && crmReference.isEmpty {
+                    // A real submission form, not another prompt to a potentially slow AI.
+                    // Also available when the customer wants extras for catalogue products.
+                    if (!messages.isEmpty || !ideas.isEmpty) && crmReference.isEmpty {
                         Button {
-                            input = String(localized: "I'd like to request a proposal for one of these tailor-made ideas. Please ask me for the details needed to send my request.", locale: locale)
                             composerFocused = false
-                            Task { await send() }
+                            showingTailorForm = true
                         } label: {
                             Label("Request a tailor-made proposal", systemImage: "paperplane")
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(sending)
                         .accessibilityIdentifier("aiTailorProposal")
                     }
 
@@ -765,6 +766,16 @@ struct AIConciergeView: View {
             handleAIRequests()
         }
         .onDisappear { voice.stop() }
+        .sheet(isPresented: $showingTailorForm) {
+            NavigationStack {
+                AITailorRequestForm(
+                    history: messages, ideas: ideas, conversationId: conversationId
+                ) { reference in
+                    crmReference = reference
+                    errorText = ""
+                }
+            }
+        }
         .onChange(of: store.pendingAIQuestion) { _, _ in consumePendingQuestion() }
         .onChange(of: store.aiComposerRequest) { _, _ in handleAIRequests() }
         .onChange(of: store.aiVoiceRequest) { _, _ in handleAIRequests() }
@@ -847,6 +858,133 @@ struct AIConciergeView: View {
             messages = previous
             input = text
             errorText = error.localizedDescription
+        }
+    }
+}
+
+
+// An explicit one-screen handoff to the CRM. The customer does not need to
+// repeat the existing chat or wait for the OpenAI model to ask more questions.
+struct AITailorRequestForm: View {
+    @EnvironmentObject private var store: TravelStore
+    @Environment(\.dismiss) private var dismiss
+    let history: [AIChatEntry]
+    let ideas: [AITailorMadeIdea]
+    let conversationId: String
+    let onSaved: (String) -> Void
+
+    @State private var customerName = ""
+    @State private var customerPhone = ""
+    @State private var customerEmail = ""
+    @State private var extraNotes = ""
+    @State private var guests = 2
+    @State private var hasPreferredDate = false
+    @State private var preferredDate = Date()
+    @State private var consent = false
+    @State private var saving = false
+    @State private var errorMessage = ""
+
+    private var canSubmit: Bool {
+        !saving && consent &&
+        !customerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        customerPhone.filter(\.isNumber).count >= 7 &&
+        (!history.isEmpty || !ideas.isEmpty || !extraNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                Label("Watermelon will receive your request for personal review.",
+                      systemImage: "person.crop.circle.badge.checkmark")
+                Text("Your existing Watermelon AI conversation and tailor-made ideas will be attached automatically. This is not a reservation or a confirmed price.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                if let idea = ideas.first {
+                    Text(idea.title).font(.subheadline.weight(.semibold))
+                }
+                if let last = history.last(where: { $0.role == "user" }) {
+                    Text(last.content).font(.footnote).foregroundStyle(.secondary)
+                        .lineLimit(5)
+                }
+            } header: {
+                Text("Your tailor-made programme")
+            }
+            Section("Contact for your proposal") {
+                TextField("Name *", text: $customerName)
+                    .textContentType(.name)
+                    .accessibilityIdentifier("tailorCustomerName")
+                TextField("Phone / WhatsApp *", text: $customerPhone)
+                    .textContentType(.telephoneNumber)
+                    .keyboardType(.phonePad)
+                    .accessibilityIdentifier("tailorCustomerPhone")
+                TextField("Email (optional)", text: $customerEmail)
+                    .textContentType(.emailAddress)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            }
+            Section("Programme details") {
+                Stepper("Travellers: \(guests)", value: $guests, in: 1...50)
+                Toggle("I have a preferred date", isOn: $hasPreferredDate)
+                if hasPreferredDate {
+                    DatePicker("Preferred date", selection: $preferredDate,
+                               in: Date()..., displayedComponents: .date)
+                }
+                TextField("Additional requests (hours, meals, transport or other extras)",
+                          text: $extraNotes, axis: .vertical)
+                    .lineLimit(3...6)
+                    .accessibilityIdentifier("tailorExtraNotes")
+                Text("Dates, availability and final prices are confirmed by Watermelon.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Section {
+                Toggle("I agree to the privacy policy and to being contacted about this request.",
+                       isOn: $consent)
+                    .accessibilityIdentifier("tailorPrivacyConsent")
+                Link("Privacy policy", destination: URL(string: "https://www.watermelonexperiences.pt/privacy")!)
+                if !errorMessage.isEmpty {
+                    Text(errorMessage).foregroundStyle(Brand.red)
+                        .accessibilityIdentifier("tailorRequestError")
+                }
+                Button {
+                    Task { await submit() }
+                } label: {
+                    HStack {
+                        if saving { ProgressView() }
+                        Label(saving ? "Sending request…" : "Send to Watermelon CRM",
+                              systemImage: "paperplane.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .disabled(!canSubmit)
+                .accessibilityIdentifier("tailorSubmit")
+            }
+        }
+        .navigationTitle("Tailor-made proposal")
+        .toolbar { ToolbarItem(placement: .topBarTrailing) {
+            Button("Close") { dismiss() }.disabled(saving)
+        } }
+        .interactiveDismissDisabled(saving)
+    }
+
+    @MainActor
+    private func submit() async {
+        guard canSubmit else { return }
+        saving = true
+        errorMessage = ""
+        defer { saving = false }
+        do {
+            let reference = try await store.api.submitTailorMade(
+                name: customerName, phone: customerPhone, email: customerEmail,
+                requestedDate: hasPreferredDate ? PortugalDate.selectedDay(preferredDate) : nil,
+                guests: guests, notes: extraNotes, history: history,
+                ideas: ideas, conversationId: conversationId, consent: consent
+            )
+            onSaved(reference)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 }
