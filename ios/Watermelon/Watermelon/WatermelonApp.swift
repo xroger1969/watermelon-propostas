@@ -947,21 +947,32 @@ struct AITailorRequestForm: View {
                     Text(errorMessage).foregroundStyle(Brand.red)
                         .accessibilityIdentifier("tailorRequestError")
                 }
-                Button {
-                    Task { await submit() }
-                } label: {
-                    HStack {
-                        if saving { ProgressView() }
-                        Label(saving ? "Sending request…" : "Send to Watermelon CRM",
-                              systemImage: "paperplane.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-                .disabled(!canSubmit)
-                .accessibilityIdentifier("tailorSubmit")
             }
         }
         .navigationTitle("Tailor-made proposal")
+        .safeAreaInset(edge: .bottom) {
+            // Keep the action visible while the long tailor-made form scrolls.
+            // SwiftUI Forms virtualize off-screen rows, which previously hid the
+            // submission action and made the UI test fail to find it.
+            Button {
+                Task { await submit() }
+            } label: {
+                HStack(spacing: 10) {
+                    if saving { ProgressView().tint(.white) }
+                    Label(saving ? "Sending request…" : "Send to Watermelon CRM",
+                          systemImage: "paperplane.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .frame(minHeight: 46)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(Brand.green)
+            .disabled(!canSubmit)
+            .accessibilityIdentifier("tailorSubmit")
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.regularMaterial)
+        }
         .toolbar { ToolbarItem(placement: .topBarTrailing) {
             Button("Close") { dismiss() }.disabled(saving)
         } }
