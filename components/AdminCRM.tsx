@@ -1384,6 +1384,17 @@ export default function AdminCRM() {
   }
 
 
+  function showSchedulingAfterPayment(request: CRMRequest) {
+    setFilter("confirmed");
+    setManualPaymentHref("");
+    setMessage("Pagamento confirmado. Próxima ação: agendar o serviço.");
+    window.setTimeout(() => {
+      document.getElementById("crm-request-" + request.id)?.scrollIntoView({
+        behavior: "smooth", block: "start",
+      });
+    }, 40);
+  }
+
   async function confirmProposalPayment(request: CRMRequest) {
     if (!supabase || request.status !== "awaiting_payment" || request.kind === "direct_booking") return;
     const proposal = request.proposals[0];
@@ -1408,7 +1419,7 @@ export default function AdminCRM() {
     if (error) setMessage(error.message);
     else {
       await loadCRM();
-      setMessage("Pagamento confirmado. Próxima ação: agendar o serviço.");
+      showSchedulingAfterPayment(request);
     }
     setEditing(null);
   }
@@ -1683,6 +1694,7 @@ export default function AdminCRM() {
     }
 
     await loadCRM();
+    showSchedulingAfterPayment(request);
     setEditing(null);
   }
 
@@ -2794,7 +2806,7 @@ export default function AdminCRM() {
             request.status === "accepted";
 
           return (
-            <article className="crm-request-card" key={request.id}>
+            <article className="crm-request-card" id={"crm-request-" + request.id} key={request.id}>
               <header className="crm-request-header">
                 <div>
                   <div className="crm-request-kicker">
