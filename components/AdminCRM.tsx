@@ -1781,6 +1781,31 @@ export default function AdminCRM() {
       "https://wa.me/" + phone + "?text=" + encodeURIComponent(lines.filter(Boolean).join("\n"));
   }
 
+  async function prepareThankYouMessage(request: CRMRequest) {
+    if (request.status !== "completed") return;
+    const name = request.contact?.name?.trim();
+    const experiences = operationalRows(request).map((row) => row.experience).filter(Boolean);
+    const experience = [...new Set(experiences)].join(" / ");
+    const draft = [
+      name ? "Hello " + name + "," : "Hello,",
+      "",
+      "Thank you for choosing Watermelon Experiences!",
+      experience ? "We hope you enjoyed your " + experience + " experience." : "We hope you enjoyed your experience with us.",
+      "It was a pleasure welcoming you, and we hope to see you again soon.",
+      "",
+      "Warm regards,",
+      "Watermelon Experiences",
+    ].join("\n");
+    const edited = window.prompt("Edit your thank-you message before sharing:", draft);
+    if (edited === null || !edited.trim()) return;
+    try {
+      await navigator.clipboard.writeText(edited.trim());
+      setMessage("Thank-you message copied. Share it manually with the customer; it has not been sent automatically.");
+    } catch {
+      setMessage("Could not copy the message. Please check clipboard permissions and try again.");
+    }
+  }
+
   function printTodayManifest() {
     const today = localIsoDate();
     const todayRequests = requests.filter(
@@ -2800,8 +2825,16 @@ export default function AdminCRM() {
                       onClick={() => void registerServiceSchedule(request)}>Agendar serviço</button>
                   )}
                   {request.status === "confirmed" && paid && scheduled && (
+                    <>
+                      <button className="button button-primary" type="button" disabled={busy}
+                        onClick={() => void setOperationalStatus(request, "completed")}>Concluir serviço</button>
+                      <button className="button button-outline" type="button" disabled={busy}
+                        onClick={() => void setOperationalStatus(request, "in_service")}>Iniciar serviço</button>
+                    </>
+                  )}
+                  {request.status === "completed" && (
                     <button className="button button-primary" type="button" disabled={busy}
-                      onClick={() => void setOperationalStatus(request, "in_service")}>Iniciar serviço</button>
+                      onClick={() => void prepareThankYouMessage(request)}>Preparar agradecimento</button>
                   )}
                   {request.status === "in_service" && (
                     <button className="button button-primary" type="button" disabled={busy}
