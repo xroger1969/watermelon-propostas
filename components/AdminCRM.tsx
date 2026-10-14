@@ -2827,8 +2827,6 @@ export default function AdminCRM() {
                   {request.status === "confirmed" && paid && scheduled && (
                     <>
                       <button className="button button-primary" type="button" disabled={busy}
-                        onClick={() => void setOperationalStatus(request, "completed")}>Concluir serviço</button>
-                      <button className="button button-outline" type="button" disabled={busy}
                         onClick={() => void setOperationalStatus(request, "in_service")}>Iniciar serviço</button>
                     </>
                   )}
