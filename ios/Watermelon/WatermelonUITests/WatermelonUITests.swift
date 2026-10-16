@@ -63,17 +63,23 @@ final class WatermelonUITests: XCTestCase {
         app.buttons["aiSendMessage"].tap()
         let replies = app.staticTexts.matching(identifier: "aiAssistantMessage")
         XCTAssertTrue(replies.firstMatch.waitForExistence(timeout: 10))
-        XCTAssertTrue(replies.firstMatch.isHittable,
-                      "The AI reply must appear beside the composer without scrolling up.")
+        let firstVisible = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hittable == true"), object: replies.firstMatch)
+        XCTAssertEqual(XCTWaiter.wait(for: [firstVisible], timeout: 5), .completed,
+                       "The AI reply must appear beside the composer without scrolling up.")
         XCTAssertFalse(app.staticTexts["Discover more. Travel your way."].exists,
                        "The introductory card must disappear after starting the chat.")
 
+        let priorReplyCount = replies.count
         input.tap()
         input.typeText("Please include the beach")
         app.buttons["aiSendMessage"].tap()
-        XCTAssertTrue(replies.element(boundBy: 1).waitForExistence(timeout: 10))
-        XCTAssertTrue(replies.element(boundBy: 1).isHittable,
-                      "The latest AI reply must stay visible above the input.")
+        let latestReply = replies.element(boundBy: priorReplyCount)
+        XCTAssertTrue(latestReply.waitForExistence(timeout: 10))
+        let latestVisible = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hittable == true"), object: latestReply)
+        XCTAssertEqual(XCTWaiter.wait(for: [latestVisible], timeout: 5), .completed,
+                       "The latest AI reply must stay visible above the input.")
         XCTAssertTrue(app.buttons["aiNewConversation"].exists)
         XCTAssertTrue(input.exists)
     }
