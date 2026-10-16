@@ -50,6 +50,41 @@ final class WatermelonUITests: XCTestCase {
     }
 
     @MainActor
+    func testAIConversationAutomaticallyShowsLatestMessagesAboveComposer() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
+        app.launch()
+        let input = app.descendants(matching: .any)["aiMessageInput"]
+        XCTAssertTrue(input.waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["Explore unforgettable experiences in Portugal, or tell Watermelon AI what you imagine. We'll help shape a personal programme."].exists)
+
+        input.tap()
+        input.typeText("A three-day trip to Lisbon")
+        app.buttons["aiSendMessage"].tap()
+        let replies = app.staticTexts.matching(identifier: "aiAssistantMessage")
+        XCTAssertTrue(replies.firstMatch.waitForExistence(timeout: 10))
+        let firstVisible = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hittable == true"), object: replies.firstMatch)
+        XCTAssertEqual(XCTWaiter.wait(for: [firstVisible], timeout: 5), .completed,
+                       "The AI reply must appear beside the composer without scrolling up.")
+        XCTAssertFalse(app.staticTexts["Discover more. Travel your way."].exists,
+                       "The introductory card must disappear after starting the chat.")
+
+        let priorReplyCount = replies.count
+        input.tap()
+        input.typeText("Please include the beach")
+        app.buttons["aiSendMessage"].tap()
+        let latestReply = replies.element(boundBy: priorReplyCount)
+        XCTAssertTrue(latestReply.waitForExistence(timeout: 10))
+        let latestVisible = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hittable == true"), object: latestReply)
+        XCTAssertEqual(XCTWaiter.wait(for: [latestVisible], timeout: 5), .completed,
+                       "The latest AI reply must stay visible above the input.")
+        XCTAssertTrue(app.buttons["aiNewConversation"].exists)
+        XCTAssertTrue(input.exists)
+    }
+
+    @MainActor
     func testQuickAIIsAvailableFromExploreAndProposals() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
