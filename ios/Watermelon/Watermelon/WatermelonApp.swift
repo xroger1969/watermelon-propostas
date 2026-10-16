@@ -407,108 +407,66 @@ struct AIConciergeView: View {
         ScrollViewReader { scroll in
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Label("WATERMELON EXPERIENCES", systemImage: "sparkles")
-                            .font(.caption.bold()).tracking(1.3)
-                        Text("Discover more. Travel your way.")
-                            .font(.title.bold())
-                        Text("Explore unforgettable experiences in Portugal, or tell Watermelon AI what you imagine. We'll help shape a personal programme.")
-                            .font(.subheadline)
-                        HStack(spacing: 8) {
-                            Button { store.tab = 1 } label: {
-                                Label("Explore", systemImage: "safari").frame(maxWidth: .infinity)
+                    // Only show the welcome card before the conversation starts.
+                    if messages.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Label("WATERMELON EXPERIENCES", systemImage: "sparkles")
+                                .font(.caption.bold()).tracking(1.3)
+                            Text("Discover more. Travel your way.")
+                                .font(.headline.bold())
+                            HStack(spacing: 8) {
+                                Button { store.tab = 1 } label: {
+                                    Label("Explore", systemImage: "safari").frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.white)
+                                .foregroundStyle(Brand.green)
+                                .accessibilityIdentifier("homeExplore")
+                                Button { store.tab = 2 } label: {
+                                    Label("Proposals", systemImage: "doc.text").frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(.white)
+                                .accessibilityIdentifier("homeProposals")
                             }
-                            .buttonStyle(.borderedProminent)
-                            .tint(.white)
-                            .foregroundStyle(Brand.green)
-                            .accessibilityIdentifier("homeExplore")
-                            Button { store.tab = 2 } label: {
-                                Label("Proposals", systemImage: "doc.text").frame(maxWidth: .infinity)
+                            .font(.caption.weight(.semibold))
+                            .controlSize(.small)
+                            Button { toggleVoice() } label: {
+                                Label("Speak with Watermelon AI", systemImage: "mic.fill")
+                                    .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
                             .tint(.white)
-                            .accessibilityIdentifier("homeProposals")
+                            .accessibilityIdentifier("homeSpeakAI")
                         }
-                        .font(.caption.weight(.semibold))
-                        .controlSize(.small)
-                        Button { toggleVoice() } label: {
-                            Label("Speak with Watermelon AI", systemImage: "mic.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.white)
-                        .accessibilityIdentifier("homeSpeakAI")
-                    }
-                    .foregroundStyle(.white)
-                    .padding(24)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(LinearGradient(colors: [Brand.navy, Brand.green], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    .clipShape(RoundedRectangle(cornerRadius: 24))
-
-                    if messages.isEmpty {
-                        if !store.experiences.isEmpty {
-                            HStack {
-                                Text("Discover our experiences").font(.headline)
-                                Spacer()
-                                Button {
-                                    store.tab = 1
-                                } label: {
-                                    Label("Browse all experiences", systemImage: "arrow.right")
-                                }
-                                .font(.caption.weight(.semibold))
-                            }
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    ForEach(Array(store.experiences.prefix(3))) { product in
-                                        NavigationLink {
-                                            ExperienceDetail(product: product)
-                                        } label: {
-                                            VStack(alignment: .leading, spacing: 0) {
-                                                ExperienceImage(url: product.imageURL)
-                                                    .frame(width: 178, height: 108).clipped()
-                                                Text(product.displayTitle)
-                                                    .font(.subheadline.weight(.semibold))
-                                                    .foregroundStyle(.primary)
-                                                    .lineLimit(2)
-                                                    .padding(10)
-                                            }
-                                            .frame(width: 178, height: 172, alignment: .top)
-                                            .background(Color(.secondarySystemGroupedBackground),
-                                                        in: RoundedRectangle(cornerRadius: 16))
-                                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                            }
-                            .accessibilityIdentifier("featuredExperiences")
-                        }
-                        Text("Tell us what you'd love to experience").font(.headline)
-                        Text("Find something from our catalogue, or create something entirely your own.")
-                            .font(.subheadline).foregroundStyle(.secondary)
-                        Text("Try asking…").font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(LinearGradient(colors: [Brand.navy, Brand.green],
+                                                   startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
                         Button {
                             input = String(localized: "Plan a three-day trip to Lisbon for four people.", locale: locale)
+                            composerFocused = true
                         } label: {
-                            Label("Plan a three-day trip to Lisbon for four people.", systemImage: "bubble.left.and.text.bubble.right")
-                        }.buttonStyle(.bordered)
+                            Label("Plan a three-day trip to Lisbon for four people.",
+                                  systemImage: "bubble.left.and.text.bubble.right")
+                        }
+                        .buttonStyle(.bordered)
                         Button {
                             input = String(localized: "I'd love to go horse riding by the sea. What can you suggest?", locale: locale)
                             composerFocused = true
                         } label: {
                             Label("Horse riding by the sea", systemImage: "figure.equestrian.sports")
-                        }.buttonStyle(.bordered)
-                        Button {
-                            store.tab = 1
-                        } label: {
-                            Label("Browse all experiences", systemImage: "safari")
-                        }.buttonStyle(.bordered)
+                        }
+                        .buttonStyle(.bordered)
                     }
 
                     ForEach(messages) { entry in
                         HStack {
                             if entry.role == "user" { Spacer(minLength: 32) }
                             Text(entry.content)
+                                .accessibilityIdentifier(entry.role == "user" ? "aiUserMessage" : "aiAssistantMessage")
                                 .padding(14)
                                 .background(entry.role == "user" ? Brand.green : Color(.secondarySystemGroupedBackground),
                                             in: RoundedRectangle(cornerRadius: 16))
@@ -527,6 +485,9 @@ struct AIConciergeView: View {
                         Text(errorText).foregroundStyle(Brand.red).font(.footnote)
                             .accessibilityIdentifier("aiError")
                     }
+                    // Anchor the scroll at the latest exchange, BEFORE optional cards,
+                    // proposal actions and other content that can extend below it.
+                    Color.clear.frame(height: 1).id("chatBottom")
 
                     if !recommendations.isEmpty {
                         Text("Experiences suggested for you").font(.headline)
@@ -630,33 +591,47 @@ struct AIConciergeView: View {
                         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
                     }
 
-                    if !messages.isEmpty || !crmReference.isEmpty {
-                        Button {
-                            newConversation()
-                        } label: {
-                            Label("Start a new conversation", systemImage: "arrow.counterclockwise")
-                        }.buttonStyle(.bordered).disabled(sending)
-                    }
-                    Text("AI suggestions are indicative. Prices, availability and reservations require confirmation. Do not share payment details in chat.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Link("Privacy policy", destination: URL(string: "https://www.watermelonexperiences.pt/privacy")!)
-                        .font(.caption)
-                    Color.clear.frame(height: 1).id("chatBottom")
+
+
                 }
                 .padding(16)
                 .frame(maxWidth: 800).frame(maxWidth: .infinity)
             }
             .scrollDismissesKeyboard(.interactively)
             .onChange(of: messages.count) { _, _ in
-                if let latest = messages.last {
-                    withAnimation { scroll.scrollTo(latest.id, anchor: .bottom) }
+                // Let SwiftUI lay out the newly appended message before scrolling.
+                Task { @MainActor in
+                    await Task.yield()
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        scroll.scrollTo("chatBottom", anchor: .bottom)
+                    }
                 }
             }
             .onChange(of: sending) { _, _ in
-                withAnimation { scroll.scrollTo("chatBottom", anchor: .bottom) }
+                Task { @MainActor in
+                    await Task.yield()
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        scroll.scrollTo("chatBottom", anchor: .bottom)
+                    }
+                }
             }
             .onChange(of: composerFocused) { _, focused in
-                if focused { withAnimation { scroll.scrollTo("chatBottom", anchor: .bottom) } }
+                if focused {
+                    Task { @MainActor in
+                        await Task.yield()
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            scroll.scrollTo("chatBottom", anchor: .bottom)
+                        }
+                    }
+                }
+            }
+            .onChange(of: errorText) { _, value in
+                if !value.isEmpty {
+                    Task { @MainActor in
+                        await Task.yield()
+                        scroll.scrollTo("chatBottom", anchor: .bottom)
+                    }
+                }
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -668,6 +643,14 @@ struct AIConciergeView: View {
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(Brand.navy)
                     Spacer(minLength: 8)
+                    if !messages.isEmpty {
+                        Button { newConversation() } label: {
+                            Image(systemName: "square.and.pencil")
+                        }
+                        .accessibilityLabel("Start a new conversation")
+                        .accessibilityIdentifier("aiNewConversation")
+                        .disabled(sending)
+                    }
                     if composerFocused {
                         Button("Hide keyboard") { composerFocused = false }
                             .font(.caption.weight(.semibold))
