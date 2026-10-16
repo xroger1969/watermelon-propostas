@@ -26,6 +26,30 @@ final class WatermelonUITests: XCTestCase {
     }
 
     @MainActor
+    func testAIComposerExpandsForLongDraftsAndKeepsSendAccessible() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
+        app.launch()
+
+        let input = app.descendants(matching: .any)["aiMessageInput"]
+        XCTAssertTrue(input.waitForExistence(timeout: 15))
+        input.tap()
+        let initialHeight = input.frame.height
+
+        let draft = String(repeating: "Plan a day near Lisbon with local stops and suggested timings. ", count: 5)
+        input.typeText(draft)
+        XCTAssertGreaterThan(input.frame.height, initialHeight + 12,
+                             "The composer must expand vertically as the message wraps.")
+        XCTAssertTrue(app.buttons["aiSendMessage"].isHittable,
+                      "The send button must remain available while typing a long message.")
+
+        app.buttons["aiSendMessage"].tap()
+        XCTAssertTrue(app.staticTexts["I can help you plan a trip in Portugal."].waitForExistence(timeout: 10))
+        XCTAssertLessThanOrEqual(input.frame.height, initialHeight + 5,
+                                 "The composer must shrink back after sending.")
+    }
+
+    @MainActor
     func testQuickAIIsAvailableFromExploreAndProposals() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
