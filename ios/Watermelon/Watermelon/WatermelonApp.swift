@@ -153,9 +153,11 @@ struct AIQuickAskBar: View {
                 .foregroundStyle(Brand.green)
             HStack(alignment: .bottom, spacing: 10) {
                 TextField("Ask Watermelon AI anything…", text: $question, axis: .vertical)
-                    .lineLimit(2...3)
+                    // Grow as the guest types; scroll inside the field only for very long questions.
+                    .lineLimit(1...5)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(10)
-                    .frame(maxWidth: .infinity, minHeight: 56, alignment: .topLeading)
+                    .frame(maxWidth: .infinity, minHeight: 50, alignment: .topLeading)
                     .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 12))
                     .overlay {
                         RoundedRectangle(cornerRadius: 12)
@@ -682,11 +684,14 @@ struct AIConciergeView: View {
                             .allowsHitTesting(false)
                     }
                     TextField("", text: $input, axis: .vertical)
-                        .lineLimit(2...5)
+                        // Expand with the draft instead of trapping it in a small fixed-height area.
+                        // Cap growth so the conversation and Send button stay visible above the keyboard.
+                        .lineLimit(1...7)
+                        .fixedSize(horizontal: false, vertical: true)
                         .font(.body)
                         .padding(.horizontal, 13)
                         .padding(.vertical, 12)
-                        .frame(maxWidth: .infinity, minHeight: 76, alignment: .topLeading)
+                        .frame(maxWidth: .infinity, minHeight: 52, alignment: .topLeading)
                         .focused($composerFocused)
                         .accessibilityLabel("Tell Watermelon AI about your trip…")
                         .accessibilityIdentifier("aiMessageInput")
