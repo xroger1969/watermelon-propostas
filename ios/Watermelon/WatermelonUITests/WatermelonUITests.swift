@@ -50,6 +50,35 @@ final class WatermelonUITests: XCTestCase {
     }
 
     @MainActor
+    func testAIConversationAutomaticallyShowsLatestMessagesAboveComposer() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
+        app.launch()
+        let input = app.descendants(matching: .any)["aiMessageInput"]
+        XCTAssertTrue(input.waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["Explore unforgettable experiences in Portugal, or tell Watermelon AI what you imagine. We'll help shape a personal programme."].exists)
+
+        input.tap()
+        input.typeText("A three-day trip to Lisbon")
+        app.buttons["aiSendMessage"].tap()
+        let replies = app.staticTexts.matching(identifier: "aiAssistantMessage")
+        XCTAssertTrue(replies.firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(replies.firstMatch.isHittable,
+                      "The AI reply must appear beside the composer without scrolling up.")
+        XCTAssertFalse(app.staticTexts["Discover more. Travel your way."].exists,
+                       "The introductory card must disappear after starting the chat.")
+
+        input.tap()
+        input.typeText("Please include the beach")
+        app.buttons["aiSendMessage"].tap()
+        XCTAssertTrue(replies.element(boundBy: 1).waitForExistence(timeout: 10))
+        XCTAssertTrue(replies.element(boundBy: 1).isHittable,
+                      "The latest AI reply must stay visible above the input.")
+        XCTAssertTrue(app.buttons["aiNewConversation"].exists)
+        XCTAssertTrue(input.exists)
+    }
+
+    @MainActor
     func testQuickAIIsAvailableFromExploreAndProposals() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
