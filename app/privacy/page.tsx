@@ -132,7 +132,7 @@ export default function PrivacyPolicyPage() {
           <h2>10. Contact</h2>
           <p>
             For privacy questions or requests, contact Watermelon Experiences
-            through the contact details published on our official website.
+            at <a href="mailto:info@watermelonexperiences.pt">info@watermelonexperiences.pt</a>.
           </p>
         </section>
       </article>
