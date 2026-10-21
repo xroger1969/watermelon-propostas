@@ -274,6 +274,7 @@ struct ExploreView: View {
                     ForEach(filtered) { product in
                         NavigationLink { ExperienceDetail(product: product) } label: { ExperienceCard(product: product) }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("experienceCard-\(product.code)")
                     }
                 }
             }.padding(20).frame(maxWidth: 1100).frame(maxWidth: .infinity)
