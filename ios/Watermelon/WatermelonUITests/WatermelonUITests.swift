@@ -210,10 +210,12 @@ final class WatermelonUITests: XCTestCase {
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
         XCTAssertTrue(app.navigationBars["Watermelon"].waitForExistence(timeout: 5))
-        let firstExperience = app.staticTexts["Private Tour South of Lisbon — Cacilhas, Almada & Costa da Caparica"]
-        if !firstExperience.waitForExistence(timeout: 10) { app.swipeUp() }
-        XCTAssertTrue(firstExperience.waitForExistence(timeout: 5))
-        firstExperience.tap()
+        // Cards are refreshed asynchronously; do not tap a stale bundled-catalogue label.
+        let experience = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "experienceCard-")).firstMatch
+        if !experience.waitForExistence(timeout: 10) { app.swipeUp() }
+        XCTAssertTrue(experience.waitForExistence(timeout: 5))
+        experience.tap()
+        XCTAssertTrue(app.navigationBars["Experience"].waitForExistence(timeout: 10))
         let add = app.buttons["addToProposal"]
         for _ in 0..<6 where !add.isHittable { app.swipeUp() }
         XCTAssertTrue(add.exists)
