@@ -15,7 +15,8 @@ final class TravelStore: ObservableObject {
     @Published var catalogMessage = ""
     @Published var persistenceError = ""
     @Published var liveCodes = Set<String>()
-    @Published var tab = 0
+    // Open the experience catalogue on every fresh launch. AI and deep links can still select other tabs.
+    @Published var tab = 1
     // A prompt from Explore or Proposals is delivered to the single AI tab,
     // rather than starting a second, disconnected chat.
     @Published var pendingAIQuestion: String?

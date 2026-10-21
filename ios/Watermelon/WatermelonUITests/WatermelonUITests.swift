@@ -2,6 +2,27 @@ import XCTest
 
 final class WatermelonUITests: XCTestCase {
     @MainActor
+    private func switchToAI(_ app: XCUIApplication) {
+        let tab = app.tabBars.buttons["Watermelon AI"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 15))
+        tab.tap()
+        XCTAssertTrue(app.navigationBars["Watermelon AI"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testOpensExploreAndShowsProgrammesBeforeAnyTap() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Watermelon"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["explorePlanWithAI"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["quickAIInput"].exists)
+        let programme = app.staticTexts["Private Tour South of Lisbon — Cacilhas, Almada & Costa da Caparica"]
+        if !programme.exists { app.swipeUp() }
+        XCTAssertTrue(programme.waitForExistence(timeout: 5), "Explore should display catalogue items at launch.")
+    }
+
+    @MainActor
     func testPortugueseControlsUsePortugalLocalization() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(pt-PT)", "-AppleLocale", "pt_PT"]
@@ -16,6 +37,7 @@ final class WatermelonUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
+        switchToAI(app)
         XCTAssertTrue(app.navigationBars["Watermelon AI"].waitForExistence(timeout: 15))
         let input = app.descendants(matching: .any)["aiMessageInput"]
         XCTAssertTrue(input.waitForExistence(timeout: 5))
@@ -30,6 +52,7 @@ final class WatermelonUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
+        switchToAI(app)
 
         let input = app.descendants(matching: .any)["aiMessageInput"]
         XCTAssertTrue(input.waitForExistence(timeout: 15))
@@ -54,6 +77,7 @@ final class WatermelonUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
+        switchToAI(app)
         let input = app.descendants(matching: .any)["aiMessageInput"]
         XCTAssertTrue(input.waitForExistence(timeout: 15))
         XCTAssertFalse(app.staticTexts["Explore unforgettable experiences in Portugal, or tell Watermelon AI what you imagine. We'll help shape a personal programme."].exists)
@@ -89,9 +113,7 @@ final class WatermelonUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
-        XCTAssertTrue(app.navigationBars["Watermelon AI"].waitForExistence(timeout: 15))
-
-        app.tabBars.buttons["Explore"].tap()
+        XCTAssertTrue(app.navigationBars["Watermelon"].waitForExistence(timeout: 15))
         let exploreComposer = app.descendants(matching: .any)["quickAIInput"]
         XCTAssertTrue(exploreComposer.waitForExistence(timeout: 5))
         exploreComposer.tap()
@@ -114,6 +136,7 @@ final class WatermelonUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
+        switchToAI(app)
         let input = app.descendants(matching: .any)["aiMessageInput"]
         XCTAssertTrue(input.waitForExistence(timeout: 15))
         input.tap()
@@ -138,6 +161,7 @@ final class WatermelonUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
+        switchToAI(app)
         XCTAssertTrue(app.buttons["homeExplore"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["homeProposals"].exists)
         XCTAssertTrue(app.buttons["homeSpeakAI"].exists)
@@ -156,6 +180,7 @@ final class WatermelonUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
+        switchToAI(app)
 
         XCTAssertTrue(app.staticTexts["Talk to Watermelon AI"].waitForExistence(timeout: 15))
         let input = app.descendants(matching: .any)["aiMessageInput"]
@@ -184,13 +209,13 @@ final class WatermelonUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
-        XCTAssertTrue(app.navigationBars["Watermelon AI"].waitForExistence(timeout: 15))
-        app.tabBars.buttons["Explore"].tap()
         XCTAssertTrue(app.navigationBars["Watermelon"].waitForExistence(timeout: 5))
-        let firstExperience = app.staticTexts["Private Tour South of Lisbon — Cacilhas, Almada & Costa da Caparica"]
-        if !firstExperience.waitForExistence(timeout: 10) { app.swipeUp() }
-        XCTAssertTrue(firstExperience.waitForExistence(timeout: 5))
-        firstExperience.tap()
+        // Cards are refreshed asynchronously; do not tap a stale bundled-catalogue label.
+        let experience = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "experienceCard-")).firstMatch
+        if !experience.waitForExistence(timeout: 10) { app.swipeUp() }
+        XCTAssertTrue(experience.waitForExistence(timeout: 5))
+        experience.tap()
+        XCTAssertTrue(app.navigationBars["Experience"].waitForExistence(timeout: 10))
         let add = app.buttons["addToProposal"]
         for _ in 0..<6 where !add.isHittable { app.swipeUp() }
         XCTAssertTrue(add.exists)
@@ -210,6 +235,7 @@ final class WatermelonUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
+        switchToAI(app)
         let input = app.descendants(matching: .any)["aiMessageInput"]
         XCTAssertTrue(input.waitForExistence(timeout: 15))
         input.tap()
