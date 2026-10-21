@@ -224,12 +224,10 @@ struct ExploreView: View {
     }
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Portugal, your way.").font(.largeTitle.bold())
-                    Text("Memorable experiences. A proposal made for you.").font(.headline)
-                    Text("Discover handpicked experiences, or ask our AI to design a personalised day.")
-                        .font(.subheadline)
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Portugal, your way.").font(.title2.bold())
+                    Text("Memorable experiences. A proposal made for you.").font(.subheadline.weight(.semibold))
                     HStack(spacing: 8) {
                         Button { store.openAI() } label: {
                             Label("Plan with AI", systemImage: "sparkles")
@@ -249,7 +247,7 @@ struct ExploreView: View {
                     .font(.caption.weight(.semibold))
                     .controlSize(.small)
                 }
-                .foregroundStyle(.white).padding(24).frame(maxWidth: .infinity, alignment: .leading)
+                .foregroundStyle(.white).padding(16).frame(maxWidth: .infinity, alignment: .leading)
                 .background(LinearGradient(colors: [Brand.navy, Brand.green], startPoint: .topLeading, endPoint: .bottomTrailing))
                 .clipShape(RoundedRectangle(cornerRadius: 24))
                 if store.loading { HStack { ProgressView(); Text("Updating experiences…").font(.caption) } }
