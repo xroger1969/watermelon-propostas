@@ -209,3 +209,16 @@
 "An alternative has been proposed" = "An alternative has been proposed";
 "Contact Watermelon to update this older request." = "Contact Watermelon to update this older request.";
 "Unable to update the booking. Please try again." = "Unable to update the booking. Please try again.";
+
+// Explicit AI data-sharing consent
+"AI privacy" = "AI privacy";
+"AI sharing is enabled." = "AI sharing is enabled.";
+"AI sharing is disabled." = "AI sharing is disabled.";
+"Watermelon sends your messages, recent conversation, conversation identifier and relevant trip or proposal details to OpenAI to generate suggestions. This includes any personal details you type." = "Watermelon sends your messages, recent conversation, conversation identifier and relevant trip or proposal details to OpenAI to generate suggestions. This includes any personal details you type.";
+"Voice input uses Apple speech recognition. Audio may be processed by Apple; only the resulting text is sent to the AI service." = "Voice input uses Apple speech recognition. Audio may be processed by Apple; only the resulting text is sent to the AI service.";
+"You can refuse and still browse experiences or request proposals without AI. Change this choice here at any time." = "You can refuse and still browse experiences or request proposals without AI. Change this choice here at any time.";
+"Stopping sharing prevents future AI requests. For deletion of information already sent, contact info@watermelonexperiences.pt." = "Stopping sharing prevents future AI requests. For deletion of information already sent, contact info@watermelonexperiences.pt.";
+"Allow sharing with OpenAI" = "Allow sharing with OpenAI";
+"Not now" = "Not now";
+"Stop sharing with OpenAI" = "Stop sharing with OpenAI";
+"Permission required to use Watermelon AI." = "Permission required to use Watermelon AI.";

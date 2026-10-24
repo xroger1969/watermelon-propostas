@@ -208,3 +208,16 @@
 "An alternative has been proposed" = "Eine Alternative wurde vorgeschlagen";
 "Contact Watermelon to update this older request." = "Kontaktieren Sie Watermelon, um diese ältere Anfrage zu aktualisieren.";
 "Unable to update the booking. Please try again." = "Die Buchung konnte nicht aktualisiert werden. Bitte versuchen Sie es erneut.";
+
+// Explicit AI data-sharing consent
+"AI privacy" = "KI-Datenschutz";
+"AI sharing is enabled." = "Die Datenweitergabe an die KI ist aktiviert.";
+"AI sharing is disabled." = "Die Datenweitergabe an die KI ist deaktiviert.";
+"Watermelon sends your messages, recent conversation, conversation identifier and relevant trip or proposal details to OpenAI to generate suggestions. This includes any personal details you type." = "Watermelon sendet Ihre Nachrichten, den bisherigen Gesprächsverlauf, die Gesprächskennung sowie relevante Reise- oder Angebotsdaten an OpenAI, um Vorschläge zu erstellen. Dies schließt persönliche Angaben ein, die Sie eingeben.";
+"Voice input uses Apple speech recognition. Audio may be processed by Apple; only the resulting text is sent to the AI service." = "Die Spracheingabe nutzt Apples Spracherkennung. Apple kann Audiodaten verarbeiten; nur der daraus entstandene Text wird an den KI-Dienst gesendet.";
+"You can refuse and still browse experiences or request proposals without AI. Change this choice here at any time." = "Sie können ablehnen und weiterhin Erlebnisse ansehen oder Angebote ohne KI anfragen. Sie können diese Entscheidung hier jederzeit ändern.";
+"Stopping sharing prevents future AI requests. For deletion of information already sent, contact info@watermelonexperiences.pt." = "Das Deaktivieren verhindert weitere KI-Anfragen. Zur Löschung bereits gesendeter Informationen kontaktieren Sie info@watermelonexperiences.pt.";
+"Allow sharing with OpenAI" = "Datenweitergabe an OpenAI erlauben";
+"Not now" = "Jetzt nicht";
+"Stop sharing with OpenAI" = "Datenweitergabe an OpenAI beenden";
+"Permission required to use Watermelon AI." = "Für Watermelon AI ist Ihre Zustimmung erforderlich.";

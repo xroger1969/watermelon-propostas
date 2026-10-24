@@ -2,6 +2,50 @@ import XCTest
 
 final class WatermelonUITests: XCTestCase {
     @MainActor
+    func testAIRequiresPermissionAndDecliningKeepsCatalogueUsable() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
+        app.launch()
+        let input = app.descendants(matching: .any)["quickAIInput"]
+        XCTAssertTrue(input.waitForExistence(timeout: 15))
+        input.tap()
+        input.typeText("Plan a coastal day")
+        app.buttons["quickAISend"].tap()
+        let decline = app.buttons["aiPrivacyDecline"]
+        XCTAssertTrue(decline.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["aiPrivacyDisclosure"].exists)
+        XCTAssertFalse(app.staticTexts["I can help you plan a trip in Portugal."].exists)
+        decline.tap()
+        XCTAssertTrue(app.staticTexts["Permission required to use Watermelon AI."].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["I can help you plan a trip in Portugal."].exists)
+        app.tabBars.buttons["Explore"].tap()
+        XCTAssertTrue(app.buttons["explorePlanWithAI"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testAIAllowThenRevokeRequiresFreshPermission() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
+        app.launch()
+        switchToAI(app)
+        let input = app.descendants(matching: .any)["aiMessageInput"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap()
+        input.typeText("Plan a day in Portugal")
+        app.buttons["aiSendMessage"].tap()
+        XCTAssertTrue(app.staticTexts["I can help you plan a trip in Portugal."].waitForExistence(timeout: 10))
+        app.buttons["aiPrivacySettings"].tap()
+        let revoke = app.buttons["aiPrivacyRevoke"]
+        XCTAssertTrue(revoke.waitForExistence(timeout: 5))
+        revoke.tap()
+        input.tap()
+        input.typeText("Add a beach visit")
+        app.buttons["aiSendMessage"].tap()
+        XCTAssertTrue(app.buttons["aiPrivacyAllow"].waitForExistence(timeout: 5))
+        app.buttons["aiPrivacyDecline"].tap()
+    }
+
+    @MainActor
     func testAppStoreScreenshots() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
@@ -24,6 +68,10 @@ final class WatermelonUITests: XCTestCase {
         XCTAssertTrue(tab.waitForExistence(timeout: 15))
         tab.tap()
         XCTAssertTrue(app.navigationBars["Watermelon AI"].waitForExistence(timeout: 5))
+        app.buttons["aiPrivacySettings"].tap()
+        let allow = app.buttons["aiPrivacyAllow"]
+        XCTAssertTrue(allow.waitForExistence(timeout: 5))
+        allow.tap()
     }
 
     @MainActor
@@ -130,6 +178,8 @@ final class WatermelonUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
         app.launch()
+        switchToAI(app)
+        app.tabBars.buttons["Explore"].tap()
         XCTAssertTrue(app.navigationBars["Watermelon"].waitForExistence(timeout: 15))
         let exploreComposer = app.descendants(matching: .any)["quickAIInput"]
         XCTAssertTrue(exploreComposer.waitForExistence(timeout: 5))

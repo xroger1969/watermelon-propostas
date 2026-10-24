@@ -237,6 +237,8 @@ struct MoreView: View {
                 Link("Website", destination: URL(string: "https://www.watermelonexperiences.pt")!)
             }
             Section("Privacy") {
+                Button("AI privacy") { AIConsentController.shared.showDisclosure = true }
+                    .accessibilityIdentifier("aiPrivacySettings")
                 Link("Privacy policy", destination: URL(string: "https://www.watermelonexperiences.pt/privacy")!)
                 Text("Favorites, proposals and request summaries are saved on this device. Received proposal links contain private access tokens; share them only with people you trust.")
                     .font(.footnote).foregroundStyle(.secondary)

@@ -31,6 +31,7 @@ final class WatermelonVoiceInput: ObservableObject {
 
     func start(locale: Locale) async {
         guard !listening else { return }
+        guard await AIConsentController.shared.requestPermission(), !Task.isCancelled, !listening else { return }
         error = ""
         transcript = ""
         let speechAllowed = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
@@ -104,7 +105,9 @@ enum Brand {
     static let navy = Color(red: 0.05, green: 0.13, blue: 0.19)
 }
 
+@MainActor
 struct RootView: View {
+    @StateObject private var aiConsent = AIConsentController.shared
     @EnvironmentObject private var store: TravelStore
     @Environment(\.scenePhase) private var scenePhase
     var body: some View {
@@ -119,6 +122,9 @@ struct RootView: View {
                 .tabItem { Label("My trips", systemImage: "suitcase.rolling") }.tag(3)
             NavigationStack { MoreView() }
                 .tabItem { Label("More", systemImage: "ellipsis.circle") }.tag(4)
+        }
+        .sheet(isPresented: $aiConsent.showDisclosure, onDismiss: { aiConsent.dismissPending() }) {
+            AIPrivacyDisclosureView(consent: aiConsent)
         }
         .task { await store.refresh() }
         .onChange(of: scenePhase) { _, phase in
@@ -735,6 +741,11 @@ struct AIConciergeView: View {
         .navigationTitle("Watermelon AI")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { AIConsentController.shared.showDisclosure = true } label: {
+                    Label("AI privacy", systemImage: "hand.raised")
+                }.accessibilityIdentifier("aiPrivacySettings")
+            }
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
                 Button("Done") { composerFocused = false }
@@ -834,6 +845,7 @@ struct AIConciergeView: View {
                 crmReference: crmReference, language: locale.identifier,
                 recommendations: recommendations, ideas: ideas
             )
+            guard AIConsentController.shared.hasPermission else { return }
             if reply.crmCreated, !reply.crmReference.isEmpty {
                 crmReference = reply.crmReference
             }

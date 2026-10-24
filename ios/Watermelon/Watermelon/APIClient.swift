@@ -176,6 +176,10 @@ struct APIClient {
     func concierge(message: String, history: [AIChatEntry], conversationId: String,
                    crmReference: String, language: String,
                    recommendations: [AIRecommendation], ideas: [AITailorMadeIdea]) async throws -> AIConciergeReply {
+        guard await AIConsentController.shared.requestPermission() else {
+            throw WatermelonError.message(String(localized: "Permission required to use Watermelon AI."))
+        }
+        try Task.checkCancellation()
         #if DEBUG
         if isTesting {
             return AIConciergeReply(reply: "I can help you plan a trip in Portugal.", question: "",
