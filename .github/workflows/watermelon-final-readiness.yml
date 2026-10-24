@@ -1,0 +1,68 @@
+name: Verify Watermelon public release readiness
+on:
+  push:
+    branches: [release/watermelon-ios-appstore-1-0-free-20261024]
+    paths: ['.github/workflows/watermelon-final-readiness.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-read-only:
+    if: github.repository == 'xroger1969/watermelon-propostas' && github.ref == 'refs/heads/release/watermelon-ios-appstore-1-0-free-20261024'
+    runs-on: ubuntu-latest
+    environment: testflight
+    timeout-minutes: 5
+    steps:
+      - name: Read the current Apple state without changing declarations or submitting review
+        env:
+          APPSTORE_ISSUER_ID: ${{ vars.APPSTORE_ISSUER_ID }}
+          APPSTORE_API_KEY_ID: ${{ vars.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+        run: |
+          python3 - <<'PY'
+          import base64,json,os,pathlib,subprocess,tempfile,time,urllib.request,urllib.error
+          def b64(value): return base64.urlsafe_b64encode(value).rstrip(b'=').decode()
+          now=int(time.time())
+          message=b64(json.dumps({'alg':'ES256','kid':os.environ['APPSTORE_API_KEY_ID'],'typ':'JWT'}).encode())+'.'+b64(json.dumps({'iss':os.environ['APPSTORE_ISSUER_ID'],'iat':now,'exp':now+900,'aud':'appstoreconnect-v1'}).encode())
+          with tempfile.TemporaryDirectory() as directory:
+              key=pathlib.Path(directory,'key.p8'); key.write_text(os.environ['APPSTORE_API_PRIVATE_KEY']); key.chmod(0o600)
+              sig=subprocess.run(['openssl','dgst','-sha256','-sign',str(key)],input=message.encode(),capture_output=True,check=True).stdout
+          if sig[0]!=48 or sig[1]>=128 or sig[2]!=2: raise SystemExit('Unexpected signature format')
+          n=sig[3]; r=sig[4:4+n]; off=4+n
+          if sig[off]!=2: raise SystemExit('Unexpected signature integer')
+          n=sig[off+1]; s=sig[off+2:off+2+n]
+          token=message+'.'+b64(int.from_bytes(r,'big').to_bytes(32,'big')+int.from_bytes(s,'big').to_bytes(32,'big'))
+          def get(path):
+              request=urllib.request.Request('https://api.appstoreconnect.apple.com'+path,headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+              try:
+                  with urllib.request.urlopen(request,timeout=30) as response: return json.load(response)
+              except urllib.error.HTTPError as error: return {'error_status':error.code}
+          def rows(value):
+              data=value.get('data',[]); return data if isinstance(data,list) else ([data] if data else [])
+          app='6821932993'; vid='992ca0b2-ca2e-4290-a601-89db0337768c'; lid='b45bf591-0443-451c-a594-e843026dd558'
+          report={'app_id':app,'mode':'read-only','checked_at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'screenshots':[]}
+          version=rows(get('/v1/appStoreVersions/'+vid))
+          report['public_version']=[{'version':x['attributes'].get('versionString'),'state':x['attributes'].get('appStoreState')} for x in version]
+          report['selected_build']=[{'id':x['id'],'build':x['attributes'].get('version'),'processing':x['attributes'].get('processingState')} for x in rows(get('/v1/appStoreVersions/'+vid+'/build'))]
+          for screenshot_set in rows(get('/v1/appStoreVersionLocalizations/'+lid+'/appScreenshotSets')):
+              report['screenshots'].append({'display_type':screenshot_set['attributes'].get('screenshotDisplayType'),'images':[{'id':x['id'],'name':x['attributes'].get('fileName'),'state':x['attributes'].get('assetDeliveryState',{}).get('state')} for x in rows(get('/v1/appScreenshotSets/'+screenshot_set['id']+'/appScreenshots?limit=50'))]})
+          build_result=get('/v1/builds?filter[app]='+app+'&sort=-uploadedDate&limit=5&include=preReleaseVersion')
+          pre={x['id']:x['attributes'].get('version') for x in build_result.get('included',[]) if x.get('type')=='preReleaseVersions'}
+          report['latest_builds']=[{'id':x['id'],'build':x['attributes'].get('version'),'version':pre.get(x.get('relationships',{}).get('preReleaseVersion',{}).get('data',{}).get('id')),'processing':x['attributes'].get('processingState')} for x in rows(build_result)]
+          schedule=get('/v1/apps/'+app+'/appPriceSchedule?include=baseTerritory')
+          for item in rows(schedule):
+              prices=get('/v1/appPriceSchedules/'+item['id']+'/manualPrices?include=appPricePoint&limit=200')
+              report['price_values']=[x.get('attributes',{}).get('customerPrice') for x in prices.get('included',[]) if x.get('type')=='appPricePoints']
+          for info in rows(get('/v1/apps/'+app+'/appInfos')):
+              if info['attributes'].get('appStoreState')=='PREPARE_FOR_SUBMISSION':
+                  report['content_rights']=info['attributes'].get('contentRightsDeclaration')
+                  age=rows(get('/v1/appInfos/'+info['id']+'/ageRatingDeclaration'))
+                  report['age_rating_fields']=[x.get('attributes',{}) for x in age]
+          result=json.dumps(report,indent=2); print(result)
+          pathlib.Path(os.environ['RUNNER_TEMP'],'watermelon-final-readiness.json').write_text(result)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: watermelon-final-readiness
+          path: ${{ runner.temp }}/watermelon-final-readiness.json
+          retention-days: 7
