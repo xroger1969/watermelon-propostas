@@ -40,7 +40,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Choose a large-screen simulator and deterministic screenshot settings
+      - name: Choose a large-screen simulator
         env:
           DEVICE: ${{ matrix.device }}
         run: |
@@ -54,12 +54,13 @@ jobs:
           device=sorted(candidates,key=lambda d:d['name'],reverse=True)[0]
           with open(os.environ['GITHUB_ENV'],'a') as file: file.write('CAPTURE_DEVICE='+device['udid']+'\n')
           print('Capture device:',device['name'])
-          # XCTest selector adaptation only: iPad can place the same native tabs at the top.
           path=pathlib.Path('ios/Watermelon/WatermelonUITests/WatermelonUITests.swift')
           source=path.read_text()
           source=source.replace('let button = app.tabBars.buttons[tab]', 'let button = app.tabBars.buttons[tab].exists ? app.tabBars.buttons[tab] : app.buttons[tab].firstMatch')
           path.write_text(source)
           PY
+      - name: Boot the selected device and set a clean status bar
+        run: |
           xcrun simctl boot "$CAPTURE_DEVICE" || true
           xcrun simctl bootstatus "$CAPTURE_DEVICE" -b
           xcrun simctl status_bar "$CAPTURE_DEVICE" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
