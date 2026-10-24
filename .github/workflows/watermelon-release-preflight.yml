@@ -1,0 +1,101 @@
+name: Watermelon release preflight (read-only)
+on:
+  push:
+    branches: [release/watermelon-ios-appstore-1-0-free-20261024]
+    paths: ['.github/workflows/watermelon-release-preflight.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export tracked release source (no environment or credentials)
+        run: git archive --format=zip HEAD -o "$RUNNER_TEMP/watermelon-release-source.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: watermelon-release-source
+          path: ${{ runner.temp }}/watermelon-release-source.zip
+          retention-days: 2
+  apple-readiness:
+    # Trusted release branch only. This job never writes to Apple's account.
+    if: github.repository == 'xroger1969/watermelon-propostas' && github.ref == 'refs/heads/release/watermelon-ios-appstore-1-0-free-20261024'
+    runs-on: ubuntu-latest
+    environment: testflight
+    timeout-minutes: 5
+    steps:
+      - name: Read App Store version, build, metadata and screenshot readiness
+        env:
+          APPSTORE_ISSUER_ID: ${{ vars.APPSTORE_ISSUER_ID }}
+          APPSTORE_API_KEY_ID: ${{ vars.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, pathlib, subprocess, tempfile, time, urllib.request, urllib.error
+          def b64(value):
+              return base64.urlsafe_b64encode(value).rstrip(b'=').decode()
+          names=['APPSTORE_ISSUER_ID','APPSTORE_API_KEY_ID','APPSTORE_API_PRIVATE_KEY']
+          missing=[n for n in names if not os.environ.get(n)]
+          if missing:
+              raise SystemExit('Apple read-only audit unavailable: missing '+', '.join(missing))
+          now=int(time.time())
+          header={'alg':'ES256','kid':os.environ['APPSTORE_API_KEY_ID'],'typ':'JWT'}
+          payload={'iss':os.environ['APPSTORE_ISSUER_ID'],'iat':now,'exp':now+900,'aud':'appstoreconnect-v1'}
+          message=b64(json.dumps(header,separators=(',',':')).encode())+'.'+b64(json.dumps(payload,separators=(',',':')).encode())
+          with tempfile.TemporaryDirectory() as directory:
+              key=pathlib.Path(directory)/'key.p8'
+              key.write_text(os.environ['APPSTORE_API_PRIVATE_KEY'])
+              key.chmod(0o600)
+              signed=subprocess.run(['openssl','dgst','-sha256','-sign',str(key)],input=message.encode(),capture_output=True,check=True).stdout
+          # DER sequence of two positive ASN.1 integers -> JOSE's fixed-width R||S.
+          if len(signed)<8 or signed[0]!=0x30 or signed[1]>=128 or signed[2]!=2:
+              raise SystemExit('Unexpected ECDSA signature format')
+          n=signed[3]; r=signed[4:4+n]; offset=4+n
+          if signed[offset]!=2: raise SystemExit('Invalid ECDSA integer')
+          n=signed[offset+1]; s=signed[offset+2:offset+2+n]
+          signature=int.from_bytes(r,'big').to_bytes(32,'big')+int.from_bytes(s,'big').to_bytes(32,'big')
+          token=message+'.'+b64(signature)
+          def get(path):
+              request=urllib.request.Request('https://api.appstoreconnect.apple.com'+path,headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+              try:
+                  with urllib.request.urlopen(request,timeout=30) as response: return json.load(response)
+              except urllib.error.HTTPError as error:
+                  return {'error_status':error.code,'path':path.split('?')[0]}
+          def rows(result):
+              value=result.get('data',[])
+              return value if isinstance(value,list) else ([value] if value else [])
+          appid='6821932993'
+          output={'app_id':appid,'checked_at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'mode':'read-only','versions':[]}
+          versions=get('/v1/apps/'+appid+'/appStoreVersions?filter[platform]=IOS&limit=10')
+          if 'error_status' in versions: output['versions_error']=versions
+          for version in rows(versions):
+              a=version.get('attributes',{}); vid=version['id']
+              entry={'id':vid,'version':a.get('versionString'),'state':a.get('appStoreState'),'release_type':a.get('releaseType'),'copyright_present':bool(a.get('copyright')),'localizations':[]}
+              build=get('/v1/appStoreVersions/'+vid+'/build')
+              entry['selected_build']=[{'id':x['id'],'version':x.get('attributes',{}).get('version'),'processing':x.get('attributes',{}).get('processingState')} for x in rows(build)]
+              for loc in rows(get('/v1/appStoreVersions/'+vid+'/appStoreVersionLocalizations')):
+                  attrs=loc.get('attributes',{}); lid=loc['id']
+                  localized={'id':lid,'locale':attrs.get('locale'),'description_present':bool(attrs.get('description')),'keywords_present':bool(attrs.get('keywords')),'support_url_present':bool(attrs.get('supportUrl')),'screenshots':[]}
+                  for ss in rows(get('/v1/appStoreVersionLocalizations/'+lid+'/appScreenshotSets')):
+                      shots=get('/v1/appScreenshotSets/'+ss['id']+'/appScreenshots?limit=50')
+                      localized['screenshots'].append({'display_type':ss.get('attributes',{}).get('screenshotDisplayType'),'count':len(rows(shots)),'states':[x.get('attributes',{}).get('assetDeliveryState',{}).get('state') for x in rows(shots)]})
+                  entry['localizations'].append(localized)
+              output['versions'].append(entry)
+          builds=get('/v1/builds?filter[app]='+appid+'&sort=-uploadedDate&limit=5')
+          output['latest_builds']=[{'id':x['id'],'build':x.get('attributes',{}).get('version'),'processing':x.get('attributes',{}).get('processingState'),'uploaded':x.get('attributes',{}).get('uploadedDate')} for x in rows(builds)]
+          schedule=get('/v1/apps/'+appid+'/appPriceSchedule')
+          output['pricing_schedule_available']=bool(rows(schedule))
+          output['pricing_error']=schedule.get('error_status')
+          text=json.dumps(output,indent=2)
+          print(text)
+          pathlib.Path(os.environ['RUNNER_TEMP'],'watermelon-apple-readiness.json').write_text(text)
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('## Watermelon App Store readiness (read-only)\n```json\n'+text+'\n```\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: watermelon-apple-readiness
+          path: ${{ runner.temp }}/watermelon-apple-readiness.json
+          retention-days: 2

@@ -17,7 +17,7 @@ struct TripsView: View {
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(receipt.items.first?.title ?? receipt.reference).font(.headline)
                                 Text(receipt.reference).font(.caption)
-                                Label("Request pending", systemImage: "clock").font(.caption).foregroundStyle(.secondary)
+                                Label("View request status", systemImage: "clock.arrow.circlepath").font(.caption).foregroundStyle(.secondary)
                             }
                         }
                     }
@@ -33,7 +33,7 @@ struct TripsView: View {
                 }
             }
             Section {
-                Text("Saved details are available offline. Request status is not updated automatically; contact Watermelon for reservation confirmation.")
+                Text("Open a request to check its latest status. Payment is available only after Watermelon confirms availability and requests payment.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }.navigationTitle("My trips")
@@ -41,9 +41,15 @@ struct TripsView: View {
 }
 
 struct ReceiptView: View {
+    @EnvironmentObject private var store: TravelStore
+    @Environment(\.scenePhase) private var scenePhase
     let receipt: RequestReceipt
+    @State private var progress: BookingProgress?
+    @State private var loading = false
+    @State private var statusError = ""
+    private var canTrack: Bool { receipt.kind == "booking" && receipt.trackingToken != nil }
     private var summary: String {
-        (["WATERMELON EXPERIENCES", receipt.reference, String(localized: "Request pending — awaiting confirmation")]
+        (["WATERMELON EXPERIENCES", receipt.reference, progress?.statusText ?? String(localized: "Request pending — awaiting confirmation")]
          + receipt.items.map { "\($0.title) · \(PortugalDate.display($0.date)) · \($0.guests) guests" }).joined(separator: "\n")
     }
     private var contactURL: URL {
@@ -56,15 +62,47 @@ struct ReceiptView: View {
             Section {
                 Label("Request received", systemImage: "checkmark.circle.fill").font(.title2.bold()).foregroundStyle(Brand.green)
                 Text(receipt.reference).font(.headline).textSelection(.enabled).accessibilityIdentifier("requestReference")
-                Text("Awaiting Watermelon confirmation").font(.headline)
+                if loading { ProgressView("Updating booking…") }
+                Text(progress?.statusText ?? String(localized: "Awaiting Watermelon confirmation"))
+                    .font(.headline).accessibilityIdentifier("bookingStatus")
+                if let total = progress?.estimated_total { LabeledContent("Total", value: money(total, progress?.currency ?? "EUR")) }
                 Text("Your request has been sent to Watermelon. We will contact you to confirm availability and final arrangements.")
+                if !statusError.isEmpty { Text(statusError).font(.footnote).foregroundStyle(Brand.red) }
+            }
+            if statusError.isEmpty, !loading, let url = progress?.paymentURL(for: receipt.reference) {
+                Section {
+                    Link(destination: url) { Label("Pay for this experience", systemImage: "creditcard") }
+                        .accessibilityIdentifier("bookingPayment")
+                    Text("Choose PayPal, Revolut or bank transfer. Opening the payment page does not confirm payment.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
             }
             ForEach(receipt.items) { item in Section { TripItemView(item: item) } }
             Section {
+                if canTrack {
+                    Button { Task { await refreshStatus() } } label: { Label("Refresh booking status", systemImage: "arrow.clockwise") }
+                        .disabled(loading).accessibilityIdentifier("refreshBookingStatus")
+                }
                 ShareLink(item: summary) { Label("Share request summary", systemImage: "square.and.arrow.up") }
                 Link(destination: contactURL) { Label("Contact Watermelon", systemImage: "message") }
             }
-        }.navigationTitle("Your request").navigationBarTitleDisplayMode(.inline)
+        }
+        .navigationTitle("Your request").navigationBarTitleDisplayMode(.inline)
+        .task { await refreshStatus() }
+        .refreshable { await refreshStatus() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await refreshStatus() } }
+        }
+    }
+    @MainActor
+    private func refreshStatus() async {
+        guard canTrack, !loading else { return }
+        loading = true
+        // Hide stale checkout actions while checking the authoritative state again.
+        statusError = ""
+        defer { loading = false }
+        do { progress = try await store.api.bookingStatus(receipt) }
+        catch { statusError = String(localized: "Status could not be updated. Contact Watermelon before paying.") }
     }
 }
 

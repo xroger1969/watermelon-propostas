@@ -1,0 +1,30 @@
+name: Watermelon free App Store price
+on:
+  push:
+    branches: [release/watermelon-ios-appstore-1-0-free-20261024]
+    paths: ['.github/workflows/watermelon-free-price.yml', 'scripts/watermelon-free-price.py']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  free-price:
+    if: github.repository == 'xroger1969/watermelon-propostas' && github.ref == 'refs/heads/release/watermelon-ios-appstore-1-0-free-20261024'
+    runs-on: ubuntu-latest
+    environment: testflight
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Apply only a verified zero price to app 6821932993
+        env:
+          APPSTORE_ISSUER_ID: ${{ vars.APPSTORE_ISSUER_ID }}
+          APPSTORE_API_KEY_ID: ${{ vars.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+        run: python3 scripts/watermelon-free-price.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: watermelon-free-price-result
+          path: ${{ runner.temp }}/watermelon-free-price-result.json
+          retention-days: 7

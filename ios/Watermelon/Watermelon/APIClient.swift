@@ -37,7 +37,7 @@ struct APIClient {
         self.isTesting = isTesting
     }
 
-    private func request<T: Decodable>(_ path: String, method: String = "GET", body: Data? = nil) async throws -> T {
+    private func request<T: Decodable>(_ path: String, method: String = "GET", body: Data? = nil, bearerToken: String? = nil) async throws -> T {
         guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL,
               url.scheme == "https", url.host == baseURL.host else {
             throw WatermelonError.message(String(localized: "Invalid Watermelon address."))
@@ -45,6 +45,7 @@ struct APIClient {
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 45)
         request.httpMethod = method
         request.httpBody = body
+        if let bearerToken { request.setValue("Bearer " + bearerToken, forHTTPHeaderField: "Authorization") }
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if body != nil { request.setValue("application/json", forHTTPHeaderField: "Content-Type") }
         let (data, response) = try await session.data(for: request)
@@ -55,7 +56,7 @@ struct APIClient {
         return try JSONDecoder().decode(T.self, from: data)
     }
     private struct ServerError: Decodable { var error: String }
-    private struct ReceiptResponse: Decodable { var reference: String; var status: String }
+    private struct ReceiptResponse: Decodable { var reference: String; var status: String; var trackingToken: String? }
 
     func catalog() async throws -> CatalogResult {
         #if DEBUG
@@ -93,7 +94,10 @@ struct APIClient {
             }
             byCode[code] = product
         }
-        let products = byCode.values.sorted { $0.displayTitle.localizedCaseInsensitiveCompare($1.displayTitle) == .orderedAscending }
+        let products = byCode.values.sorted {
+            if ($0.isStudio == true) != ($1.isStudio == true) { return $0.isStudio == true }
+            return $0.displayTitle.localizedCaseInsensitiveCompare($1.displayTitle) == .orderedAscending
+        }
         return CatalogResult(products: products, liveCodes: Set(byCode.keys), partial: !validStudio || !validViator)
     }
 
@@ -112,7 +116,7 @@ struct APIClient {
         #if DEBUG
         if isTesting {
             return RequestReceipt(reference: "WM-TEST-" + String(UUID().uuidString.prefix(6)), kind: proposal ? "proposal" : "booking",
-                                  createdAt: Date(), items: selections.map(\.tripItem))
+                                  createdAt: Date(), items: selections.map(\.tripItem), trackingToken: proposal ? nil : UUID().uuidString)
         }
         #endif
         let customer: [String: Any] = ["customerName": contact.name.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -145,7 +149,27 @@ struct APIClient {
         let response: ReceiptResponse = try await request(proposal ? "/api/proposal-request" : "/api/booking-request",
                                                          method: "POST", body: JSONSerialization.data(withJSONObject: payload))
         return RequestReceipt(reference: response.reference, kind: proposal ? "proposal" : "booking",
-                              createdAt: Date(), items: selections.map(\.tripItem))
+                              createdAt: Date(), items: selections.map(\.tripItem), trackingToken: response.trackingToken)
+    }
+
+    func bookingStatus(_ receipt: RequestReceipt) async throws -> BookingProgress {
+        guard receipt.kind == "booking", let token = receipt.trackingToken, UUID(uuidString: token) != nil,
+              receipt.reference.range(of: #"^[A-Za-z0-9-]{1,80}$"#, options: .regularExpression) != nil else {
+            throw WatermelonError.message(String(localized: "Contact Watermelon to update this older request."))
+        }
+        #if DEBUG
+        if isTesting {
+            return BookingProgress(reference: receipt.reference, status: "pending", payment_status: "not_requested", estimated_total: receipt.items.first?.total, currency: "EUR")
+        }
+        #endif
+        var parts = URLComponents()
+        parts.queryItems = [URLQueryItem(name: "reference", value: receipt.reference)]
+        struct Response: Decodable { var booking: BookingProgress }
+        let result: Response = try await request("/api/booking-status?" + (parts.percentEncodedQuery ?? ""), bearerToken: token)
+        guard result.booking.reference == receipt.reference else {
+            throw WatermelonError.message(String(localized: "Unable to update the booking. Please try again."))
+        }
+        return result.booking
     }
 
     // Calls the existing Watermelon server: the OpenAI key never ships in the iOS app.

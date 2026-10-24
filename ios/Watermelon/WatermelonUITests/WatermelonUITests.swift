@@ -2,6 +2,23 @@ import XCTest
 
 final class WatermelonUITests: XCTestCase {
     @MainActor
+    func testAppStoreScreenshots() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Watermelon"].waitForExistence(timeout: 15))
+        for (name, tab) in [("01-Explore", "Explore"), ("02-Watermelon-AI", "Watermelon AI"), ("03-Proposals", "Proposals"), ("04-My-Trips", "My trips")] {
+            let button = app.tabBars.buttons[tab]
+            XCTAssertTrue(button.waitForExistence(timeout: 5))
+            button.tap()
+            let attachment = XCTAttachment(screenshot: app.screenshot())
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+    }
+
+    @MainActor
     private func switchToAI(_ app: XCUIApplication) {
         let tab = app.tabBars.buttons["Watermelon AI"]
         XCTAssertTrue(tab.waitForExistence(timeout: 15))

@@ -188,3 +188,24 @@
 "Speak" = "Speak";
 "Send" = "Send";
 "Ask Watermelon AI" = "Ask Watermelon AI";
+
+// Direct bookings: CRM status and approved payment
+"View request status" = "View request status";
+"Open a request to check its latest status. Payment is available only after Watermelon confirms availability and requests payment." = "Open a request to check its latest status. Payment is available only after Watermelon confirms availability and requests payment.";
+"Updating booking…" = "Updating booking…";
+"Pay for this experience" = "Pay for this experience";
+"Choose PayPal, Revolut or bank transfer. Opening the payment page does not confirm payment." = "Choose PayPal, Revolut or bank transfer. Opening the payment page does not confirm payment.";
+"Refresh booking status" = "Refresh booking status";
+"Status could not be updated. Contact Watermelon before paying." = "Status could not be updated. Contact Watermelon before paying.";
+"Booking cancelled" = "Booking cancelled";
+"Payment refunded" = "Payment refunded";
+"Experience completed" = "Experience completed";
+"Experience in progress" = "Experience in progress";
+"Please contact Watermelon about this booking" = "Please contact Watermelon about this booking";
+"Booking confirmed" = "Booking confirmed";
+"Payment recorded — final confirmation pending" = "Payment recorded — final confirmation pending";
+"Availability confirmed — awaiting payment" = "Availability confirmed — awaiting payment";
+"Availability confirmed" = "Availability confirmed";
+"An alternative has been proposed" = "An alternative has been proposed";
+"Contact Watermelon to update this older request." = "Contact Watermelon to update this older request.";
+"Unable to update the booking. Please try again." = "Unable to update the booking. Please try again.";

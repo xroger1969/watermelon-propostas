@@ -205,3 +205,24 @@
 "Sending request…" = "A enviar o pedido…";
 "Send to Watermelon CRM" = "Enviar para o CRM Watermelon";
 "Tailor-made proposal" = "Proposta à medida";
+
+// Direct bookings: CRM status and approved payment
+"View request status" = "Ver estado do pedido";
+"Open a request to check its latest status. Payment is available only after Watermelon confirms availability and requests payment." = "Abra um pedido para consultar o estado atual. O pagamento só fica disponível após a Watermelon confirmar a disponibilidade e solicitar o pagamento.";
+"Updating booking…" = "A atualizar a reserva…";
+"Pay for this experience" = "Pagar esta experiência";
+"Choose PayPal, Revolut or bank transfer. Opening the payment page does not confirm payment." = "Escolha PayPal, Revolut ou transferência bancária. Abrir a página não confirma o pagamento.";
+"Refresh booking status" = "Atualizar estado da reserva";
+"Status could not be updated. Contact Watermelon before paying." = "Não foi possível atualizar o estado. Contacte a Watermelon antes de pagar.";
+"Booking cancelled" = "Reserva cancelada";
+"Payment refunded" = "Pagamento reembolsado";
+"Experience completed" = "Experiência concluída";
+"Experience in progress" = "Experiência em curso";
+"Please contact Watermelon about this booking" = "Contacte a Watermelon sobre esta reserva";
+"Booking confirmed" = "Reserva confirmada";
+"Payment recorded — final confirmation pending" = "Pagamento registado — a aguardar confirmação final";
+"Availability confirmed — awaiting payment" = "Disponibilidade confirmada — a aguardar pagamento";
+"Availability confirmed" = "Disponibilidade confirmada";
+"An alternative has been proposed" = "Foi proposta uma alternativa";
+"Contact Watermelon to update this older request." = "Contacte a Watermelon para atualizar este pedido anterior.";
+"Unable to update the booking. Please try again." = "Não foi possível atualizar a reserva. Tente novamente.";

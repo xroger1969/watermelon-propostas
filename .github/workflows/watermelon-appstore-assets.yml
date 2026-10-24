@@ -1,0 +1,89 @@
+name: Watermelon App Store metadata and screenshots
+on:
+  push:
+    branches: [release/watermelon-ios-appstore-1-0-free-20261024]
+    paths: ['.github/workflows/watermelon-appstore-assets.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  metadata:
+    if: github.repository == 'xroger1969/watermelon-propostas' && github.ref == 'refs/heads/release/watermelon-ios-appstore-1-0-free-20261024'
+    runs-on: ubuntu-latest
+    environment: testflight
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fill authorised listing metadata without submitting review
+        env:
+          APPSTORE_ISSUER_ID: ${{ vars.APPSTORE_ISSUER_ID }}
+          APPSTORE_API_KEY_ID: ${{ vars.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+          WATERMELON_APPLY_METADATA: 'true'
+        run: python3 scripts/watermelon-appstore-metadata.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: watermelon-metadata-result
+          path: ${{ runner.temp }}/watermelon-metadata-result.json
+          retention-days: 7
+  screenshots:
+    runs-on: macos-26
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [iphone, ipad]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Choose a large-screen simulator
+        env:
+          DEVICE: ${{ matrix.device }}
+        run: |
+          xcrun simctl list devices available --json > "$RUNNER_TEMP/devices.json"
+          python3 - <<'PY'
+          import json, os, pathlib
+          data=json.loads(pathlib.Path(os.environ['RUNNER_TEMP'],'devices.json').read_text())
+          devices=[d for runtime, group in data['devices'].items() if 'iOS' in runtime for d in group if d.get('isAvailable')]
+          candidates=[d for d in devices if ('iPhone' in d['name'] and 'Pro Max' in d['name'])] if os.environ['DEVICE']=='iphone' else [d for d in devices if 'iPad Pro' in d['name'] and ('13-inch' in d['name'] or '12.9-inch' in d['name'])]
+          if not candidates: raise SystemExit('Required large-screen simulator is unavailable')
+          device=sorted(candidates,key=lambda d:d['name'],reverse=True)[0]
+          with open(os.environ['GITHUB_ENV'],'a') as file: file.write('CAPTURE_DEVICE='+device['udid']+'\n')
+          print('Capture device:',device['name'])
+          path=pathlib.Path('ios/Watermelon/WatermelonUITests/WatermelonUITests.swift')
+          source=path.read_text()
+          source=source.replace('let button = app.tabBars.buttons[tab]', 'let button = app.tabBars.buttons[tab].exists ? app.tabBars.buttons[tab] : app.buttons[tab].firstMatch')
+          path.write_text(source)
+          PY
+      - name: Boot the selected device and set a clean status bar
+        run: |
+          xcrun simctl boot "$CAPTURE_DEVICE" || true
+          xcrun simctl bootstatus "$CAPTURE_DEVICE" -b
+          xcrun simctl status_bar "$CAPTURE_DEVICE" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
+      - name: Render the app and capture its actual catalogue, AI, proposals and trips screens
+        run: |
+          set -o pipefail
+          xcodebuild test -project ios/Watermelon/Watermelon.xcodeproj -scheme Watermelon \
+            -configuration Debug -destination "platform=iOS Simulator,id=$CAPTURE_DEVICE" \
+            -only-testing:WatermelonUITests/WatermelonUITests/testAppStoreScreenshots \
+            -parallel-testing-enabled NO -derivedDataPath "$RUNNER_TEMP/CaptureDerived" \
+            -resultBundlePath "$RUNNER_TEMP/Capture.xcresult" CODE_SIGNING_ALLOWED=NO \
+            > "$RUNNER_TEMP/capture.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/capture.log"; exit 1; }
+          tail -n 30 "$RUNNER_TEMP/capture.log"
+      - name: Export screenshots for visual inspection before any upload to Apple
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/screenshots"
+          xcrun xcresulttool export attachments --path "$RUNNER_TEMP/Capture.xcresult" --output-path "$RUNNER_TEMP/screenshots" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: watermelon-appstore-${{ matrix.device }}
+          path: |
+            ${{ runner.temp }}/screenshots
+            ${{ runner.temp }}/capture.log
+          retention-days: 7
