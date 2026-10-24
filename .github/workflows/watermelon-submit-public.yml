@@ -1,0 +1,34 @@
+name: Submit verified Watermelon free release
+on:
+  push:
+    branches: [release/watermelon-final-submission-20261024]
+    paths: ['.github/workflows/watermelon-submit-public.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  submit-verified:
+    if: github.repository == 'xroger1969/watermelon-propostas' && github.ref == 'refs/heads/release/watermelon-final-submission-20261024'
+    runs-on: ubuntu-latest
+    environment: testflight
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify syntax without credentials
+        run: python3 -m py_compile scripts/watermelon-submit-reviewed.py scripts/watermelon-finish-listing.py
+      - name: Select exact successful consent build and request public review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPSTORE_ISSUER_ID: ${{ vars.APPSTORE_ISSUER_ID }}
+          APPSTORE_API_KEY_ID: ${{ vars.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+        run: python3 scripts/watermelon-submit-reviewed.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: watermelon-public-submission-result
+          path: ${{ runner.temp }}/watermelon-public-submission-result.json
+          retention-days: 3
