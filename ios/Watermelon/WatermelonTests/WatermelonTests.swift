@@ -105,6 +105,63 @@ final class WatermelonTests: XCTestCase {
             XCTAssertFalse(error.localizedDescription.isEmpty)
         }
     }
+    func testCustomerPaymentLinkRequiresApprovedOutstandingBooking() throws {
+        let token = "ec16d5f5-432d-448f-8db7-e340f60fe2ba"
+        let reference = "WM-QA-ONLY"
+        let link = "https://www.watermelonexperiences.pt/payment/" + reference + "?token=" + token
+        var progress = BookingProgress(reference: reference, status: "pending", payment_status: "not_requested", estimated_total: 120, currency: "EUR", payment_url: link)
+        XCTAssertNil(progress.paymentURL(for: reference))
+        progress.status = "approved"
+        XCTAssertNil(progress.paymentURL(for: reference))
+        progress.payment_status = "awaiting"
+        XCTAssertEqual(progress.paymentURL(for: reference)?.absoluteString, link)
+        XCTAssertNil(progress.paymentURL(for: "OTHER"))
+        for state in ["paid", "refunded", "not_requested"] {
+            progress.payment_status = state
+            XCTAssertNil(progress.paymentURL(for: reference))
+        }
+        progress.payment_status = "awaiting"
+        progress.status = "cancelled"
+        XCTAssertNil(progress.paymentURL(for: reference))
+        progress.status = "approved"
+        progress.estimated_total = 0
+        XCTAssertNil(progress.paymentURL(for: reference))
+        progress.estimated_total = 120
+        for bad in [link.replacingOccurrences(of: "www.watermelonexperiences.pt", with: "attacker.example"),
+                    link.replacingOccurrences(of: "https://", with: "http://"), link + "&token=" + token,
+                    link.replacingOccurrences(of: reference, with: "OTHER"), link + "#unsafe"] {
+            progress.payment_url = bad
+            XCTAssertNil(progress.paymentURL(for: reference))
+        }
+    }
+    func testOlderReceiptsStillDecodeWithoutTrackingCapability() throws {
+        let old = #"{"reference":"WM-OLD","kind":"booking","createdAt":0,"items":[]}"#
+        let receipt = try JSONDecoder().decode(RequestReceipt.self, from: Data(old.utf8))
+        XCTAssertEqual(receipt.reference, "WM-OLD")
+        XCTAssertNil(receipt.trackingToken)
+    }
+    func testBookingStatusSendsPrivateTokenInHeaderNeverInURL() async throws {
+        let token = "ec16d5f5-432d-448f-8db7-e340f60fe2ba"
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/booking-status")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer " + token)
+            XCTAssertFalse(request.url!.absoluteString.contains(token))
+            return (200, #"{"booking":{"reference":"WM-QA-ONLY","status":"pending","payment_status":"not_requested","currency":"EUR","payment_url":null}}"#)
+        }
+        defer { MockURLProtocol.handler = nil }
+        let receipt = RequestReceipt(reference: "WM-QA-ONLY", kind: "booking", createdAt: Date(), items: [], trackingToken: token)
+        let state = try await client().bookingStatus(receipt)
+        XCTAssertEqual(state.status, "pending")
+        XCTAssertNil(state.paymentURL(for: receipt.reference))
+    }
+    func testBookingStatusNeverAcceptsAnotherCustomersReference() async throws {
+        MockURLProtocol.handler = { _ in (200, #"{"booking":{"reference":"OTHER","status":"approved","payment_status":"awaiting","currency":"EUR"}}"#) }
+        defer { MockURLProtocol.handler = nil }
+        let receipt = RequestReceipt(reference: "WM-QA-ONLY", kind: "booking", createdAt: Date(), items: [], trackingToken: UUID().uuidString)
+        do { _ = try await client().bookingStatus(receipt); XCTFail("Cross-reference status was accepted") }
+        catch { XCTAssertTrue(error is WatermelonError) }
+    }
+
     private func client() -> APIClient {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]

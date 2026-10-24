@@ -79,6 +79,8 @@ export async function POST(request: Request) {
   }
 
   const reference = referenceCode();
+  // Independent capability for this customer; never use the payment token here.
+  const trackingToken = crypto.randomUUID();
 
   const supabase = createClient(SUPABASE_BOOKING_URL, SUPABASE_BOOKING_PUBLISHABLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -126,6 +128,7 @@ export async function POST(request: Request) {
     .from("watermelon_booking_requests")
     .insert({
       reference,
+      customer_access_token: trackingToken,
       status: "pending",
       payment_status: "not_requested",
       product_code: productCode,
@@ -162,8 +165,9 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     reference,
+    trackingToken,
     status: "pending",
     estimatedTotal,
     pricingMode: productRules.pricingMode,
-  });
+  }, { headers: { "Cache-Control": "no-store, max-age=0" } });
 }

@@ -91,3 +91,7 @@ Apple associates uploaded binaries to versions by the bundle's marketing version
 The GitHub workflow `.github/workflows/watermelon-ios.yml` builds, tests and (when explicitly triggered) uploads new iOS binaries. The script `scripts/watermelon-sign-export.sh` sets the build number based on the GitHub workflow run number.
 
 No app price, App Store listing field, or screenshot is written to Apple's systems by the repository version change alone.
+
+## Approved operating model (24 October 2026)
+
+Preserve manual availability approval and manual payment validation. Existing PayPal.Me, Revolut.me and bank transfer remain the payment methods; do not introduce Stripe, automatic inventory/holds or instant charging. New direct-booking receipts receive a private status token, allowing the iOS customer to refresh status and open the existing payment page only after approval and a payment request. Opening a payment link never marks a booking paid. The App Store download and app functionality remain free.

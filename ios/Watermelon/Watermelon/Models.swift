@@ -127,6 +127,8 @@ struct RequestReceipt: Codable, Identifiable {
     var kind: String
     var createdAt: Date
     var items: [TripItem]
+    // Optional so older saved receipts still decode without loss of favourites or proposals.
+    var trackingToken: String? = nil
     var id: String { reference }
 }
 
@@ -223,4 +225,45 @@ func money(_ value: Double, _ currency: String = "EUR") -> String {
     formatter.numberStyle = .currency
     formatter.currencyCode = currency
     return formatter.string(from: NSNumber(value: value)) ?? "\(value) \(currency)"
+}
+
+// Read-only state from the CRM, authenticated by the receipt capability.
+struct BookingProgress: Decodable {
+    var reference: String
+    var status: String
+    var payment_status: String
+    var estimated_total: Double?
+    var currency: String
+    var updated_at: String? = nil
+    var payment_url: String? = nil
+
+    var statusText: String {
+        if status == "cancelled" { return String(localized: "Booking cancelled") }
+        if payment_status == "refunded" { return String(localized: "Payment refunded") }
+        if status == "completed" { return String(localized: "Experience completed") }
+        if status == "in_service" { return String(localized: "Experience in progress") }
+        if status == "no_show" { return String(localized: "Please contact Watermelon about this booking") }
+        if status == "confirmed" && payment_status == "paid" { return String(localized: "Booking confirmed") }
+        if payment_status == "paid" { return String(localized: "Payment recorded — final confirmation pending") }
+        if ["approved", "confirmed"].contains(status) && payment_status == "awaiting" {
+            return String(localized: "Availability confirmed — awaiting payment")
+        }
+        if status == "approved" { return String(localized: "Availability confirmed") }
+        if status == "alternative" { return String(localized: "An alternative has been proposed") }
+        return String(localized: "Awaiting Watermelon confirmation")
+    }
+    // A stale/forged payment field must never bypass the server's approval gate.
+    func paymentURL(for expectedReference: String) -> URL? {
+        guard reference == expectedReference, ["approved", "confirmed"].contains(status),
+              payment_status == "awaiting", let total = estimated_total, total.isFinite, total > 0,
+              let value = payment_url, let parts = URLComponents(string: value),
+              parts.scheme == "https", parts.host == "www.watermelonexperiences.pt",
+              parts.user == nil, parts.password == nil, parts.port == nil, parts.fragment == nil,
+              parts.percentEncodedPath == "/payment/" + reference,
+              reference.range(of: #"^[A-Za-z0-9-]{1,80}$"#, options: .regularExpression) != nil,
+              parts.queryItems?.count == 1, let item = parts.queryItems?.first,
+              item.name == "token", let token = item.value, UUID(uuidString: token) != nil
+        else { return nil }
+        return parts.url
+    }
 }

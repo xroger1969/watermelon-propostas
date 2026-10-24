@@ -187,3 +187,24 @@
 "Speak" = "Spreken";
 "Send" = "Verzenden";
 "Ask Watermelon AI" = "Vraag het aan Watermelon AI";
+
+// Direct bookings: CRM status and approved payment
+"View request status" = "Status van aanvraag bekijken";
+"Open a request to check its latest status. Payment is available only after Watermelon confirms availability and requests payment." = "Open een aanvraag om de actuele status te bekijken. Betalen is pas mogelijk nadat Watermelon de beschikbaarheid bevestigt en om betaling vraagt.";
+"Updating booking…" = "Boeking bijwerken…";
+"Pay for this experience" = "Deze ervaring betalen";
+"Choose PayPal, Revolut or bank transfer. Opening the payment page does not confirm payment." = "Kies PayPal, Revolut of een bankoverschrijving. De pagina openen bevestigt geen betaling.";
+"Refresh booking status" = "Boekingsstatus vernieuwen";
+"Status could not be updated. Contact Watermelon before paying." = "De status kon niet worden bijgewerkt. Neem contact op met Watermelon voordat u betaalt.";
+"Booking cancelled" = "Boeking geannuleerd";
+"Payment refunded" = "Betaling terugbetaald";
+"Experience completed" = "Ervaring afgerond";
+"Experience in progress" = "Ervaring bezig";
+"Please contact Watermelon about this booking" = "Neem contact op met Watermelon over deze boeking";
+"Booking confirmed" = "Boeking bevestigd";
+"Payment recorded — final confirmation pending" = "Betaling geregistreerd — definitieve bevestiging volgt";
+"Availability confirmed — awaiting payment" = "Beschikbaarheid bevestigd — betaling in afwachting";
+"Availability confirmed" = "Beschikbaarheid bevestigd";
+"An alternative has been proposed" = "Er is een alternatief voorgesteld";
+"Contact Watermelon to update this older request." = "Neem contact op met Watermelon om deze eerdere aanvraag bij te werken.";
+"Unable to update the booking. Please try again." = "De boeking kon niet worden bijgewerkt. Probeer het opnieuw.";
