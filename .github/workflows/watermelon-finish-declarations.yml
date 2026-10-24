@@ -1,0 +1,86 @@
+name: Finish Watermelon declarations and availability
+on:
+  push:
+    branches: [release/watermelon-final-submission-20261024]
+    paths: ['.github/workflows/watermelon-finish-declarations.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  declarations:
+    if: github.repository == 'xroger1969/watermelon-propostas' && github.ref == 'refs/heads/release/watermelon-final-submission-20261024'
+    runs-on: ubuntu-latest
+    environment: testflight
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Complete accurate declarations using Apple's current API contract
+        env:
+          APPSTORE_ISSUER_ID: ${{ vars.APPSTORE_ISSUER_ID }}
+          APPSTORE_API_KEY_ID: ${{ vars.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          source=Path('scripts/watermelon-finish-listing.py').read_text()
+          anchor="age_props=props('AgeRatingDeclarationUpdateRequest',('data','attributes'))"
+          assert source.count(anchor)==1
+          source=source.replace(anchor,anchor+"\n AGE.pop('ageRatingOverride', None)  # Only the current V2 override may be sent.")
+          anchor="report['availability_error']=availability if 'error_status' in availability else None"
+          assert source.count(anchor)==1
+          replacement='''if availability.get('error_status') == 404:
+           # User authorised free public worldwide distribution. Configure the
+           # current Apple territories, without preorders or a paid download.
+           if '/v2/appAvailabilities' not in paths:
+            raise RuntimeError('Public availability creation is not in the official contract')
+           inline=deref(schemas['TerritoryAvailabilityInlineCreate'])
+           expected={'type','id','attributes','relationships'}
+           if not expected.issubset(inline.get('properties',{})):
+            raise RuntimeError('Unrecognised territory availability schema')
+           report['territory_inline_schema']=inline
+           available_properties=deref(inline['properties']['attributes']).get('properties',{})
+           if 'available' not in available_properties:raise RuntimeError('Missing availability attribute')
+           territories=[];next_path='/v1/territories?limit=200'
+           for _ in range(3):
+            page=call(next_path)
+            if 'error_status' in page:raise RuntimeError('Territory list unavailable')
+            territories.extend(rows(page))
+            next_path=page.get('links',{}).get('next')
+            if not next_path:break
+           if len(territories)<100 or next_path:raise RuntimeError('Incomplete Apple territory list')
+           included=[]
+           for territory in territories:
+            tid=territory['id']
+            included.append({'type':'territoryAvailabilities','id':'${territory-'+tid+'}',
+             'attributes':{'available':True},
+             'relationships':{'territory':{'data':{'type':'territories','id':tid}}}})
+           body={'data':{'type':'appAvailabilities','attributes':{'availableInNewTerritories':True},
+            'relationships':{'app':{'data':{'type':'apps','id':APP}},
+             'territoryAvailabilities':{'data':[{'type':'territoryAvailabilities','id':x['id']} for x in included]}}},
+            'included':included}
+           created=call('/v2/appAvailabilities','POST',body)
+           report['changes'].append({'resource':'appAvailabilities','success':'error_status' not in created,'territories_requested':len(territories),'error':created if 'error_status' in created else None})
+           availability=call('/v1/apps/'+APP+'/appAvailabilityV2')
+          report['availability_error']=availability if 'error_status' in availability else None'''
+          source=source.replace(anchor,replacement)
+          anchor="text=json.dumps(report,indent=2);print(text)"
+          assert source.count(anchor)==1
+          source=source.replace(anchor,"""details=rows(call('/v1/appStoreVersions/'+vid+'/appStoreReviewDetail'))
+          for detail in details:
+           notes=detail.get('attributes',{}).get('notes') or ''
+           addition='AI privacy: explicit permission is required before the first AI request or voice input. The disclosure names OpenAI and the transmitted data. Declining leaves catalogue browsing and manual requests usable. Consent can be revoked in AI privacy, on the AI screen or in More.'
+           if addition not in notes:patch('appStoreReviewDetails',detail['id'],{'notes':notes+'\\n\\n'+addition})
+          text=json.dumps(report,indent=2);print(text)""")
+          compile(source,'checked-listing-completion','exec')
+          exec(compile(source,'checked-listing-completion','exec'),{'__name__':'__main__'})
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: watermelon-completed-declarations
+          path: |
+            ${{ runner.temp }}/watermelon-finish-listing-result.json
+            ${{ runner.temp }}/watermelon-api-contract.json
+          retention-days: 3
