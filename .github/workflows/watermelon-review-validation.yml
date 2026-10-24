@@ -1,0 +1,43 @@
+name: Verify Watermelon public review blockers
+on:
+  push:
+    branches: [release/watermelon-final-submission-20261024]
+    paths: ['.github/workflows/watermelon-review-validation.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify-public-review:
+    if: github.repository == 'xroger1969/watermelon-propostas' && github.ref == 'refs/heads/release/watermelon-final-submission-20261024'
+    runs-on: ubuntu-latest
+    environment: testflight
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Keep Apple's associated field errors in the scoped submission report
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('scripts/watermelon-finish-listing.py')
+          source=path.read_text()
+          anchor="'source':e.get('source')"
+          if source.count(anchor)!=1: raise SystemExit('Error handler source differs; nothing executed')
+          source=source.replace(anchor,anchor+",'meta':e.get('meta')")
+          compile(source,str(path),'exec')
+          path.write_text(source)
+          PY
+      - name: Validate the exact selected build and reuse the existing review draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPSTORE_ISSUER_ID: ${{ vars.APPSTORE_ISSUER_ID }}
+          APPSTORE_API_KEY_ID: ${{ vars.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+        run: python3 scripts/watermelon-submit-reviewed.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: watermelon-review-validation
+          path: ${{ runner.temp }}/watermelon-public-submission-result.json
+          retention-days: 3
