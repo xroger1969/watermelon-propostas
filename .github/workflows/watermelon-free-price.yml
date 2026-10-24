@@ -2,7 +2,7 @@ name: Watermelon free App Store price
 on:
   push:
     branches: [release/watermelon-ios-appstore-1-0-free-20261024]
-    paths: ['.github/workflows/watermelon-free-price.yml']
+    paths: ['.github/workflows/watermelon-free-price.yml', 'scripts/watermelon-free-price.py']
   workflow_dispatch:
 permissions:
   contents: read
