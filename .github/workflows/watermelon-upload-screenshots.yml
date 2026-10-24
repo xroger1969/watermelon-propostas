@@ -1,0 +1,38 @@
+name: Upload reviewed Watermelon App Store screenshots
+on:
+  push:
+    branches: [release/watermelon-ios-appstore-1-0-free-20261024]
+    paths: ['.github/workflows/watermelon-upload-screenshots.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  upload-reviewed:
+    if: github.repository == 'xroger1969/watermelon-propostas' && github.ref == 'refs/heads/release/watermelon-ios-appstore-1-0-free-20261024'
+    runs-on: ubuntu-latest
+    environment: testflight
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 40084899937
+          pattern: watermelon-appstore-*
+          path: ${{ runner.temp }}/reviewed-captures
+      - name: Verify image checksums and upload to the correct editable listing
+        env:
+          APPSTORE_ISSUER_ID: ${{ vars.APPSTORE_ISSUER_ID }}
+          APPSTORE_API_KEY_ID: ${{ vars.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+          CAPTURE_ARTIFACTS: ${{ runner.temp }}/reviewed-captures
+        run: python3 scripts/watermelon-upload-reviewed-screenshots.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: watermelon-screenshots-upload-result
+          path: ${{ runner.temp }}/watermelon-screenshots-upload-result.json
+          retention-days: 7
