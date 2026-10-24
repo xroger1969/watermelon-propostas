@@ -1,0 +1,34 @@
+name: Complete Watermelon free public listing
+on:
+  push:
+    branches: [release/watermelon-final-submission-20261024]
+    paths: ['.github/workflows/watermelon-finish-listing.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  complete-listing:
+    if: github.repository == 'xroger1969/watermelon-propostas' && github.ref == 'refs/heads/release/watermelon-final-submission-20261024'
+    runs-on: ubuntu-latest
+    environment: testflight
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Validate script without account credentials
+        run: python3 -m py_compile scripts/watermelon-finish-listing.py
+      - name: Fill verified declarations and read release state
+        env:
+          APPSTORE_ISSUER_ID: ${{ vars.APPSTORE_ISSUER_ID }}
+          APPSTORE_API_KEY_ID: ${{ vars.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+        run: python3 scripts/watermelon-finish-listing.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: watermelon-finish-listing-result
+          path: |
+            ${{ runner.temp }}/watermelon-finish-listing-result.json
+            ${{ runner.temp }}/watermelon-api-contract.json
+          retention-days: 3
