@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Configure the user's explicitly authorised FREE app price; never use a paid point."""
+"""Configure the explicitly authorised FREE price. Never accept a paid price point."""
 import base64, decimal, json, os, pathlib, subprocess, tempfile, time, urllib.error, urllib.request
 APP='6821932993'; HOST='https://api.appstoreconnect.apple.com'
 def b64(value): return base64.urlsafe_b64encode(value).rstrip(b'=').decode()
@@ -23,9 +23,11 @@ def call(path,method='GET',body=None):
         with urllib.request.urlopen(req,timeout=30) as response:
             data=response.read(); return json.loads(data) if data else {}
     except urllib.error.HTTPError as error:
-        try: codes=[x.get('code') for x in json.loads(error.read()).get('errors',[])]
-        except Exception: codes=[]
-        return {'error_status':error.code,'codes':codes}
+        try:
+            errors=json.loads(error.read()).get('errors',[])
+            details=[{'code':x.get('code'),'detail':str(x.get('detail',''))[:350],'source':x.get('source')} for x in errors]
+        except Exception: details=[]
+        return {'error_status':error.code,'errors':details}
 def rows(result):
     data=result.get('data',[]); return data if isinstance(data,list) else ([data] if data else [])
 def zero(value):
@@ -53,16 +55,16 @@ if point:
         'baseTerritory':{'data':{'type':'territories','id':'PRT'}},
         'manualPrices':{'data':[{'type':'appPrices','id':'${free-price}'}]}}},
         'included':[{'type':'appPrices','id':'${free-price}','attributes':{'startDate':None,'endDate':None},
-            'relationships':{'app':{'data':{'type':'apps','id':APP}},'appPricePoint':{'data':{'type':'appPricePoints','id':point['id']}}}}]}
+            'relationships':{'appPricePoint':{'data':{'type':'appPricePoints','id':point['id']}}}}]}
     changed=call('/v1/appPriceSchedules','POST',body)
     report['configured']='error_status' not in changed
-    report['change_error']=changed.get('error_status'); report['change_codes']=changed.get('codes')
+    report['change_error']=changed.get('error_status'); report['change_details']=changed.get('errors')
     schedule=call('/v1/apps/'+APP+'/appPriceSchedule?include=baseTerritory')
     for item in rows(schedule):
         report['readback_base_territory']=item.get('relationships',{}).get('baseTerritory',{}).get('data',{}).get('id')
         prices=call('/v1/appPriceSchedules/'+item['id']+'/manualPrices?include=appPricePoint&limit=200')
         values=[x.get('attributes',{}).get('customerPrice') for x in prices.get('included',[]) if x.get('type')=='appPricePoints']
-        report['readback_prices']=values; report['readback_error']=prices.get('error_status')
+        report['readback_prices']=values; report['readback_error']=prices.get('error_status'); report['readback_details']=prices.get('errors')
         report['verified']=bool(values) and all(zero(value) for value in values)
 else:
     report['reason']='No verified zero-price point found. No price change attempted.'
