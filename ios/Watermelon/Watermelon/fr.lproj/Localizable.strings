@@ -208,3 +208,16 @@
 "An alternative has been proposed" = "Une alternative a été proposée";
 "Contact Watermelon to update this older request." = "Contactez Watermelon pour mettre à jour cette ancienne demande.";
 "Unable to update the booking. Please try again." = "Impossible de mettre à jour la réservation. Veuillez réessayer.";
+
+// Explicit AI data-sharing consent
+"AI privacy" = "Confidentialité de l’IA";
+"AI sharing is enabled." = "Le partage avec l’IA est activé.";
+"AI sharing is disabled." = "Le partage avec l’IA est désactivé.";
+"Watermelon sends your messages, recent conversation, conversation identifier and relevant trip or proposal details to OpenAI to generate suggestions. This includes any personal details you type." = "Watermelon transmet vos messages, la conversation récente, son identifiant et les informations pertinentes du voyage ou du devis à OpenAI pour générer des suggestions. Cela inclut les données personnelles que vous saisissez.";
+"Voice input uses Apple speech recognition. Audio may be processed by Apple; only the resulting text is sent to the AI service." = "La saisie vocale utilise la reconnaissance vocale d’Apple. Apple peut traiter l’audio ; seul le texte obtenu est transmis au service d’IA.";
+"You can refuse and still browse experiences or request proposals without AI. Change this choice here at any time." = "Vous pouvez refuser et continuer à explorer les expériences ou à demander des devis sans IA. Modifiez ce choix ici à tout moment.";
+"Stopping sharing prevents future AI requests. For deletion of information already sent, contact info@watermelonexperiences.pt." = "Désactiver le partage empêche toute nouvelle demande à l’IA. Pour supprimer des informations déjà transmises, contactez info@watermelonexperiences.pt.";
+"Allow sharing with OpenAI" = "Autoriser le partage avec OpenAI";
+"Not now" = "Pas maintenant";
+"Stop sharing with OpenAI" = "Arrêter le partage avec OpenAI";
+"Permission required to use Watermelon AI." = "Une autorisation est nécessaire pour utiliser Watermelon AI.";

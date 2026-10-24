@@ -226,3 +226,16 @@
 "An alternative has been proposed" = "Foi proposta uma alternativa";
 "Contact Watermelon to update this older request." = "Contacte a Watermelon para atualizar este pedido anterior.";
 "Unable to update the booking. Please try again." = "Não foi possível atualizar a reserva. Tente novamente.";
+
+// Explicit AI data-sharing consent
+"AI privacy" = "Privacidade da IA";
+"AI sharing is enabled." = "A partilha com a IA está ativa.";
+"AI sharing is disabled." = "A partilha com a IA está desativada.";
+"Watermelon sends your messages, recent conversation, conversation identifier and relevant trip or proposal details to OpenAI to generate suggestions. This includes any personal details you type." = "A Watermelon envia as suas mensagens, a conversa recente, o identificador da conversa e os dados relevantes da viagem ou proposta à OpenAI para gerar sugestões. Isto inclui os dados pessoais que escrever.";
+"Voice input uses Apple speech recognition. Audio may be processed by Apple; only the resulting text is sent to the AI service." = "A entrada por voz utiliza o reconhecimento de fala da Apple. O áudio pode ser processado pela Apple; apenas o texto resultante é enviado ao serviço de IA.";
+"You can refuse and still browse experiences or request proposals without AI. Change this choice here at any time." = "Pode recusar e continuar a explorar experiências ou a pedir propostas sem IA. Pode alterar esta escolha aqui a qualquer momento.";
+"Stopping sharing prevents future AI requests. For deletion of information already sent, contact info@watermelonexperiences.pt." = "Desativar a partilha impede novos pedidos à IA. Para pedir a eliminação de informação já enviada, contacte info@watermelonexperiences.pt.";
+"Allow sharing with OpenAI" = "Permitir partilha com a OpenAI";
+"Not now" = "Agora não";
+"Stop sharing with OpenAI" = "Desativar partilha com a OpenAI";
+"Permission required to use Watermelon AI." = "É necessária autorização para utilizar a Watermelon AI.";

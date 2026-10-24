@@ -130,7 +130,124 @@ final class TravelStore: ObservableObject {
         persist()
     }
     func clear() {
+        AIConsentController.shared.resolve(allow: false)
         saved = Saved(catalog: saved.catalog)
         persist()
+    }
+}
+
+
+// A single permission gate covers every AI entry point, including catalogue prompts
+// and speech. Declining leaves catalogue, favourites and manual requests available.
+@MainActor
+final class AIConsentController: ObservableObject {
+    static let consentKey = "watermelon.ai.dataSharingConsentVersion"
+    static let currentVersion = 1
+    static let shared: AIConsentController = {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            let name = "watermelon.ui-tests.ai-consent"
+            let defaults = UserDefaults(suiteName: name)!
+            defaults.removePersistentDomain(forName: name)
+            return AIConsentController(defaults: defaults)
+        }
+        #endif
+        return AIConsentController(defaults: .standard)
+    }()
+    @Published var showDisclosure = false
+    @Published private(set) var hasPermission: Bool
+    private let defaults: UserDefaults
+    private var pending: [UUID: CheckedContinuation<Bool, Never>] = [:]
+
+    init(defaults: UserDefaults) {
+        self.defaults = defaults
+        hasPermission = defaults.integer(forKey: Self.consentKey) == Self.currentVersion
+    }
+
+    func requestPermission() async -> Bool {
+        guard !Task.isCancelled else { return false }
+        if hasPermission { return true }
+        let id = UUID()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                guard !Task.isCancelled else {
+                    continuation.resume(returning: false)
+                    return
+                }
+                pending[id] = continuation
+                showDisclosure = true
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.cancelRequest(id) }
+        }
+    }
+
+    func resolve(allow: Bool) {
+        hasPermission = allow
+        if allow { defaults.set(Self.currentVersion, forKey: Self.consentKey) }
+        else { defaults.removeObject(forKey: Self.consentKey) }
+        showDisclosure = false
+        let continuations = Array(pending.values)
+        pending.removeAll()
+        continuations.forEach { $0.resume(returning: allow) }
+    }
+
+    func dismissPending() {
+        // Closing the disclosure without pressing Allow is not permission.
+        // Dismissing an already-authorised settings screen retains that choice.
+        if !pending.isEmpty { resolve(allow: false) }
+    }
+
+    private func cancelRequest(_ id: UUID) {
+        pending.removeValue(forKey: id)?.resume(returning: false)
+        if pending.isEmpty { showDisclosure = false }
+    }
+}
+
+@MainActor
+struct AIPrivacyDisclosureView: View {
+    @ObservedObject var consent: AIConsentController
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        Label(LocalizedStringKey(consent.hasPermission ? "AI sharing is enabled." : "AI sharing is disabled."), systemImage: "hand.raised")
+                            .font(.headline)
+                        Text("Watermelon sends your messages, recent conversation, conversation identifier and relevant trip or proposal details to OpenAI to generate suggestions. This includes any personal details you type.")
+                            .accessibilityIdentifier("aiPrivacyDisclosure")
+                        Text("Voice input uses Apple speech recognition. Audio may be processed by Apple; only the resulting text is sent to the AI service.")
+                        Text("You can refuse and still browse experiences or request proposals without AI. Change this choice here at any time.")
+                        Text("Stopping sharing prevents future AI requests. For deletion of information already sent, contact info@watermelonexperiences.pt.")
+                            .font(.footnote)
+                        Link("Privacy policy", destination: URL(string: "https://www.watermelonexperiences.pt/privacy")!)
+                    }
+                    .padding(20)
+                    .frame(maxWidth: 660, alignment: .leading)
+                    .frame(maxWidth: .infinity)
+                }
+                VStack(spacing: 10) {
+                    if consent.hasPermission {
+                        Button("Stop sharing with OpenAI", role: .destructive) { consent.resolve(allow: false) }
+                            .accessibilityIdentifier("aiPrivacyRevoke")
+                            .buttonStyle(.bordered)
+                        Button("Done") { consent.showDisclosure = false }
+                            .buttonStyle(.borderedProminent)
+                    } else {
+                        Button("Allow sharing with OpenAI") { consent.resolve(allow: true) }
+                            .accessibilityIdentifier("aiPrivacyAllow")
+                            .buttonStyle(.borderedProminent)
+                        Button("Not now", role: .cancel) { consent.resolve(allow: false) }
+                            .accessibilityIdentifier("aiPrivacyDecline")
+                            .buttonStyle(.bordered)
+                    }
+                }
+                .controlSize(.large)
+                .padding(16)
+                .frame(maxWidth: .infinity)
+            }
+            .navigationTitle("AI privacy")
+            .navigationBarTitleDisplayMode(.inline)
+        }
     }
 }

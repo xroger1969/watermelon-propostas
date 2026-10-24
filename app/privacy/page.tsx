@@ -12,7 +12,7 @@ export default function PrivacyPolicyPage() {
       <article className="legal-card">
         <p className="eyebrow dark">WATERMELON EXPERIENCES</p>
         <h1>Privacy Policy</h1>
-        <p className="legal-updated">Last updated: 30 September 2026</p>
+        <p className="legal-updated">Last updated: 24 October 2026</p>
 
         <section>
           <h2>1. Who we are</h2>
@@ -55,6 +55,27 @@ export default function PrivacyPolicyPage() {
 
         <section>
           <h2>5. AI Concierge</h2>
+          <p>
+            In the iOS app, we ask for your explicit permission before the first
+            AI request or AI voice input. The disclosure identifies OpenAI and
+            explains that your message, recent conversation, conversation
+            identifier and relevant trip or proposal details are sent through
+            Watermelon to OpenAI to generate suggestions. Any personal details
+            you include in those messages are part of this processing.
+          </p>
+          <p>
+            You may decline and continue browsing experiences or sending manual
+            requests without AI. Open AI privacy in the AI screen or More to
+            change your choice. Withdrawing permission prevents future AI
+            requests; it does not recall information already transmitted.
+            Contact info@watermelonexperiences.pt for deletion requests.
+          </p>
+          <p>
+            Voice input also requires the iOS microphone and speech-recognition
+            permissions. Audio may be processed by Apple speech services; the
+            app sends the resulting text, not the audio recording, to the AI
+            service. You can stop dictation or type instead.
+          </p>
           <p>
             If you use the Watermelon AI Concierge, the message you enter and
             relevant travel-planning context may be securely processed through

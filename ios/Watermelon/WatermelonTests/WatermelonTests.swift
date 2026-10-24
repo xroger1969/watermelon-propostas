@@ -2,6 +2,39 @@ import XCTest
 @testable import Watermelon
 
 final class WatermelonTests: XCTestCase {
+    @MainActor
+    func testAIConsentDefaultsToDeniedAndCanBeRevoked() async {
+        let name = "watermelon.consent-unit.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let consent = AIConsentController(defaults: defaults)
+        XCTAssertFalse(consent.hasPermission)
+        let denied = Task { await consent.requestPermission() }
+        for _ in 0..<100 where !consent.showDisclosure { await Task.yield() }
+        XCTAssertTrue(consent.showDisclosure)
+        consent.dismissPending()
+        let deniedValue = await denied.value
+        XCTAssertFalse(deniedValue)
+        XCTAssertFalse(consent.hasPermission)
+        let allowed = Task { await consent.requestPermission() }
+        for _ in 0..<100 where !consent.showDisclosure { await Task.yield() }
+        consent.resolve(allow: true)
+        let allowedValue = await allowed.value
+        XCTAssertTrue(allowedValue)
+        XCTAssertTrue(AIConsentController(defaults: defaults).hasPermission)
+        consent.resolve(allow: false)
+        XCTAssertFalse(AIConsentController(defaults: defaults).hasPermission)
+    }
+
+    @MainActor
+    func testOldAIConsentVersionDoesNotCountAsPermission() {
+        let name = "watermelon.consent-unit.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set(-1, forKey: AIConsentController.consentKey)
+        XCTAssertFalse(AIConsentController(defaults: defaults).hasPermission)
+    }
+
     private func product(_ json: String) throws -> Experience {
         try JSONDecoder().decode(Experience.self, from: Data(json.utf8))
     }
