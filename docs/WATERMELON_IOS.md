@@ -59,7 +59,7 @@ Variáveis: `APPLE_TEAM_ID`, `APPSTORE_ISSUER_ID`, `APPSTORE_API_KEY_ID`.
 
 Secrets: `APPSTORE_API_PRIVATE_KEY`, `APPLE_DISTRIBUTION_CERTIFICATE_BASE64`, `APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD`, `WATERMELON_PROVISIONING_PROFILE_BASE64`. O último deve ser um perfil App Store para **pt.watermelonexperiences.app**, associado à mesma equipa e certificado.
 
-Executar o workflow com `send_to_testflight=true`. Para envios posteriores a cada push, definir `WATERMELON_TESTFLIGHT_ENABLED=true` após validar o primeiro envio. O workflow apenas envia builds beta para TestFlight; não submete uma versão à App Store pública.
+Executar manualmente o workflow com `send_to_testflight=true`, após validar os testes e autorizar o envio. As alterações a `main` e a verificação semanal executam testes, **mas não enviam** compilação para a Apple sem ação manual. O envio do workflow é apenas para o TestFlight; a submissão da versão pública no App Store Connect exige sempre uma operação separada e explícita.
 
 ## Notas para a revisão beta
 
