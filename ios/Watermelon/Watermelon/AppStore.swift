@@ -27,7 +27,7 @@ final class TravelStore: ObservableObject {
     let api: APIClient
     private let fileURL: URL
 
-    init() {
+    init(storageURL: URL? = nil) {
         #if DEBUG
         let testing = ProcessInfo.processInfo.arguments.contains("--ui-testing")
         #else
@@ -35,7 +35,7 @@ final class TravelStore: ObservableObject {
         #endif
         api = APIClient(isTesting: testing)
         let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        fileURL = root.appendingPathComponent(testing ? "watermelon-ui-test.json" : "watermelon-travel.json")
+        fileURL = storageURL ?? root.appendingPathComponent(testing ? "watermelon-ui-test.json" : "watermelon-travel.json")
         if testing { try? FileManager.default.removeItem(at: fileURL) }
         if let data = try? Data(contentsOf: fileURL), let decoded = try? JSONDecoder().decode(Saved.self, from: data) {
             saved = decoded
