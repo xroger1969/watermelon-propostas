@@ -17,7 +17,11 @@ struct TripsView: View {
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(receipt.items.first?.title ?? receipt.reference).font(.headline)
                                 Text(receipt.reference).font(.caption)
-                                Label("View request status", systemImage: "clock.arrow.circlepath").font(.caption).foregroundStyle(.secondary)
+                                Label(receipt.kind == "booking" ? "View request status"
+                                      : receipt.source == "manual" ? "Reference saved locally — not verified"
+                                      : "Request received — awaiting a proposal",
+                                      systemImage: "clock.arrow.circlepath")
+                                    .font(.caption).foregroundStyle(.secondary)
                             }
                         }
                     }
@@ -49,7 +53,9 @@ struct ReceiptView: View {
     @State private var statusError = ""
     private var canTrack: Bool { receipt.kind == "booking" && receipt.trackingToken != nil }
     private var summary: String {
-        (["WATERMELON EXPERIENCES", receipt.reference, progress?.statusText ?? String(localized: "Request pending — awaiting confirmation")]
+        (["WATERMELON EXPERIENCES", receipt.reference,
+          receipt.kind == "proposal" ? String(localized: "Proposal request — not a confirmed offer")
+                                     : (progress?.statusText ?? String(localized: "Request pending — awaiting confirmation"))]
          + receipt.items.map { "\($0.title) · \(PortugalDate.display($0.date)) · \($0.guests) guests" }).joined(separator: "\n")
     }
     private var contactURL: URL {
@@ -60,13 +66,22 @@ struct ReceiptView: View {
     var body: some View {
         List {
             Section {
-                Label("Request received", systemImage: "checkmark.circle.fill").font(.title2.bold()).foregroundStyle(Brand.green)
+                Label(receipt.source == "manual" ? "Request reference saved" : "Request received",
+                      systemImage: "checkmark.circle.fill")
+                    .font(.title2.bold()).foregroundStyle(Brand.green)
                 Text(receipt.reference).font(.headline).textSelection(.enabled).accessibilityIdentifier("requestReference")
-                if loading { ProgressView("Updating booking…") }
-                Text(progress?.statusText ?? String(localized: "Awaiting Watermelon confirmation"))
-                    .font(.headline).accessibilityIdentifier("bookingStatus")
-                if let total = progress?.estimated_total { LabeledContent("Total", value: money(total, progress?.currency ?? "EUR")) }
-                Text("Your request has been sent to Watermelon. We will contact you to confirm availability and final arrangements.")
+                if receipt.kind == "proposal" {
+                    Text(receipt.source == "manual"
+                         ? "This reference is saved only on this device and has not been verified with Watermelon."
+                         : "Watermelon received your request. A completed proposal will arrive in a separate private link.")
+                        .font(.footnote).accessibilityIdentifier("bookingStatus")
+                } else {
+                    if loading { ProgressView("Updating booking…") }
+                    Text(progress?.statusText ?? String(localized: "Awaiting Watermelon confirmation"))
+                        .font(.headline).accessibilityIdentifier("bookingStatus")
+                    if let total = progress?.estimated_total { LabeledContent("Total", value: money(total, progress?.currency ?? "EUR")) }
+                    Text("Your request has been sent to Watermelon. We will contact you to confirm availability and final arrangements.")
+                }
                 if !statusError.isEmpty { Text(statusError).font(.footnote).foregroundStyle(Brand.red) }
             }
             if statusError.isEmpty, !loading, let url = progress?.paymentURL(for: receipt.reference) {
