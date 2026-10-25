@@ -129,7 +129,16 @@ struct RequestReceipt: Codable, Identifiable {
     var items: [TripItem]
     // Optional so older saved receipts still decode without loss of favourites or proposals.
     var trackingToken: String? = nil
+    // A manually entered reference is not proof of a CRM record or ownership.
+    var source: String? = nil
     var id: String { reference }
+
+    static func normalizeAIReference(_ input: String) -> String? {
+        let reference = input.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard reference.range(of: #"^WM-AI-[0-9]{6}-[0-9A-F]{8}$"#,
+                              options: .regularExpression) != nil else { return nil }
+        return reference
+    }
 }
 
 struct ProposalLink: Codable, Identifiable, Hashable {

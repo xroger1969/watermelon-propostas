@@ -60,6 +60,39 @@ final class WatermelonTests: XCTestCase {
         let studio = try product(#"{"code":"TEST","title":"Tour","isStudio":true,"options":[{"optionCode":"A","optionName":"A","price":100}]}"#)
         XCTAssertNil(studio.basis(for: studio.availableOptions[0]))
     }
+    func testAIRequestCodeDoesNotGrantAccessToPrivateProposal() {
+        let ref = "WM-AI-261025-9E794620"
+        XCTAssertEqual(RequestReceipt.normalizeAIReference("  wm-ai-261025-9e794620  "), ref)
+        XCTAssertNil(RequestReceipt.normalizeAIReference("WM-AI-261025-NOTREAL"))
+        XCTAssertNil(RequestReceipt.normalizeAIReference("https://other.example/" + ref))
+        XCTAssertNil(ProposalLink.parse(ref))
+        XCTAssertNil(ProposalLink.parse("https://www.watermelonexperiences.pt/proposal/" + ref))
+    }
+
+    @MainActor
+    func testAIRequestsAreSavedAcrossRelaunchAndDeduplicated() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("travel.json")
+        let reference = "WM-AI-261025-9E794620"
+
+        let store = TravelStore(storageURL: file)
+        XCTAssertTrue(store.saveAIRequest(reference, manuallyAdded: true))
+        XCTAssertEqual(store.saved.receipts.count, 1)
+        XCTAssertEqual(store.saved.receipts.first?.source, "manual")
+        XCTAssertTrue(store.saveAIRequest(reference))
+        XCTAssertTrue(store.saveAIRequest(reference))
+        XCTAssertEqual(store.saved.receipts.count, 1)
+        XCTAssertNil(store.saved.receipts.first?.source)
+        XCTAssertEqual(store.saved.receipts.first?.kind, "proposal")
+        XCTAssertFalse(store.saveAIRequest("not-a-reference"))
+
+        let reopened = TravelStore(storageURL: file)
+        XCTAssertEqual(reopened.saved.receipts.first?.reference, reference)
+        XCTAssertEqual(reopened.saved.receipts.count, 1)
+        XCTAssertNil(reopened.saved.receipts.first?.source)
+    }
+
     func testPrivateProposalLinkValidation() {
         let token = "c384c014-56a7-4f35-a730-05a036e60780"
         XCTAssertNotNil(ProposalLink.parse("https://www.watermelonexperiences.pt/proposal/WM-P-261012-ABC123?token=" + token))

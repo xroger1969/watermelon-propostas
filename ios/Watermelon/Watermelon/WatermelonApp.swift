@@ -755,9 +755,14 @@ struct AIConciergeView: View {
         .onAppear {
             // Remove leftover chat confirmation from an earlier session.
             // The original request remains safely registered in the CRM.
-            if messages.isEmpty && !crmReference.isEmpty {
-                crmReference = ""
-                conversationId = UUID().uuidString
+            if !crmReference.isEmpty {
+                // Migrate a confirmed request from earlier app versions before clearing
+                // the chat confirmation; never confuse the request with an offer.
+                store.saveAIRequest(crmReference)
+                if messages.isEmpty {
+                    crmReference = ""
+                    conversationId = UUID().uuidString
+                }
             }
             UserDefaults.standard.removeObject(forKey: "watermelon.ai.savedCRMReferences")
             consumePendingQuestion()
@@ -769,6 +774,7 @@ struct AIConciergeView: View {
                 AITailorRequestForm(
                     history: messages, ideas: ideas, conversationId: conversationId
                 ) { reference in
+                    store.saveAIRequest(reference)
                     crmReference = reference
                     errorText = ""
                 }
@@ -847,6 +853,7 @@ struct AIConciergeView: View {
             )
             guard AIConsentController.shared.hasPermission else { return }
             if reply.crmCreated, !reply.crmReference.isEmpty {
+                store.saveAIRequest(reply.crmReference)
                 crmReference = reply.crmReference
             }
             recommendations = reply.recommendations
@@ -991,6 +998,7 @@ struct AITailorRequestForm: View {
                 guests: guests, notes: extraNotes, history: history,
                 ideas: ideas, conversationId: conversationId, consent: consent
             )
+            store.saveAIRequest(reference)
             onSaved(reference)
             dismiss()
         } catch {
