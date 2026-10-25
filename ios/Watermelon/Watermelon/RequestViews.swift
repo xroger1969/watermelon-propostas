@@ -49,7 +49,10 @@ struct ProposalsView: View {
                         NavigationLink { ReceiptView(receipt: receipt) } label: {
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(receipt.reference).font(.headline)
-                                Text("Awaiting Watermelon response").font(.caption).foregroundStyle(.secondary)
+                                Text(receipt.source == "manual"
+                                     ? "Reference saved locally — not verified"
+                                     : "Request received — awaiting a proposal")
+                                    .font(.caption).foregroundStyle(.secondary)
                             }
                         }
                     }
@@ -71,17 +74,26 @@ struct ImportProposalView: View {
     var body: some View {
         Form {
             Section {
-                Text("Paste the complete proposal link received from Watermelon.")
-                TextField("Proposal link", text: $input, axis: .vertical)
-                    .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                Text("A WM-AI code identifies a request, not a completed proposal. Save the reference here or paste the complete private link received from Watermelon to open an offer.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                TextField("Proposal link or WM-AI request code", text: $input, axis: .vertical)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
                 if !error.isEmpty { Text(error).foregroundStyle(Brand.red) }
-                Button("Open proposal") {
-                    guard let link = ProposalLink.parse(input) else { error = String(localized: "Please use a valid Watermelon proposal link."); return }
-                    dismiss()
-                    Task { @MainActor in
-                        // Present after this sheet has left the view hierarchy.
-                        try? await Task.sleep(for: .milliseconds(350))
-                        store.openingLink = link
+                Button("Open or save") {
+                    if let link = ProposalLink.parse(input) {
+                        dismiss()
+                        Task { @MainActor in
+                            // Present after this sheet has left the view hierarchy.
+                            try? await Task.sleep(for: .milliseconds(350))
+                            store.openingLink = link
+                        }
+                    } else if let reference = RequestReceipt.normalizeAIReference(input) {
+                        // No remote customer data is fetched using a public request code.
+                        // Manual references are explicitly labelled unverified.
+                        store.saveAIRequest(reference, manuallyAdded: true)
+                        dismiss()
+                    } else {
+                        error = String(localized: "Enter a WM-AI request code or a valid private Watermelon proposal link.")
                     }
                 }
             }
