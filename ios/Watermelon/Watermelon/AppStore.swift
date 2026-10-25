@@ -116,6 +116,25 @@ final class TravelStore: ObservableObject {
         persist()
         tab = 2
     }
+    // AI-generated CRM requests are NOT completed proposals and have no public proposal token.
+    // Save their reference locally only after server confirmation, or mark manual imports unverified.
+    @discardableResult
+    func saveAIRequest(_ input: String, manuallyAdded: Bool = false) -> Bool {
+        guard let reference = RequestReceipt.normalizeAIReference(input) else { return false }
+        if let index = saved.receipts.firstIndex(where: { $0.reference.caseInsensitiveCompare(reference) == .orderedSame }) {
+            if !manuallyAdded && saved.receipts[index].source == "manual" {
+                saved.receipts[index].source = nil
+                persist()
+            }
+            return true
+        }
+        let receipt = RequestReceipt(reference: reference, kind: "proposal",
+                                     createdAt: Date(), items: [],
+                                     source: manuallyAdded ? "manual" : nil)
+        saved.receipts.insert(receipt, at: 0)
+        persist()
+        return true
+    }
     func open(_ url: URL) {
         if let link = ProposalLink.parse(url.absoluteString) { tab = 2; openingLink = link }
     }
