@@ -5,6 +5,9 @@ on:
     paths: ['ios/Watermelon/**', 'scripts/*watermelon*', '.github/workflows/watermelon-ios.yml']
   pull_request:
     paths: ['ios/Watermelon/**', 'scripts/*watermelon*', '.github/workflows/watermelon-ios.yml']
+  # Weekly regression checks; never publish from the scheduled run.
+  schedule:
+    - cron: '0 9 * * 1'
   workflow_dispatch:
     inputs:
       send_to_testflight:
@@ -78,7 +81,8 @@ jobs:
   testflight:
     name: Sign and upload Watermelon to TestFlight
     needs: simulator
-    if: github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.send_to_testflight) || (github.event_name == 'push' && (vars.WATERMELON_TESTFLIGHT_ENABLED == 'true' || contains(github.event.head_commit.message, '[watermelon-testflight]'))))
+    # Deliberate manual release gate: neither pushes nor weekly tests upload to Apple.
+    if: github.repository == 'xroger1969/watermelon-propostas' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.send_to_testflight == true
     runs-on: macos-26
     timeout-minutes: 50
     environment: testflight
