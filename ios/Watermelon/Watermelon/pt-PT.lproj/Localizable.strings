@@ -239,3 +239,14 @@
 "Not now" = "Agora não";
 "Stop sharing with OpenAI" = "Desativar partilha com a OpenAI";
 "Permission required to use Watermelon AI." = "É necessária autorização para utilizar a Watermelon AI.";
+
+"Reference saved locally — not verified" = "Referência guardada localmente — não verificada";
+"Request received — awaiting a proposal" = "Pedido recebido — a aguardar uma proposta";
+"A WM-AI code identifies a request, not a completed proposal. Save the reference here or paste the complete private link received from Watermelon to open an offer." = "Um código WM-AI identifica um pedido, não uma proposta concluída. Guarde aqui a referência ou cole a ligação privada completa recebida da Watermelon para abrir a proposta.";
+"Proposal link or WM-AI request code" = "Ligação da proposta ou código WM-AI do pedido";
+"Open or save" = "Abrir ou guardar";
+"Enter a WM-AI request code or a valid private Watermelon proposal link." = "Introduza um código WM-AI do pedido ou uma ligação privada válida de proposta da Watermelon.";
+"Proposal request — not a confirmed offer" = "Pedido de proposta — não é uma oferta confirmada";
+"Request reference saved" = "Referência do pedido guardada";
+"This reference is saved only on this device and has not been verified with Watermelon." = "Esta referência está guardada apenas neste dispositivo e não foi verificada junto da Watermelon.";
+"Watermelon received your request. A completed proposal will arrive in a separate private link." = "A Watermelon recebeu o seu pedido. A proposta concluída será enviada através de uma ligação privada separada.";
