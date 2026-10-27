@@ -1,0 +1,24 @@
+.gyg-eligibility-card{margin-top:18px}
+.gyg-eligibility-head{display:flex;justify-content:space-between;align-items:start;gap:16px}
+.gyg-eligibility-head h2{margin:0 0 5px;font-size:21px}
+.gyg-eligibility-head p{margin:0 0 10px;font-size:12px;color:var(--muted)}
+.gyg-eligibility-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:12px 0 18px}
+.gyg-eligibility-stats>div{background:#f3f7f5;border:1px solid var(--line);border-radius:12px;padding:12px}
+.gyg-eligibility-stats strong{display:block;font-size:26px}
+.gyg-eligibility-stats span{font-size:11px;color:var(--muted)}
+.gyg-eligibility-warning{font-size:12px;background:#f5f7f6;border:1px solid var(--line);padding:11px 13px;border-radius:10px;line-height:1.6}
+.gyg-eligibility-tools{display:flex;align-items:center;gap:12px;justify-content:space-between;margin:16px 0 12px}
+.gyg-eligibility-tools select{max-width:260px}
+.gyg-eligibility-table{min-width:990px}
+.gyg-eligibility-table td{line-height:1.5}
+.gyg-eligibility-table ul{margin:0;padding-left:18px}
+.gyg-eligibility-table li{margin:3px 0}
+.gyg-eligibility-table .hint{font-size:11px}
+.gyg-eligibility-next{margin:6px 0 0;color:var(--muted);font-size:12px}
+.gyg-eligibility-badge{white-space:nowrap;display:inline-block;padding:6px 10px;border-radius:9px;font-size:11px;font-weight:700;background:#e6f2e8;color:#1c6b34}
+.gyg-eligibility-combine{background:#e7efff;color:#1d5489}
+.gyg-eligibility-animal,.gyg-eligibility-marine,.gyg-eligibility-review{background:#fff0d6;color:#7b5400}
+.gyg-eligibility-operator{background:#fce4e7;color:#922b39}
+.gyg-eligibility-references{display:flex;gap:12px;flex-wrap:wrap;margin-top:15px;font-size:12px}
+.gyg-eligibility-references a{color:#215e33}
+@media(max-width:800px){.gyg-eligibility-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.gyg-eligibility-head,.gyg-eligibility-tools{align-items:flex-start;flex-direction:column}.gyg-eligibility-tools input,.gyg-eligibility-tools select{max-width:none}}
