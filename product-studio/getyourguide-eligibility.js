@@ -105,6 +105,7 @@ function renderGygEligibilityAudit(){
   const over=reports.filter(p=>p.cutoffInvalid).length;
   const unpriced=reports.filter(p=>p.unpriced).length;
   const operator=reports.filter(p=>p.status==="operator").length;
+  const perPerson=products.reduce((n,p)=>n+(Array.isArray(p.allOptions)?p.allOptions:[]).filter(o=>/per[_ ]person/i.test(String(o.priceType||""))).length,0);
   el.innerHTML='<section class="card gyg-eligibility-card">'+
     '<div class="gyg-eligibility-head"><div><h2>Pré-triagem de elegibilidade GetYourGuide</h2>'+
     '<p>Regras oficiais e avaliação interna · 27/10/2026 · não representa aprovação da GetYourGuide</p></div>'+
@@ -115,7 +116,7 @@ function renderGygEligibilityAudit(){
       '<div><strong>'+unpriced+'</strong><span>programas com opções sem preço</span></div>'+
       '<div><strong>'+operator+'</strong><span>com fonte externa identificada</span></div>'+
     '</div>'+
-    '<p class="gyg-eligibility-warning"><strong>Preço de 27 € por pessoa:</strong> não existe um mínimo geral de 27 € nas regras oficiais consultadas. Nenhuma opção do catálogo está atualmente configurada como preço por pessoa. Preço por grupo não é preço individual.</p>'+
+    '<p class="gyg-eligibility-warning"><strong>Preço de 27 € por pessoa:</strong> não existe um mínimo geral de 27 € nas regras oficiais consultadas. Opções configuradas atualmente por pessoa: '+perPerson+'. Preço por grupo não é preço individual.</p>'+
     '<p class="gyg-eligibility-warning"><strong>Atenção:</strong> “Ready” significa apenas pacote de conteúdo preparado no Studio. Não garante elegibilidade, propriedade da atividade, conformidade nem publicação. Nenhum dos 25 produtos possui neste catálogo uma confirmação documental de operação direta.</p>'+
     '<div class="gyg-eligibility-tools"><input id="gygEligibilitySearch" class="search" placeholder="Pesquisar programa ou código..." oninput="gygDrawEligibilityRows()">'+
       '<select id="gygEligibilityFilter" class="search" onchange="gygDrawEligibilityRows()"><option value="">Todos os tipos</option>'+
