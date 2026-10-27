@@ -140,37 +140,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
   }
 
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { ok: false, error: "CRM email provider is not configured." },
-      { status: 503 }
-    );
-  }
-
-  const ids = (request.nextUrl.searchParams.get("ids") || "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter((value) => /^[a-zA-Z0-9_-]{8,80}$/.test(value))
-    .slice(0, 20);
-
-  const statuses: Record<string, string> = {};
-
-  await Promise.all(
-    ids.map(async (id) => {
-      try {
-        const response = await fetch("https://api.resend.com/emails/" + encodeURIComponent(id), {
-          headers: { Authorization: "Bearer " + apiKey },
-          cache: "no-store",
-        });
-        if (!response.ok) return;
-        const data = (await response.json().catch(() => ({}))) as ResendEmailResponse;
-        statuses[id] = data.last_event || "sent";
-      } catch {
-        // Keep the locally recorded status when Resend cannot be reached.
-      }
-    })
-  );
-
-  return NextResponse.json({ ok: true, statuses });
+  // The CRM uses a least-privilege Resend key restricted to sending.
+  // Reading /emails/:id requires broader credentials, so do not poll that
+  // endpoint with the sending key. Persisted activity metadata remains the
+  // source of truth until delivery webhooks are added.
+  return NextResponse.json({ ok: true, statuses: {} });
 }
