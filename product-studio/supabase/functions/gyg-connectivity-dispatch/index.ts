@@ -13,16 +13,16 @@ async function sha256(value:string) {
   return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,"0")).join("");
 }
 Deno.serve(async req=>{
-  if(req.method!=="POST") return json({errorCode:"INVALID_REQUEST",errorMessage:"Method not supported."},405);
+  if(req.method!=="POST") return json({errorCode:"VALIDATION_FAILURE",errorMessage:"Method not supported."},405);
   const supplied=req.headers.get("x-studio-key")||"";
   if(!supplied || (await sha256(supplied))!==EXPECTED_KEY_HASH)
     return json({errorCode:"UNAUTHORIZED",errorMessage:"Unauthorized."},401);
   try{
     const incoming=await req.json();
     const op=typeof incoming?.operation==="string" ? incoming.operation : "";
-    if(!OPS.has(op))return json({errorCode:"INVALID_REQUEST",errorMessage:"Unsupported operation."},400);
+    if(!OPS.has(op))return json({errorCode:"VALIDATION_FAILURE",errorMessage:"Unsupported operation."},400);
     const payload=incoming.params;
-    if(!payload||typeof payload!=="object"||Array.isArray(payload))return json({errorCode:"INVALID_REQUEST",errorMessage:"JSON object required."},400);
+    if(!payload||typeof payload!=="object"||Array.isArray(payload))return json({errorCode:"VALIDATION_FAILURE",errorMessage:"JSON object required."},400);
     const keys=JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS")||"{}");
     const secret=keys.default||Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const url=Deno.env.get("SUPABASE_URL");
@@ -31,11 +31,11 @@ Deno.serve(async req=>{
     const {data,error}=await client.rpc("gyg_sandbox_dispatch",{p_operation:op,p_payload:payload});
     if(error){
       console.error("GetYourGuide ledger returned database error",error.code||"unknown");
-      return json({errorCode:"SYSTEM_FAILURE",errorMessage:"Reservation service unavailable."},503);
+      return json({errorCode:"INTERNAL_SYSTEM_FAILURE",errorMessage:"Reservation service unavailable."},503);
     }
-    return json(data??{errorCode:"SYSTEM_FAILURE",errorMessage:"Empty response."},data?200:503);
+    return json(data??{errorCode:"INTERNAL_SYSTEM_FAILURE",errorMessage:"Empty response."},data?200:503);
   }catch(error){
     console.error("GetYourGuide internal dispatch failure",error?.name||"internal");
-    return json({errorCode:"SYSTEM_FAILURE",errorMessage:"Reservation service unavailable."},503);
+    return json({errorCode:"INTERNAL_SYSTEM_FAILURE",errorMessage:"Reservation service unavailable."},503);
   }
 });
