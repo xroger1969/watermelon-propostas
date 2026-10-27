@@ -41,3 +41,21 @@ test('Notification payload rejects invalid counts and dates',()=>{
   assert.deepEqual(buildAvailabilityNotification('WM-1',[{dateTime:'2026-11-03T10:00:00Z',vacancies:0}]),
     {data:{productId:'WM-1',availabilities:[{dateTime:'2026-11-03T10:00:00Z',vacancies:0}]}});
 });
+
+test('Production refuses sandbox even if someone sets its flags',async()=>{
+  const values={
+    VERCEL_ENV:'production', GYG_SUPPLIER_MODE:'sandbox', GYG_SUPPLIER_ENABLED:'true',
+    GYG_SUPPLIER_BASIC_USER:'test', GYG_SUPPLIER_BASIC_PASSWORD:'secret',
+    SUPABASE_PRODUCT_STUDIO_URL:'https://example.supabase.co',
+    PRODUCT_STUDIO_INTERNAL_KEY:'test-key'
+  };
+  const old=Object.fromEntries(Object.keys(values).map(k=>[k,process.env[k]]));
+  try{
+    Object.assign(process.env,values);
+    const res=mockResponse();
+    await handler(request('GET','get-availabilities',{authorization:'Basic dGVzdDpzZWNyZXQ='}),res);
+    assert.equal(res.statusCode,503);
+  }finally{
+    for(const key of Object.keys(values))old[key]===undefined?delete process.env[key]:process.env[key]=old[key];
+  }
+});
