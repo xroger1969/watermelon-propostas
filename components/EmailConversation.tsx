@@ -85,51 +85,6 @@ export default function EmailConversation({
     setFeedback("");
   }, [request.id, request.reference]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const ids = emailActivities
-      .map((activity) => activityText(activity, "resend_email_id"))
-      .filter(Boolean)
-      .slice(-20);
-
-    if (!ids.length) {
-      setStatuses({});
-      return;
-    }
-
-    async function refreshStatuses() {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-      if (!accessToken) return;
-
-      try {
-        const response = await fetch(
-          "/api/crm-email?ids=" + encodeURIComponent(ids.join(",")),
-          {
-            headers: { Authorization: "Bearer " + accessToken },
-            cache: "no-store",
-          }
-        );
-        const data = (await response.json().catch(() => ({}))) as {
-          ok?: boolean;
-          statuses?: Record<string, string>;
-        };
-        if (!cancelled && response.ok && data.ok && data.statuses) {
-          setStatuses(data.statuses);
-        }
-      } catch {
-        // The locally stored "sent" status remains visible.
-      }
-    }
-
-    void refreshStatuses();
-    const timer = window.setInterval(() => void refreshStatuses(), 15000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [emailActivities, supabase]);
-
   async function sendEmail() {
     if (!customerEmail || !subject.trim() || !draft.trim() || sending) return;
 
@@ -234,7 +189,7 @@ export default function EmailConversation({
         <div>
           <strong>Email conversation</strong>
           <span>
-            Send a direct reply from Watermelon Experiences. Sent messages stay linked to this request and delivery status is checked automatically.
+            Send a direct reply from Watermelon Experiences. Sent messages stay linked to this request.
           </span>
         </div>
         {emailActivities.length > 0 && (
