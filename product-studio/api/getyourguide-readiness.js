@@ -12,6 +12,9 @@ export function getGetYourGuideReadiness(env = process.env) {
   const supplierCertified = enabled(env.GYG_SUPPLIER_CONNECTIVITY_CERTIFIED);
   const supplierRequested = enabled(env.GYG_SUPPLIER_ENABLED);
   const supplierConfigurationComplete = supplierApproved && supplierCertified && supplierCredentialsConfigured;
+  const sandboxMode = env.GYG_SUPPLIER_MODE === "sandbox";
+  const sandboxActive = sandboxMode && supplierRequested && supplierCredentialsConfigured &&
+    configured(env.SUPABASE_PRODUCT_STUDIO_URL) && configured(env.PRODUCT_STUDIO_INTERNAL_KEY);
   const partnerApproved = enabled(env.GYG_PARTNER_APPROVED);
   const partnerMode = ["affiliate","api"].includes(env.GYG_PARTNER_MODE) ? env.GYG_PARTNER_MODE : "none";
   const partnerCredentialsConfigured = partnerMode === "affiliate"
@@ -21,6 +24,9 @@ export function getGetYourGuideReadiness(env = process.env) {
   const partnerConfigurationComplete = partnerApproved && partnerCredentialsConfigured;
   return {
     supplier: {
+      supplierSandboxGatewayImplemented: true,
+      sandboxEnabled: sandboxActive,
+      sandboxConfigured: sandboxMode,
       approvalRecorded: supplierApproved,
       credentialsConfigured: supplierCredentialsConfigured,
       certificationRecorded: supplierCertified,
@@ -41,6 +47,7 @@ export function getGetYourGuideReadiness(env = process.env) {
       automaticPublishing: false,
       unauthorizedScraping: false,
       externalBookingsEnabled: false,
+      sandboxTransactionLedgerInstalled: true,
       aiRecommendationsEnabled: false
     }
   };
