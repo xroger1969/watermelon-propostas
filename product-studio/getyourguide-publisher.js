@@ -344,7 +344,8 @@ function openGygPack(id){
   const photos=(payload.photos||[]).map(p=>p.url?'<img src="'+esc(p.url)+'" alt="">':'<span class="chip">'+esc(p.fileName||"photo")+'</span>').join("");
   showModal(
     '<div class="gyg-pack-head"><div><p class="eyebrow">GETYOURGUIDE PACKAGE</p><h3>'+esc(payload.title||product.title)+'</h3><p class="hint">'+esc(payload.productReferenceCode)+'</p></div>'+gygStatusBadge(pub.status)+'</div>'+
-    (r.missing.length?'<div class="notice"><b>Still required before submission:</b> '+esc(r.missing.join(", "))+'</div>':'<div class="gyg-ready-box"><b>Package structurally ready for Supplier Portal.</b></div>')+
+    (r.missing.length?'<div class="notice"><b>Still required before submission:</b> '+esc(r.missing.join(", "))+'</div>':'<div class="gyg-ready-box"><b>Pacote estruturado. A elegibilidade e operação direta carecem de validação.</b></div>')+
+    (typeof gygScreenProduct==='function'?'<div class="notice"><b>Pré-triagem GetYourGuide:</b> '+esc(gygScreenProduct(product).short)+' '+esc(gygScreenProduct(product).next)+'</div>':'')+
     '<div class="gyg-copy-grid">'+
       gygFieldBlock("Title",payload.title)+
       gygFieldBlock("Short description",payload.shortDescription)+
@@ -447,13 +448,15 @@ function renderGetYourGuide(){
   const published=pubs.filter(x=>x.status==="Published").length;
   el.innerHTML=
     '<div class="topbar"><div><h1>GetYourGuide Publisher</h1><p>Prepare the Supplier Portal package from the Watermelon master catalogue.</p></div><div class="actions"><button id="gygPrepareAll" class="btn green" onclick="prepareAllGetYourGuide()">Prepare all products</button><button class="btn" onclick="exportAllGetYourGuide()">Export all JSON</button><a class="btn primary" href="https://supplier.getyourguide.com/home" target="_blank" rel="noopener">Open Supplier Portal →</a></div></div>'+
-    '<div class="grid4"><div class="metric"><div class="label">Products</div><div class="value">'+products.length+'</div><div class="sub">Watermelon master catalogue</div></div><div class="metric"><div class="label">Ready</div><div class="value">'+ready+'</div><div class="sub">prepared for submission</div></div><div class="metric"><div class="label">Submitted / review</div><div class="value">'+pipeline+'</div><div class="sub">GetYourGuide pipeline</div></div><div class="metric"><div class="label">Published</div><div class="value">'+published+'</div><div class="sub">live on GetYourGuide</div></div></div>'+
+    '<div class="grid4"><div class="metric"><div class="label">Products</div><div class="value">'+products.length+'</div><div class="sub">Watermelon master catalogue</div></div><div class="metric"><div class="label">Ready</div><div class="value">'+ready+'</div><div class="sub">pacote estruturado, sujeito a triagem</div></div><div class="metric"><div class="label">Submitted / review</div><div class="value">'+pipeline+'</div><div class="sub">GetYourGuide pipeline</div></div><div class="metric"><div class="label">Published</div><div class="value">'+published+'</div><div class="sub">live on GetYourGuide</div></div></div>'+
     '<div class="card gyg-intro"><div><b>Connection prepared — activation pending</b><p>The Studio is already prepared for GetYourGuide. Products can be structured, reviewed and tracked here now. Live API catalogue access remains inactive until GetYourGuide partner credentials and published tour IDs are available.</p></div><div class="notice"><b>Professional status:</b> Until a product is Published and has a public GetYourGuide booking URL, the website shows the channel as <b>Not yet available</b>. Once the URL is saved here, the website can expose the GetYourGuide booking option automatically.</div></div>'+
     '<div id="gygIntegrationHub"></div>'+
+    '<div id="gygEligibilityAudit"></div>'+
     '<div class="toolbar gyg-toolbar"><input id="gygQ" class="search" placeholder="Search title, destination or code…" oninput="filterGygProducts()"><select id="gygStatus" class="search" style="max-width:210px" onchange="filterGygProducts()"><option value="">All GetYourGuide statuses</option>'+GYG_STATUS_ORDER.map(s=>'<option>'+esc(s)+'</option>').join("")+'</select></div>'+
     '<div id="gygTableArea"></div>';
   renderGygTable(products);
   if(typeof renderGygIntegrationHub==="function")renderGygIntegrationHub();
+  if(typeof renderGygEligibilityAudit==="function")renderGygEligibilityAudit();
 }
 
 window.renderGetYourGuide=renderGetYourGuide;
