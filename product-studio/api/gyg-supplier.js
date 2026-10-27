@@ -35,21 +35,20 @@ export default async function handler(req, res) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   // Deliberately no live branch. Production must pass an explicit future review.
   if (!sandboxConfigured(process.env)) {
-    return fail(res, 503, { errorCode: 'SYSTEM_FAILURE', errorMessage: 'Connectivity testing is not enabled.' });
+    return fail(res, 503, { errorCode: 'INTERNAL_SYSTEM_FAILURE', errorMessage: 'Connectivity testing is not enabled.' });
   }
   if (!validBasicAuth(req.headers.authorization, process.env.GYG_SUPPLIER_BASIC_USER, process.env.GYG_SUPPLIER_BASIC_PASSWORD)) {
-    res.setHeader('WWW-Authenticate', 'Basic realm="Watermelon GetYourGuide Sandbox"');
-    return fail(res, 401, { errorCode: 'UNAUTHORIZED', errorMessage: 'Authentication required.' });
+    return fail(res, 200, { errorCode: 'AUTHORIZATION_FAILURE', errorMessage: 'Authentication required.' });
   }
   const operation = String(req.query.operation || '');
-  if (!Object.hasOwn(METHODS, operation)) return fail(res, 404, { errorCode: 'INVALID_REQUEST', errorMessage: 'Unsupported endpoint.' });
+  if (!Object.hasOwn(METHODS, operation)) return fail(res, 404, { errorCode: 'VALIDATION_FAILURE', errorMessage: 'Unsupported endpoint.' });
   if (req.method !== METHODS[operation]) {
     res.setHeader('Allow', METHODS[operation]);
-    return fail(res, 405, { errorCode: 'INVALID_REQUEST', errorMessage: 'Unsupported method.' });
+    return fail(res, 405, { errorCode: 'VALIDATION_FAILURE', errorMessage: 'Unsupported method.' });
   }
   if (operation !== 'get-availabilities' &&
       (!req.body || typeof req.body !== 'object' || Array.isArray(req.body) || typeof req.body.data !== 'object' || !req.body.data)) {
-    return fail(res, 400, { errorCode: 'INVALID_REQUEST', errorMessage: 'JSON data object is required.' });
+    return fail(res, 200, { errorCode: 'VALIDATION_FAILURE', errorMessage: 'JSON data object is required.' });
   }
   const params = operation === 'get-availabilities' ? {
     productId: req.query.productId,
@@ -67,12 +66,12 @@ export default async function handler(req, res) {
       body: JSON.stringify({ operation, params }),
       signal: AbortSignal.timeout(8500)
     });
+    if (!upstream.ok) throw new Error('Upstream rejected the request');
     const payload = await upstream.json().catch(() => null);
     if (!payload || typeof payload !== 'object') throw Error('Upstream response was not JSON');
-    const status = upstream.status >= 400 ? upstream.status : 200;
-    return fail(res, status, payload);
+    return fail(res, 200, payload);
   } catch (e) {
     console.error('GYG sandbox request failed:', e?.name || 'Upstream error');
-    return fail(res, 503, { errorCode: 'SYSTEM_FAILURE', errorMessage: 'Connectivity temporarily unavailable.' });
+    return fail(res, 503, { errorCode: 'INTERNAL_SYSTEM_FAILURE', errorMessage: 'Connectivity temporarily unavailable.' });
   }
 }
