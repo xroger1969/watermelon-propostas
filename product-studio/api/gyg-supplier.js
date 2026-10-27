@@ -24,7 +24,7 @@ function validBasicAuth(value, user, pass) {
   }
 }
 function sandboxConfigured(env) {
-  return env.GYG_SUPPLIER_MODE === 'sandbox' &&
+  return env.VERCEL_ENV !== 'production' && env.GYG_SUPPLIER_MODE === 'sandbox' &&
     env.GYG_SUPPLIER_ENABLED === 'true' &&
     !!env.GYG_SUPPLIER_BASIC_USER && !!env.GYG_SUPPLIER_BASIC_PASSWORD &&
     !!env.SUPABASE_PRODUCT_STUDIO_URL && !!env.PRODUCT_STUDIO_INTERNAL_KEY;
