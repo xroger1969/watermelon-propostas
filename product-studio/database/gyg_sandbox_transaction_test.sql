@@ -51,6 +51,15 @@ begin
   if v_response#>>'{data,reservationReference}' is null then
     raise exception 'Places were not released after cancellation: %',v_response;
   end if;
+  -- A GYG booking amendment may use the SAME GYG reference and a different slot.
+  insert into gyggateway.slots(option_id,start_at,capacity,enabled,cutoff_seconds,currency,prices_by_category)
+    values(v_option,v_slot_start+interval '1 day',2,true,3600,'EUR','[{"category":"ADULT","price":1000}]'::jsonb);
+  v_req:=jsonb_set(v_req,'{dateTime}',to_jsonb(to_char((v_slot_start+interval '1 day') at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS')||'+00:00'));
+  v_response:=public.gyg_sandbox_dispatch('reserve',v_req);
+  if v_response#>>'{data,reservationReference}' is null
+      or v_response#>>'{data,reservationReference}'=v_ref then
+    raise exception 'Amendment using same GYG booking reference failed: %',v_response;
+  end if;
 end $test$;
 rollback;
 
