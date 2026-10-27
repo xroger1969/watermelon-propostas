@@ -26,6 +26,18 @@ begin
      (v_response#>>'{data,availabilities,0,vacancies}')::int<>1 then
     raise exception 'Availability test failed: %',v_response;
   end if;
+  -- A future slot inside its booking cutoff must remain visible with 0 vacancies.
+  insert into gyggateway.slots(option_id,start_at,capacity,enabled,cutoff_seconds,currency,prices_by_category)
+    values(v_option,date_trunc('second',now()+interval '20 minutes'),1,true,3600,'EUR',
+      '[{"category":"ADULT","price":1200}]'::jsonb);
+  v_response:=public.gyg_sandbox_dispatch('get-availabilities',jsonb_build_object(
+    'productId','GYG-SANDBOX-TRANSACTION-TEST',
+    'fromDateTime',to_char(now() at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS')||'+00:00',
+    'toDateTime',to_char((now()+interval '1 hour') at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS')||'+00:00'));
+  if jsonb_array_length(v_response#>'{data,availabilities}')<>1 or
+     (v_response#>>'{data,availabilities,0,vacancies}')::int<>0 then
+    raise exception 'Cutoff availability not 0: %',v_response;
+  end if;
   v_req:=jsonb_build_object('productId','GYG-SANDBOX-TRANSACTION-TEST',
     'dateTime',v_iso,'gygBookingReference','GYG-SANDBOX-BOOK-1',
     'bookingItems',jsonb_build_array(jsonb_build_object('category','ADULT','count',1)));
