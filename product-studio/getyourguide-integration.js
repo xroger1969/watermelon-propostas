@@ -32,12 +32,14 @@ function gygRenderIntegrationHub(data,error){
       '<ul class="gyg-conn-checks">'+
       gygCheck(summary.total+' programas no Studio',summary.total>0)+
       gygCheck(summary.ready+' pacotes preparados',summary.ready>0)+
+      gygCheck("Rotas de testes Supplier implementadas",!!s.supplierSandboxGatewayImplemented)+
+      gygCheck("Ambiente sandbox ativado",!!s.sandboxEnabled)+
       gygCheck("Aprovação de integração registada",!!s.approvalRecorded)+
       gygCheck("Credenciais configuradas no servidor",!!s.credentialsConfigured)+
       gygCheck("Certificação técnica concluída",!!s.certificationRecorded)+
       '</ul><p class="gyg-conn-muted">'+(supplierReady
       ?'Configuração declarada: ainda falta validar a ligação real e os fluxos de reserva.'
-      :'Aguardamos condições de acesso e documentação técnica oficiais para sincronizar reservas e disponibilidade.')+
+      :'Ambiente técnico de testes preparado. Falta mapear opções reais, ativar credenciais sandbox, concluir Notify Availability e testes oficiais.')+
       '</p><a href="https://supplier.getyourguide.com/home" target="_blank" rel="noopener">Abrir Supplier Portal</a></section>'+
     '<section class="card gyg-conn-card"><div class="gyg-conn-eyebrow">02 · WATERMELON COMO PARCEIRO</div>'+
       '<h3>Partner API / Afiliados</h3>'+gygConnBadge(false,"Recomendações externas inativas")+
