@@ -22,7 +22,7 @@ test('Sandbox is closed by default, with no configuration',async()=>{
     const res=mockResponse();
     await handler(request('GET','get-availabilities'),res);
     assert.equal(res.statusCode,503);
-    assert.equal(res.data.errorCode,'SYSTEM_FAILURE');
+    assert.equal(res.data.errorCode,'INTERNAL_SYSTEM_FAILURE');
   } finally {
     for(const key of keys) old[key]===undefined?delete process.env[key]:process.env[key]=old[key];
   }
