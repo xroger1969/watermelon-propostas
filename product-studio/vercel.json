@@ -1,0 +1,24 @@
+{
+  "rewrites": [
+    {
+      "source": "/1/get-availabilities/",
+      "destination": "/api/gyg-supplier?operation=get-availabilities"
+    },
+    {
+      "source": "/1/reserve/",
+      "destination": "/api/gyg-supplier?operation=reserve"
+    },
+    {
+      "source": "/1/cancel-reservation/",
+      "destination": "/api/gyg-supplier?operation=cancel-reservation"
+    },
+    {
+      "source": "/1/book/",
+      "destination": "/api/gyg-supplier?operation=book"
+    },
+    {
+      "source": "/1/cancel-booking/",
+      "destination": "/api/gyg-supplier?operation=cancel-booking"
+    }
+  ]
+}
