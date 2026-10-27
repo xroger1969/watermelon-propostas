@@ -13,6 +13,7 @@
 </style>
 <link rel="stylesheet" href="/getyourguide-publisher.css">
 <link rel="stylesheet" href="/getyourguide-integration.css">
+<link rel="stylesheet" href="/getyourguide-eligibility.css">
 </head>
 <body>
 <div class="app">
@@ -547,6 +548,8 @@ async function loadCloud(){
       save();
       renderDashboard();
       renderProducts();
+      const gygView=document.querySelector('#gygView');
+      if(gygView && !gygView.classList.contains('hidden') && typeof renderGetYourGuide==='function') renderGetYourGuide();
     }
   }catch(e){console.warn('Cloud catalogue unavailable',e)}
 }
@@ -554,5 +557,6 @@ load();renderDashboard();renderProducts();loadCloud();
 </script>
 <script src="/getyourguide-publisher.js"></script>
 <script src="/getyourguide-integration.js"></script>
+<script src="/getyourguide-eligibility.js"></script>
 </body>
 </html>
