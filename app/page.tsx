@@ -2,6 +2,7 @@ import Catalog from "@/components/Catalog";
 import AIConcierge from "@/components/AIConcierge";
 import GuestReviews from "@/components/GuestReviews";
 import HeroSlideshow from "@/components/HeroSlideshow";
+import PromoVideo from "@/components/PromoVideo";
 
 export default function Home() {
   const aiConciergeEnabled = Boolean(process.env.OPENAI_API_KEY);
@@ -38,6 +39,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <PromoVideo aiConciergeEnabled={aiConciergeEnabled} />
 
       {aiConciergeEnabled && <AIConcierge />}
 
