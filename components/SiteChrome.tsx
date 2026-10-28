@@ -47,7 +47,7 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
         </div>
         <div className="footer-note">
           <span>Prices and availability subject to confirmation.</span>
-          <span><a href="/support">App Support</a> · <a href="/privacy">Privacy Policy</a></span>
+          <span><a href="/support">App Support</a> · <a href="/privacy">Privacy Policy</a> · <a href="/salesfriend">SalesFriend demo</a></span>
           <AdminAccessButton />
         </div>
       </footer>
