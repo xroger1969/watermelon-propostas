@@ -14,7 +14,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - name: Add capture-only UI walkthrough without changing production app
+      - name: Add capture-only UI walkthrough
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -88,7 +88,7 @@ jobs:
           }
           ''')
           PY
-      - name: Select and boot simulator
+      - name: Select simulator
         run: |
           xcrun simctl list devices available --json > "$RUNNER_TEMP/devices.json"
           python3 - <<'PY'
@@ -99,6 +99,8 @@ jobs:
           with open(os.environ['GITHUB_ENV'],'a') as f: f.write('CAPTURE_DEVICE='+device['udid']+'\n')
           print(device['name'])
           PY
+      - name: Boot simulator
+        run: |
           xcrun simctl boot "$CAPTURE_DEVICE" || true
           xcrun simctl bootstatus "$CAPTURE_DEVICE" -b
           xcrun simctl status_bar "$CAPTURE_DEVICE" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
@@ -117,14 +119,16 @@ jobs:
           rec=subprocess.Popen(['xcrun','simctl','io',os.environ['CAPTURE_DEVICE'],'recordVideo','--codec=h264','--force',str(p/'preview/raw.mp4')],stdout=rec_log,stderr=rec_log)
           time.sleep(3)
           args=['xcodebuild','test-without-building','-project','ios/Watermelon/Watermelon.xcodeproj','-scheme','Watermelon','-configuration','Debug','-destination','platform=iOS Simulator,id='+os.environ['CAPTURE_DEVICE'],'-only-testing:WatermelonUITests/WatermelonUITests/testMarketingPreviewCapture','-parallel-testing-enabled','NO','-derivedDataPath',str(p/'PreviewBuild'),'-resultBundlePath',str(p/'Preview.xcresult'),'CODE_SIGNING_ALLOWED=NO']
-          with open(p/'preview/walkthrough.log','w') as f:
-              result=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT,timeout=600)
-          rec.send_signal(signal.SIGINT)
-          rec.wait(timeout=30)
+          try:
+              with open(p/'preview/walkthrough.log','w') as f:
+                  result=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT,timeout=600)
+          finally:
+              rec.send_signal(signal.SIGINT)
+              rec.wait(timeout=30)
           (p/'preview/recording.json').write_text(json.dumps({'recording_started':started,'test_exit_code':result.returncode}))
           print((p/'preview/walkthrough.log').read_text()[-9000:])
           PY
-      - name: Export screenshots and compact scene clips
+      - name: Export screenshots and scene clips
         if: always()
         run: |
           mkdir -p "$RUNNER_TEMP/preview/screenshots"
