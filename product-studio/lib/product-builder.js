@@ -133,7 +133,7 @@ function webSources(data) {
   return out.slice(0,20);
 }
 
-async function callStructured({model, input, schema, schemaName, instructions, tools, include}) {
+export async function callStructured({model, input, schema, schemaName, instructions, tools, include, toolChoice, timeoutMs}) {
   const body = {
     model,
     instructions,
@@ -150,6 +150,7 @@ async function callStructured({model, input, schema, schemaName, instructions, t
   };
   if (tools?.length) body.tools = tools;
   if (include?.length) body.include = include;
+  if (toolChoice) body.tool_choice = toolChoice;
 
   const response = await fetch('https://api.openai.com/v1/responses', {
     method:'POST',
@@ -157,7 +158,8 @@ async function callStructured({model, input, schema, schemaName, instructions, t
       'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
       'Content-Type':'application/json'
     },
-    body:JSON.stringify(body)
+    body:JSON.stringify(body),
+    ...(timeoutMs ? {signal:AbortSignal.timeout(timeoutMs)} : {})
   });
   const data = await response.json();
   if (!response.ok) {
@@ -171,7 +173,7 @@ async function callStructured({model, input, schema, schemaName, instructions, t
   return { object:JSON.parse(text), raw:data, model:data.model || model, usage:data.usage || null };
 }
 
-async function withModelFallback(fn) {
+export async function withModelFallback(fn) {
   const primary = process.env.OPENAI_PRODUCT_MODEL || 'gpt-6.1-sol';
   try {
     return await fn(primary);

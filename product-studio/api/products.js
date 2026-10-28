@@ -1,3 +1,5 @@
+import {packCompletionMetadata,unpackCompletionMetadata} from '../completion-fields.js';
+
 export default async function handler(req, res) {
   if (!['GET','POST'].includes(req.method)) {
     res.setHeader('Allow','GET, POST');
@@ -15,12 +17,17 @@ export default async function handler(req, res) {
         'content-type':'application/json',
         'x-studio-key':key
       },
-      body:req.method === 'POST' ? JSON.stringify(req.body || {}) : undefined
+      body:req.method === 'POST' ? JSON.stringify({...req.body,product:packCompletionMetadata(req.body?.product)}) : undefined
     });
 
     const text = await upstream.text();
     res.status(upstream.status);
     res.setHeader('content-type','application/json; charset=utf-8');
+    if(req.method==='GET'&&upstream.ok){
+      const data=JSON.parse(text);
+      if(Array.isArray(data.products))data.products=data.products.map(unpackCompletionMetadata);
+      return res.json(data);
+    }
     return res.send(text);
   } catch (error) {
     console.error('Product Studio proxy failed', error);

@@ -20,5 +20,10 @@
       "source": "/1/cancel-booking/",
       "destination": "/api/gyg-supplier?operation=cancel-booking"
     }
-  ]
+  ],
+  "functions": {
+    "api/complete.js": {
+      "maxDuration": 240
+    }
+  }
 }
