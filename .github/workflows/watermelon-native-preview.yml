@@ -1,0 +1,155 @@
+name: Capture Watermelon native App Store preview
+on:
+  push:
+    branches: [media/watermelon-native-preview-20261028]
+    paths: ['.github/workflows/watermelon-native-preview.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: macos-26
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Add capture-only UI walkthrough without changing production app
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('ios/Watermelon/WatermelonUITests/WatermelonUITests.swift')
+          p.write_text(p.read_text()+r'''
+          extension WatermelonUITests {
+              @MainActor
+              func testMarketingPreviewCapture() {
+                  let app = XCUIApplication()
+                  app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
+                  app.launch()
+                  XCTAssertTrue(app.navigationBars["Watermelon"].waitForExistence(timeout: 30))
+                  func mark(_ name: String) {
+                      print("WM_MARK \(name) \(Date().timeIntervalSince1970)")
+                      let attachment = XCTAttachment(screenshot: app.screenshot())
+                      attachment.name = name
+                      attachment.lifetime = .keepAlways
+                      self.add(attachment)
+                  }
+                  func tab(_ name: String) {
+                      let button = app.tabBars.buttons[name].exists ? app.tabBars.buttons[name] : app.buttons[name].firstMatch
+                      XCTAssertTrue(button.waitForExistence(timeout: 10))
+                      button.tap()
+                  }
+                  sleep(8)
+                  mark("INTRO")
+                  sleep(8)
+                  app.swipeUp()
+                  sleep(2)
+                  mark("CATALOGUE")
+                  sleep(8)
+                  let cards = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "experienceCard-"))
+                  if let card = cards.allElementsBoundByIndex.first(where: { $0.isHittable }) {
+                      card.tap()
+                      XCTAssertTrue(app.navigationBars["Experience"].waitForExistence(timeout: 15))
+                      sleep(4)
+                      mark("DETAIL")
+                      sleep(8)
+                      let add = app.buttons["addToProposal"]
+                      for _ in 0..<8 where !add.isHittable { app.swipeUp() }
+                      if add.isHittable { add.tap() }
+                  }
+                  tab("Proposals")
+                  sleep(3)
+                  mark("PROPOSALS")
+                  sleep(8)
+                  tab("Watermelon AI")
+                  sleep(2)
+                  if app.buttons["aiPrivacySettings"].exists { app.buttons["aiPrivacySettings"].tap() }
+                  if app.buttons["aiPrivacyAllow"].waitForExistence(timeout: 3) { app.buttons["aiPrivacyAllow"].tap() }
+                  sleep(2)
+                  mark("AIEMPTY")
+                  sleep(8)
+                  let input = app.descendants(matching: .any)["aiMessageInput"]
+                  XCTAssertTrue(input.waitForExistence(timeout: 10))
+                  input.tap()
+                  input.typeText("Plan a coastal day near Lisbon for two people.")
+                  app.buttons["aiSendMessage"].tap()
+                  if app.buttons["aiPrivacyAllow"].waitForExistence(timeout: 2) { app.buttons["aiPrivacyAllow"].tap() }
+                  if app.buttons["dismissAIKeyboard"].exists { app.buttons["dismissAIKeyboard"].tap() }
+                  let reply = app.staticTexts.matching(identifier: "aiAssistantMessage").firstMatch
+                  _ = reply.waitForExistence(timeout: 65)
+                  sleep(4)
+                  mark("AIREPLY")
+                  sleep(8)
+                  tab("My trips")
+                  sleep(3)
+                  mark("TRIPS")
+                  sleep(8)
+              }
+          }
+          ''')
+          PY
+      - name: Select and boot simulator
+        run: |
+          xcrun simctl list devices available --json > "$RUNNER_TEMP/devices.json"
+          python3 - <<'PY'
+          import json,os
+          data=json.load(open(os.environ['RUNNER_TEMP']+'/devices.json'))
+          phones=[d for rt,ds in data['devices'].items() if 'iOS' in rt for d in ds if d.get('isAvailable') and 'iPhone' in d['name'] and 'Pro Max' in d['name']]
+          device=sorted(phones,key=lambda d:d['name'],reverse=True)[0]
+          with open(os.environ['GITHUB_ENV'],'a') as f: f.write('CAPTURE_DEVICE='+device['udid']+'\n')
+          print(device['name'])
+          PY
+          xcrun simctl boot "$CAPTURE_DEVICE" || true
+          xcrun simctl bootstatus "$CAPTURE_DEVICE" -b
+          xcrun simctl status_bar "$CAPTURE_DEVICE" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
+      - name: Compile capture target
+        run: |
+          xcodebuild build-for-testing -project ios/Watermelon/Watermelon.xcodeproj -scheme Watermelon -configuration Debug -destination "platform=iOS Simulator,id=$CAPTURE_DEVICE" -derivedDataPath "$RUNNER_TEMP/PreviewBuild" CODE_SIGNING_ALLOWED=NO > "$RUNNER_TEMP/build.log" 2>&1 || { tail -n 100 "$RUNNER_TEMP/build.log"; exit 1; }
+      - name: Record actual app screen and walkthrough
+        run: |
+          mkdir -p "$RUNNER_TEMP/preview"
+          python3 - <<'PY'
+          import subprocess,os,time,json,signal
+          from pathlib import Path
+          p=Path(os.environ['RUNNER_TEMP'])
+          rec_log=open(p/'preview/record.log','w')
+          started=time.time()
+          rec=subprocess.Popen(['xcrun','simctl','io',os.environ['CAPTURE_DEVICE'],'recordVideo','--codec=h264','--force',str(p/'preview/raw.mp4')],stdout=rec_log,stderr=rec_log)
+          time.sleep(3)
+          args=['xcodebuild','test-without-building','-project','ios/Watermelon/Watermelon.xcodeproj','-scheme','Watermelon','-configuration','Debug','-destination','platform=iOS Simulator,id='+os.environ['CAPTURE_DEVICE'],'-only-testing:WatermelonUITests/WatermelonUITests/testMarketingPreviewCapture','-parallel-testing-enabled','NO','-derivedDataPath',str(p/'PreviewBuild'),'-resultBundlePath',str(p/'Preview.xcresult'),'CODE_SIGNING_ALLOWED=NO']
+          with open(p/'preview/walkthrough.log','w') as f:
+              result=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT,timeout=600)
+          rec.send_signal(signal.SIGINT)
+          rec.wait(timeout=30)
+          (p/'preview/recording.json').write_text(json.dumps({'recording_started':started,'test_exit_code':result.returncode}))
+          print((p/'preview/walkthrough.log').read_text()[-9000:])
+          PY
+      - name: Export screenshots and compact scene clips
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/preview/screenshots"
+          xcrun xcresulttool export attachments --path "$RUNNER_TEMP/Preview.xcresult" --output-path "$RUNNER_TEMP/preview/screenshots" || true
+          python3 -m pip install --quiet --target "$RUNNER_TEMP/ffmpeg-python" imageio-ffmpeg==0.6.0
+          PYTHONPATH="$RUNNER_TEMP/ffmpeg-python" python3 - <<'PY'
+          import os,json,re,subprocess
+          from pathlib import Path
+          import imageio_ffmpeg
+          p=Path(os.environ['RUNNER_TEMP'])/'preview'
+          log=(p/'walkthrough.log').read_text()
+          started=json.loads((p/'recording.json').read_text())['recording_started']
+          marks={name:float(t) for name,t in re.findall(r'WM_MARK ([A-Z]+) ([0-9.]+)',log)}
+          (p/'markers.json').write_text(json.dumps(marks,indent=2))
+          for name,t in marks.items():
+              subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(),'-y','-ss',str(max(0,t-started+0.5)),'-i',str(p/'raw.mp4'),'-t','7','-vf','scale=886:1920:flags=lanczos,setsar=1,fps=30','-an','-c:v','libx264','-profile:v','high','-level','4.0','-crf','19','-pix_fmt','yuv420p','-movflags','+faststart',str(p/(name.lower()+'.mp4'))],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+          if len(marks)<4: raise SystemExit('Not enough captured app states')
+          (p/'raw.mp4').unlink()
+          print('Captured:',list(marks))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: watermelon-native-preview-captures
+          path: |
+            ${{ runner.temp }}/preview
+            ${{ runner.temp }}/build.log
+          retention-days: 14
