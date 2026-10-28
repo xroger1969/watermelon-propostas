@@ -1,0 +1,55 @@
+name: Read Watermelon App Store preview readiness
+on:
+  push:
+    branches: [media/watermelon-native-preview-20261028]
+    paths: ['.github/workflows/watermelon-preview-apple-status.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  listing-status:
+    runs-on: ubuntu-latest
+    environment: testflight
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Read listing state and preview slots, never modify review
+        env:
+          APPSTORE_ISSUER_ID: ${{ vars.APPSTORE_ISSUER_ID }}
+          APPSTORE_API_KEY_ID: ${{ vars.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,urllib.request,urllib.error
+          source=pathlib.Path('scripts/watermelon-appstore-metadata.py').read_text().split('TOKEN = access_token()')[0]
+          ns={}
+          exec(compile(source,'apple-auth-helper','exec'),ns)
+          token=ns['access_token']()
+          def get(path):
+              request=urllib.request.Request('https://api.appstoreconnect.apple.com'+path,headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+              try:
+                  with urllib.request.urlopen(request,timeout=30) as r: return json.load(r)
+              except urllib.error.HTTPError as e:
+                  return {'error_status':e.code,'codes':[x.get('code') for x in json.loads(e.read()).get('errors',[])]}
+          data=get('/v1/apps/6821932993/appStoreVersions?filter[platform]=IOS&limit=20')
+          report={'app_id':'6821932993','read_only':True,'versions':[]}
+          for v in data.get('data',[]):
+              a=v['attributes']; row={'id':v['id'],'version':a.get('versionString'),'state':a.get('appStoreState'),'localizations':[]}
+              locs=get('/v1/appStoreVersions/'+v['id']+'/appStoreVersionLocalizations?limit=50')
+              for loc in locs.get('data',[]):
+                  sets=get('/v1/appStoreVersionLocalizations/'+loc['id']+'/appPreviewSets?limit=20')
+                  row['localizations'].append({'id':loc['id'],'locale':loc['attributes'].get('locale'),'preview_sets':[{'id':s['id'],'previewType':s['attributes'].get('previewType')} for s in sets.get('data',[])]})
+              report['versions'].append(row)
+          if 'error_status' in data: report['error']=data
+          out=json.dumps(report,indent=2)
+          print(out)
+          pathlib.Path(os.environ['RUNNER_TEMP'],'watermelon-preview-readiness.json').write_text(out)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: watermelon-preview-apple-readiness
+          path: ${{ runner.temp }}/watermelon-preview-readiness.json
+          retention-days: 7
