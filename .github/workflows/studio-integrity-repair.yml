@@ -1,0 +1,36 @@
+name: Apply tested Studio integrity repair
+on:
+  push:
+    branches: [fix/studio-pricing-integrity-20261029]
+    paths: [.github/workflows/studio-integrity-repair.yml]
+permissions:
+  contents: write
+concurrency:
+  group: studio-integrity-repair-20261029
+  cancel-in-progress: false
+jobs:
+  apply-tested-repair:
+    if: github.repository == 'xroger1969/watermelon-propostas' && github.ref == 'refs/heads/fix/studio-pricing-integrity-20261029'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: true
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - name: Apply exact source migration and regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/fix/studio-pricing-integrity-20261029
+          node scripts/repair-studio-integrity.mjs
+          node scripts/repair-studio-polish.mjs
+          npm --prefix product-studio test
+          find product-studio -name '*.js' -print0 | xargs -0 -n1 node --check
+          git diff --check
+          git add product-studio
+          git -c user.name='Watermelon Studio repair' -c user.email='182436717+xroger1969@users.noreply.github.com' commit -m 'fix(studio): preserve source tariffs and require commercial approval'
+          git push origin HEAD:refs/heads/fix/studio-pricing-integrity-20261029
