@@ -363,7 +363,7 @@ async function runLinkIntake(mode){
     await runIntake(mode==='viator'?{mode:'viator',reference:url,brief:note}:{mode:'url',url,brief:note},`${mode==='viator'?'Viator':'Link'}: ${url}`);
   }catch(e){showIntakeError(e,()=>openLinkBrief(mode))}
 }
-function aiLines(v){return Array.isArray(v)?v.join('\\n'):(v||'')}
+function aiLines(v){return Array.isArray(v)?v.join('\n'):(v||'')}
 function marketHtml(m){
   if(!m)return '<div class="notice">Pesquisa de mercado não disponível; preço provisório.</div>';
   const comps=(m.comparables||[]).slice(0,5).map(c=>`<div class="comp"><a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.provider)} · ${esc(c.title)}</a><br><b>${esc(String(c.observedPrice))} ${esc(c.currency)}</b> · ${esc(c.priceBasis)} · ${esc(c.duration||'')}</div>`).join('');
@@ -384,8 +384,8 @@ function applyGenerated(data,briefLabel){
     optionCode:p.optionCode||'OPT-1',priceType:p.priceType||'Per group',
     adultPrice:p.suggestedPrice===0?'':String(p.suggestedPrice??''),
     childPrice:p.childPrice===0?'0':String(p.childPrice??''),
-    currency:p.currency||'EUR',days:aiLines(p.days).replace(/\\n/g,','),
-    startTimes:aiLines(p.startTimes).replace(/\\n/g,', '),
+    currency:p.currency||'EUR',days:aiLines(p.days).replace(/\n/g,','),
+    startTimes:aiLines(p.startTimes).replace(/\n/g,', '),
     capacity:String(p.capacity||p.maxGuests||8),cutoffHours:String(p.cutoffHours??12),
     cancellation:p.cancellation||'',questions:aiLines(p.questions),
     source:'WATERMELON',pricingProvider:'WATERMELON',availabilityProvider:'WATERMELON',
