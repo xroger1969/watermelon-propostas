@@ -93,7 +93,7 @@ export function normalizeCompletion(result,request,sources){
     fields.push({field,value,origin,sourceUrl:origin===providerOrigin?sourceUrl:'',
       evidence:origin===providerOrigin?evidence:'',
       note:String(proposal.note||'').slice(0,1200),
-      requiresReview:!!value&&(origin==='suggestion'||!!COMPLETION_FIELDS[field].operational)});
+      requiresReview:!!value&&(request.provider==='getyourguide'||origin==='suggestion'||!!COMPLETION_FIELDS[field].operational)});
   }
   for(const field of request.fields)if(!seen.has(field))fields.push({field,value:'',origin:'missing',sourceUrl:'',evidence:'',note:'Informação insuficiente; confirmar com o operador.',requiresReview:false});
   return {fields,sources,summary:String(result?.summary||'').slice(0,1800)};
