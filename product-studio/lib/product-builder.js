@@ -1,4 +1,6 @@
 
+import { cleanDraftProduct } from './commercial-copy.js';
+
 const productSchema = {
   type: 'object',
   additionalProperties: false,
@@ -104,7 +106,7 @@ Rules:
 - Keep itinerary steps concise and operationally realistic.
 - Title should sell the experience without clickbait.
 - optionCode must be short uppercase letters, numbers and hyphens.
-- No field may contain Markdown.
+- No field may contain Markdown, raw URLs, provider domains, citation markers or attribution links. Keep source URLs only in sourceReferences metadata.
 - The result is always a draft and must never imply it is published.
 `;
 
@@ -272,12 +274,14 @@ export async function draftProduct(source) {
       include:tools ? ['web_search_call.action.sources'] : undefined
     });
     return {
-      product:r.object,
+      product:cleanDraftProduct(r.object),
       model:r.model,
       usage:r.usage,
       sourceLabel,
       sourceMode:mode,
-      sourceReferences:tools ? webSources(r.raw) : []
+      sourceReferences:(mode === 'url' || mode === 'viator')
+        ? [{type:mode,url:source?.resolvedUrl || String(source?.url || source?.reference || ''),label:'Fonte original'},...(tools ? webSources(r.raw) : [])]
+        : (tools ? webSources(r.raw) : [])
     };
   });
 }
@@ -378,7 +382,7 @@ export async function draftProductBundle(bundle) {
       include:tools ? ['web_search_call.action.sources'] : undefined
     });
     return {
-      product:r.object,
+      product:cleanDraftProduct(r.object),
       model:r.model,
       usage:r.usage,
       sourceLabel:`${sources.length} combined sources`,

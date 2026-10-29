@@ -1,4 +1,5 @@
 import {COMPLETION_FIELDS,normalizeCompletionValue,pendingCompletionFields} from './completion-fields.js';
+import {cleanCommercialCopy} from './lib/commercial-copy.js';
 
 let completionBusy=false,completionController=null,pendingCompletion=null,completionSequence=0;
 const baseRenderStep=renderStep,baseSyncForm=syncForm,baseReadyIssues=readyIssues,baseNextStep=nextStep;
@@ -8,7 +9,7 @@ function sourceLink(url,label='Ver fonte'){
   return '';
 }
 function sourceReference(p){
-  return p.aiSourceUrl||p.viatorCode||(p.inputSource?.references||[]).find(s=>s.type==='viator')?.url||'';
+  return p.aiSourceUrl||p.viatorCode||(p.inputSource?.references||[]).find(s=>['viator','url'].includes(s.type)&&s.url)?.url||(/^(https:\/\/)/i.test(p.inputSource?.label||'')?p.inputSource.label:'');
 }
 function completionState(){
   if(!current.aiCompletion)current.aiCompletion={version:1,fields:{},history:[]};
@@ -35,17 +36,18 @@ function renderCompletionUI(){
   if(!current||currentStep===0)return;
   const panel=document.querySelector('#stepPanel');
   if(!panel||panel.querySelector('.ai-completion-bar'))return;
+  if(currentStep===2)panel.querySelector('h3')?.insertAdjacentHTML('afterend',`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0"><button class="btn" type="button" onclick="studioAICleanContent()">✦ Limpar formatação IA</button><span class="hint">Remove links, referências e quebras de linha incorretas, sem alterar os dados da fonte.</span></div>`);
   const pending=pendingCompletionFields(current);
   panel.insertAdjacentHTML('afterbegin',`<section class="ai-completion-bar" aria-label="Assistente de preenchimento">
-    <div class="ai-completion-title"><div><strong>✦ Assistente IA</strong><p>Primeiro a Viator. Quando faltarem dados, propostas para rever.</p></div><span class="ai-level">${current.aiAutoComplete?'Automático em rascunho':'Assistido'}</span></div>
-    <label class="ai-source-label" for="aiSourceUrl">Ligação ou código Viator</label>
-    <input id="aiSourceUrl" name="aiSourceUrl" value="${esc(sourceReference(current))}" placeholder="https://www.viator.com/… ou 9963P8" autocomplete="off">
+    <div class="ai-completion-title"><div><strong>✦ Assistente IA</strong><p>Viator ou GetYourGuide: fonte exata primeiro; restantes dados como sugestões para rever.</p></div><span class="ai-level">${current.aiAutoComplete?'Automático em rascunho':'Assistido'}</span></div>
+    <label class="ai-source-label" for="aiSourceUrl">Ligação Viator / GetYourGuide ou código Viator</label>
+    <input id="aiSourceUrl" name="aiSourceUrl" value="${esc(sourceReference(current))}" placeholder="Link Viator / GetYourGuide ou 9963P8" autocomplete="off">
     <div class="ai-completion-options"><label><input type="checkbox" id="aiOnlyMissing" checked> Apenas campos vazios</label>
     <label><input type="checkbox" id="aiAutoStep" ${current.aiAutoComplete?'checked':''} onchange="studioAISetAuto(this.checked)"> Completar campos vazios ao continuar</label></div>
     <div class="ai-completion-actions"><button class="btn green" type="button" onclick="studioAIRequest('section')">✦ Preencher ${currentStep===6?'campos em falta':'esta secção'}</button>
     <button class="btn" type="button" onclick="studioAIRequest('all')">Preencher programa completo</button>
     ${current.aiCompletion?.history?.length?'<button class="ai-text-button" type="button" onclick="studioAIUndo()">Desfazer último preenchimento</button>':''}</div>
-    <div class="ai-completion-legend"><span class="ai-tag viator">Fonte Viator</span><span class="ai-tag suggestion">Sugestão IA</span><span class="hint">As sugestões ficam sujeitas a validação antes de Ready.</span></div>
+    <div class="ai-completion-legend"><span class="ai-tag viator">Fonte Viator</span><span class="ai-tag getyourguide">Fonte GetYourGuide</span><span class="ai-tag suggestion">Sugestão IA</span><span class="hint">As sugestões ficam sujeitas a validação antes de Ready.</span></div>
     ${pending.length?`<div class="ai-pending" role="status">${pending.length} campos por validar. <button type="button" class="ai-text-button" onclick="studioAIReview()">Rever preenchimento</button></div>`:''}
     ${current.aiCompletion?.unsaved?'<p class="ai-pending">Alterações no editor. Guarda como rascunho para as sincronizar.</p>':''}
     ${current.aiCompletion?.missing?.length?`<details class="ai-history"><summary>Informação ainda por confirmar (${current.aiCompletion.missing.length})</summary><ul>${current.aiCompletion.missing.map(p=>`<li><b>${esc(COMPLETION_FIELDS[p.field]?.label||p.field)}</b>: ${esc(p.note)}</li>`).join('')}</ul></details>`:''}
@@ -65,7 +67,7 @@ function renderCompletionUI(){
     const meta=current.aiCompletion?.fields?.[name];
     if(meta){
       const info=document.createElement('div');info.className='ai-field-info';
-      const origin=meta.origin==='viator'?'Fonte Viator':meta.origin==='operator'?'Editado por ti':'Sugestão IA';
+      const origin=meta.origin==='viator'?'Fonte Viator':meta.origin==='getyourguide'?'Fonte GetYourGuide':meta.origin==='operator'?'Editado por ti':'Sugestão IA';
       info.innerHTML=`<span class="ai-tag ${esc(meta.origin)}">${origin}${meta.reviewed?' · validado':''}</span> ${sourceLink(meta.sourceUrl)}
         ${meta.requiresReview&&!meta.reviewed?`<button class="ai-text-button" type="button" onclick="studioAIValidate('${name}')">Validar</button>`:''}
         ${meta.note?`<span class="ai-field-note">${esc(meta.note)}</span>`:''}`;
@@ -77,7 +79,7 @@ function completionHistoryHtml(product){
   const history=product.aiCompletion?.history||[];
   if(!history.length)return '';
   return `<details class="ai-history"><summary>Histórico de preenchimento (${history.length})</summary><ul>${history.slice().reverse().map(h=>
-    `<li>${esc(new Date(h.at).toLocaleString('pt-PT'))} · ${h.fields.length} campos · ${h.sourced} da Viator, ${h.suggested} sugestões</li>`).join('')}</ul></details>`;
+    `<li>${esc(new Date(h.at).toLocaleString('pt-PT'))} · ${h.fields.length} campos · ${h.sourced} com fonte confirmada, ${h.suggested} sugestões</li>`).join('')}</ul></details>`;
 }
 function studioAISetAuto(enabled){
   syncForm();current.aiAutoComplete=enabled;
@@ -110,7 +112,7 @@ async function requestCompletion(scope,automatic=false){
   const snapshot=JSON.parse(JSON.stringify(current)),sequence=++completionSequence;
   completionBusy=true;pendingCompletion=null;
   const modal=document.querySelector('#modal');modal.className='modal';
-  modal.innerHTML=`<div class="box ai-completion-modal" role="dialog" aria-modal="true" aria-label="Pesquisa IA em curso"><h3>✦ A consultar a Viator…</h3><p>A procurar a experiência exata e a preparar ${fields.length} campos. As informações em falta serão identificadas como sugestões.</p><p class="hint" role="status">A pesquisa pode demorar alguns minutos.</p><div class="modal-actions"><button class="btn" type="button" onclick="studioAICancel()">Cancelar</button></div></div>`;
+  modal.innerHTML=`<div class="box ai-completion-modal" role="dialog" aria-modal="true" aria-label="Pesquisa IA em curso"><h3>✦ A consultar a fonte…</h3><p>A procurar a experiência exata e a preparar ${fields.length} campos. As informações em falta serão identificadas como sugestões.</p><p class="hint" role="status">A pesquisa pode demorar alguns minutos.</p><div class="modal-actions"><button class="btn" type="button" onclick="studioAICancel()">Cancelar</button></div></div>`;
   try{
     const result=await fetchCompletion(fields,snapshot);
     if(sequence!==completionSequence||current?.id!==snapshot.id)return false;
@@ -130,7 +132,7 @@ function renderCompletionPreview(){
   const cards=result.fields.map(p=>{
     const definition=COMPLETION_FIELDS[p.field];if(!definition)return '';
     const existing=String(pending.snapshot[p.field]??'');
-    return `<article class="ai-proposal"><div class="ai-proposal-heading"><label>${p.value?`<input type="checkbox" data-ai-choice="${esc(p.field)}" checked>`:''}<strong>${esc(definition.label)}</strong></label><span class="ai-tag ${esc(p.origin)}">${p.origin==='viator'?'Fonte Viator':p.origin==='missing'?'Por confirmar':'Sugestão IA'}</span></div>
+    return `<article class="ai-proposal"><div class="ai-proposal-heading"><label>${p.value?`<input type="checkbox" data-ai-choice="${esc(p.field)}" checked>`:''}<strong>${esc(definition.label)}</strong></label><span class="ai-tag ${esc(p.origin)}">${p.origin==='viator'?'Fonte Viator':p.origin==='getyourguide'?'Fonte GetYourGuide':p.origin==='missing'?'Por confirmar':'Sugestão IA'}</span></div>
       ${existing&&p.value?`<details><summary>Valor atual</summary><p class="ai-value">${esc(existing)}</p></details>`:''}
       <p class="ai-value">${esc(p.value||'Sem informação suficiente para preencher.')}</p>
       ${p.note?`<p class="hint">${esc(p.note)}</p>`:''}${sourceLink(p.sourceUrl)}
@@ -173,7 +175,7 @@ async function applyCompletion(selected){
   }
   if(applied.length){
     state.history=[...(state.history||[]),{at:new Date().toISOString(),fields:applied.map(p=>p.field),
-      sourced:applied.filter(p=>p.origin==='viator').length,suggested:applied.filter(p=>p.origin==='suggestion').length,previous}].slice(-5);
+      sourced:applied.filter(p=>['viator','getyourguide'].includes(p.origin)).length,suggested:applied.filter(p=>p.origin==='suggestion').length,previous}].slice(-5);
     state.lastSummary=pending.result.summary;state.sources=pending.result.sources;
     state.missing=pending.result.fields.filter(p=>!p.value).map(p=>({field:p.field,note:p.note}));
   }
@@ -214,6 +216,29 @@ async function studioAIUndo(){
   }
   await persistCompletion();renderWizard();toast('Último preenchimento desfeito.');
 }
+async function studioAICleanContent(){
+  if(!current)return;
+  syncForm();
+  const state=completionState(),previous={},changed=[];
+  for(const field of ['summary','description','highlights','itinerary','included','excluded']){
+    const before=String(current[field]??'');
+    const list=['highlights','itinerary','included','excluded'].includes(field);
+    const cleaned=cleanCommercialCopy(before,{list});
+    const after=Array.isArray(cleaned)?cleaned.join('\n'):cleaned;
+    if(after===before)continue;
+    previous[field]={value:before,meta:state.fields[field]||null};
+    current[field]=after;
+    state.fields[field]={...(state.fields[field]||{}),field,value:after,origin:'suggestion',
+      requiresReview:!!after,reviewed:false,note:'Texto formatado automaticamente. Confirma o conteúdo antes de publicar.'};
+    changed.push(field);
+  }
+  if(!changed.length){toast('Os textos já estão limpos.');return;}
+  state.history=[...(state.history||[]),{at:new Date().toISOString(),fields:changed,
+    sourced:0,suggested:changed.length,previous}].slice(-5);
+  const saved=await persistCompletion();
+  renderWizard();
+  toast(changed.length+' campos corrigidos'+(saved?' · rascunho guardado':'. Guarda as alterações.'));
+}
 function studioAICancel(){completionSequence++;completionController?.abort();completionBusy=false;pendingCompletion=null;closeModal();}
 function studioAIDiscard(){pendingCompletion=null;closeModal();}
 nextStep=async function(){
@@ -225,5 +250,5 @@ nextStep=async function(){
   baseNextStep();
 };
 Object.assign(window,{studioAIRequest:requestCompletion,studioAISetAuto,studioAIApplySelected,studioAIValidate,
-  studioAIValidateAll,studioAIReview,studioAIUndo,studioAICancel,studioAIDiscard});
+  studioAIValidateAll,studioAIReview,studioAIUndo,studioAICleanContent,studioAICancel,studioAIDiscard});
 if(current&&document.querySelector('#stepPanel'))renderWizard();
