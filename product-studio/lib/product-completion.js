@@ -1,4 +1,5 @@
 import {callStructured,withModelFallback} from './product-builder.js';
+import {PRICE_FIELDS,priceProposalConsistent} from '../product-integrity.js';
 import {COMPLETION_FIELDS,normalizeCompletionValue} from '../completion-fields.js';
 
 export function viatorReference(reference,code=''){
@@ -89,10 +90,11 @@ export function normalizeCompletion(result,request,sources){
     );
     const evidence=String(proposal.evidence||'').slice(0,500);
     const providerOrigin=request.provider==='getyourguide'?'getyourguide':'viator';
-    const origin=!value?'missing':proposal.origin===providerOrigin&&exactSource&&evidence?providerOrigin:'suggestion';
+    const consistent=!PRICE_FIELDS.includes(field)||priceProposalConsistent(field,value,evidence,request.product);
+    const origin=!value?'missing':proposal.origin===providerOrigin&&exactSource&&evidence&&consistent?providerOrigin:'suggestion';
     fields.push({field,value,origin,sourceUrl:origin===providerOrigin?sourceUrl:'',
       evidence:origin===providerOrigin?evidence:'',
-      note:String(proposal.note||'').slice(0,1200),
+      note:(consistent?'':'O valor, a unidade ou a moeda não correspondem ao excerto da fonte. Sugestão não confirmada. ')+String(proposal.note||'').slice(0,1200),
       requiresReview:!!value&&(request.provider==='getyourguide'||origin==='suggestion'||!!COMPLETION_FIELDS[field].operational)});
   }
   for(const field of request.fields)if(!seen.has(field))fields.push({field,value:'',origin:'missing',sourceUrl:'',evidence:'',note:'Informação insuficiente; confirmar com o operador.',requiresReview:false});
@@ -115,7 +117,7 @@ For each requested field return one proposal with a plain string value. Do not r
 Origin viator/getyourguide means a fact explicitly supported by the EXACT product in supplied Viator API evidence or a retrieved page from the matching provider and matching product ID. Cite the real retrieved sourceUrl and a short supporting excerpt in evidence only. Never put hyperlinks or citations in product-field values. Never invent source links, quotes or claim a search succeeded without evidence.
 If exact information is absent, propose an original draft from similar activities, marked suggestion; logistics and terms from other tours are NEVER exact-product facts. Preserve and prioritize operator-entered facts without presenting them as verified provider evidence.
 If a precise meeting address, supplier, license, accessibility, safety guarantee or ticket inclusion cannot be established, leave value empty with origin missing and explain the missing detail. Do not fabricate operational guarantees.
-Suggested prices, capacity, start times, booking cutoff, days and cancellation conditions are internal planning proposals requiring operator approval. Never claim live availability. Distinguish price per person/group/vehicle and selected option; if a public price is a from-price or basis/option/currency is unclear, mark the proposal suggestion and explain. Do not silently change the existing Watermelon price or product format.
+Prices are never estimates in a source import: leave missing when the exact amount, currency and unit are not evidenced together. Never change per person to per group/vehicle. Capacity, times, cutoff, days and cancellation cannot be invented; missing operational data stays empty. Optional planning ideas belong only in notes requiring operator approval. Never claim live availability. Distinguish price per person/group/vehicle and selected option; if a public price is a from-price or basis/option/currency is unclear, mark the proposal suggestion and explain. Do not silently change the existing Watermelon price or product format.
 Use the current product as operator context, preserving explicit decisions. It is not fresh Viator evidence. Existing defaults are not proof of real service.
 Commercial copy in polished original English; internal summary, evidence explanations and notes in Portuguese of Portugal. Do not copy third-party marketing wording. No URLs, domains, Markdown, web citations or literal backslash-n in field values.
 Newline-separated strings for lists; days only Mon,Tue,Wed,Thu,Fri,Sat,Sun; times HH:MM separated by commas; numbers without currency symbols; optionCode uppercase A-Z, 0-9 and hyphens.

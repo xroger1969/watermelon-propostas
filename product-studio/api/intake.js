@@ -20,7 +20,11 @@ function decodeEntities(text){
     .replace(/&#x([0-9a-f]+);/gi,(_,n)=>String.fromCharCode(parseInt(n,16)));
 }
 function htmlToText(html){
-  return decodeEntities(String(html||'')
+  const structured=[];
+  for(const match of String(html||'').matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)){
+    try{structured.push(JSON.parse(match[1]));}catch{}
+  }
+  const page=decodeEntities(String(html||'')
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ')
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,' ')
     .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi,' ')
@@ -29,6 +33,7 @@ function htmlToText(html){
     .replace(/[ \t]+/g,' ')
     .replace(/\n\s*\n+/g,'\n')
   ).trim().slice(0,50000);
+  return page+(structured.length?'\nUNTRUSTED STRUCTURED PAGE DATA (may contain multiple products; match exact identity):\n'+JSON.stringify(structured).slice(0,18000):'');
 }
 async function fetchPublicPage(rawUrl){
   let current=String(rawUrl||'').trim();
@@ -77,12 +82,15 @@ async function storageAction(action, extra={}) {
 }
 
 export default async function handler(req,res){
+  res.setHeader('Cache-Control','private, no-store');
+  if(req.headers?.origin){try{if(new URL(req.headers.origin).host!==req.headers.host)return res.status(403).json({error:'Origem não permitida.'});}catch{return res.status(403).json({error:'Origem inválida.'});}}
   if(req.method!=='POST'){
     res.setHeader('Allow','POST');
     return res.status(405).json({error:'Method not allowed'});
   }
   try{
     let source={...(req.body||{})};
+    delete source.pageText;delete source.resolvedUrl;
     if(source.mode==='url'||source.mode==='viator'){
       const ref=String(source.url||source.reference||'').trim();
       try{
@@ -105,6 +113,7 @@ export default async function handler(req,res){
       source.sources=[];
       for(const item of items){
         const next={...item};
+        delete next.pageText;delete next.resolvedUrl;
         if(next.kind==='file'||next.kind==='image'){
           if(!next.storagePath) throw new Error('Uma das fontes privadas não tem caminho de armazenamento.');
           const size=Number(next.size||0);

@@ -19,7 +19,7 @@
 <body>
 <div class="app">
 <aside class="sidebar">
-  <div class="brand"><div class="wm"></div><div><b>Watermelon<br>Product Studio</b><span>Standalone catalogue manager</span></div></div>
+  <div class="brand"><div class="wm"></div><div><b>Watermelon<br>Product Studio</b><span>Catalogue manager · 29.10 integrity</span></div></div>
   <div class="nav">
     <button data-view="dashboard" class="active">◫ Dashboard</button>
     <button data-view="products">▦ Produtos</button>
@@ -47,7 +47,7 @@
 <div id="modal" class="hidden"></div>
 <script>
 const STORAGE='watermelon_product_studio_v1';
-const emptyProduct=()=>({id:'WM-'+Date.now(),status:'Draft',source:'WATERMELON',title:'',shortTitle:'',destination:'',category:'Private Tour',duration:'',summary:'',description:'',highlights:'',itinerary:'',meetingPoint:'',pickup:'Hotel pickup available',dropoff:'',included:'',excluded:'',language:'English',groupType:'Private',maxGuests:'8',optionTitle:'Standard',optionCode:'OPT-1',priceType:'Per group',adultPrice:'',childPrice:'',currency:'EUR',days:'Mon,Tue,Wed,Thu,Fri,Sat,Sun',startTimes:'09:00',capacity:'8',cutoffHours:'12',cancellation:'Free cancellation up to 24 hours before start time',questions:'Hotel / accommodation name',mainImage:'',gallery:[],viatorCode:'',pricingProvider:'WATERMELON',availabilityProvider:'WATERMELON',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});
+const emptyProduct=()=>({id:'WM-'+Date.now(),status:'Draft',source:'WATERMELON',title:'',shortTitle:'',destination:'',category:'Custom Experience',duration:'',summary:'',description:'',highlights:'',itinerary:'',meetingPoint:'',pickup:'',dropoff:'',included:'',excluded:'',language:'',groupType:'',maxGuests:'',optionTitle:'Standard',optionCode:'OPT-1',priceType:'',adultPrice:'',childPrice:'',currency:'EUR',days:'',startTimes:'',capacity:'',cutoffHours:'',cancellation:'',questions:'',mainImage:'',gallery:[],viatorCode:'',pricingProvider:'WATERMELON',availabilityProvider:'WATERMELON',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});
 let products=[];let current=null;let currentStep=0;let editingId=null;
 const steps=['Começar','Informação','Conteúdo','Logística','Opções & preço','Disponibilidade','Revisão'];
 function load(){try{products=JSON.parse(localStorage.getItem(STORAGE)||'[]')}catch(e){products=[]}}
@@ -94,7 +94,7 @@ if(currentStep===5)el.innerHTML=`<h3>Disponibilidade</h3><p>Calendário e capaci
 if(currentStep===6){let q=quality(current),g=galleryOf(current),main=g[0],issues=readyIssues(current);el.innerHTML=`<h3>Revisão, imagens e preview</h3><p>Revê exatamente o produto antes de o marcares como Ready.</p><div class="quality"><div class="score" style="--score:${q}"><span>${q}%</span></div><div><b>${issues.length?'Ainda falta completar o produto':'Pronto para validação'}</b><div class="checks">${check('Imagem principal',main)}${check('Título',current.title)}${check('Destino',current.destination)}${check('Descrição',current.description)}${check('Itinerário',current.itinerary)}${check('Logística',current.meetingPoint||current.pickup)}${check('Preço',current.adultPrice)}${check('Disponibilidade',current.days&&current.startTimes)}${check('Cancelamento',current.cancellation)}</div></div></div>${galleryManagerHtml(current)}${marketReview(current)}<div class="section"><div class="section-head"><div><h2>Pré-visualização do anúncio</h2><p>É esta a apresentação que deves validar antes de colocar o produto como Ready.</p></div></div><div class="preview-card"><div class="preview-img">${main?.url?`<img src="${esc(main.url)}" alt="${esc(current.title||'Experiência Watermelon')}">`:'Imagem principal em falta'}</div>${g.length>1?`<div class="preview-thumbs" style="padding-left:20px;padding-right:20px">${g.map(m=>`<img src="${esc(m.url||'')}" alt="">`).join('')}</div>`:''}<div class="preview-body"><span class="badge">${esc(current.category)}</span><h2>${esc(current.title||'Título da experiência')}</h2><p style="font-size:15px;line-height:1.55">${esc(current.summary||'Resumo curto da experiência aparecerá aqui.')}</p><div class="chips"><span class="chip">📍 ${esc(current.destination||'Destino')}</span><span class="chip">◷ ${esc(current.duration||'Duração')}</span><span class="chip">👥 ${esc(current.groupType)}</span><span class="chip">🌐 ${esc(current.language||'English')}</span></div><div style="font-size:20px;margin:14px 0"><b>${current.adultPrice?esc(current.adultPrice)+' '+esc(current.currency):'Preço por definir'}</b> <span class="hint">· ${esc(current.priceType||'')}</span></div>${current.description?`<div class="preview-section"><h4>Sobre esta experiência</h4><p>${esc(current.description)}</p></div>`:''}${current.highlights?`<div class="preview-section"><h4>Destaques</h4><ul>${listPreview(current.highlights)}</ul></div>`:''}${current.itinerary?`<div class="preview-section"><h4>Itinerário</h4><ol>${listPreview(current.itinerary,10)}</ol></div>`:''}<div class="preview-section"><div class="form-grid">${current.included?`<div><h4>Incluído</h4><ul>${listPreview(current.included,10)}</ul></div>`:''}${current.excluded?`<div><h4>Não incluído</h4><ul>${listPreview(current.excluded,10)}</ul></div>`:''}</div></div>${current.meetingPoint||current.pickup?`<div class="preview-section"><h4>Encontro e recolha</h4><p>${esc([current.meetingPoint,current.pickup].filter(Boolean).join(' · '))}</p></div>`:''}${current.cancellation?`<div class="preview-section"><h4>Cancelamento</h4><p>${esc(current.cancellation)}</p></div>`:''}</div></div></div>${issues.length?`<div class="notice" style="margin-top:16px"><b>Ainda não pode passar a Ready.</b> Falta: ${esc(issues.join(', '))}.</div>`:''}<div class="wizard-footer"><button class="btn" onclick="prevStep()">← Anterior</button><div class="actions"><button class="btn" onclick="saveDraft()">Guardar Draft</button><button class="btn green" onclick="${current.status==='Ready'?'publishLive()':current.status==='Live'?'pauseLive()':'saveReady()'}">${current.status==='Ready'?'Publicar no site':current.status==='Live'?'Pausar no site':'Marcar Ready'}</button></div></div>`}}
 function field(name,label,value,cls='',hint=''){return `<div class="field ${cls}"><label>${label}</label><input name="${name}" value="${esc(value)}">${hint?`<span class="hint">${hint}</span>`:''}</div>`}
 function textarea(name,label,value,cls=''){return `<div class="field ${cls}"><label>${label}</label><textarea name="${name}">${esc(value)}</textarea></div>`}
-function select(name,label,value,opts){return `<div class="field"><label>${label}</label><select name="${name}">${opts.map(x=>`<option ${x===value?'selected':''}>${x}</option>`).join('')}</select></div>`}
+function select(name,label,value,opts){return `<div class="field"><label>${label}</label><select name="${name}">${opts.includes(value)?'':`<option value="${esc(value||'')}" selected>${esc(value||'Por confirmar')}</option>`}${opts.map(x=>`<option value="${esc(x)}" ${x===value?'selected':''}>${esc(x)}</option>`).join('')}</select></div>`}
 function footer(back=true,next=true){return `<div class="wizard-footer">${back?'<button class="btn" onclick="prevStep()">← Anterior</button>':'<span></span>'}${next?'<button class="btn primary" onclick="nextStep()">Continuar →</button>':''}</div>`}
 function syncForm(){document.querySelectorAll('#stepPanel [name]').forEach(e=>current[e.name]=e.value);current.updatedAt=new Date().toISOString()}
 function nextStep(){syncForm();currentStep=Math.min(6,currentStep+1);renderWizard()}
@@ -367,7 +367,7 @@ function aiLines(v){return Array.isArray(v)?v.join('\n'):(v||'')}
 function marketHtml(m){
   if(!m)return '<div class="notice">Pesquisa de mercado não disponível; preço provisório.</div>';
   const comps=(m.comparables||[]).slice(0,5).map(c=>`<div class="comp"><a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.provider)} · ${esc(c.title)}</a><br><b>${esc(String(c.observedPrice))} ${esc(c.currency)}</b> · ${esc(c.priceBasis)} · ${esc(c.duration||'')}</div>`).join('');
-  return `<div class="market-panel"><div class="market-head"><div><b>Pesquisa de mercado</b><div class="hint">${esc(m.pricedComparableCount||0)} comparáveis com preço · confiança ${esc(m.confidence||'low')}</div></div><span class="badge ${m.method==='market_researched'?'live':'paused'}">${m.method==='market_researched'?'Preço pesquisado':'Provisório'}</span></div><div class="market-grid"><div><span class="hint">Faixa baixa</span><br><b>${esc(String(m.lowMarketPrice||0))} ${esc(m.currency||'EUR')}</b></div><div><span class="hint">Mediana</span><br><b>${esc(String(m.medianMarketPrice||0))} ${esc(m.currency||'EUR')}</b></div><div><span class="hint">Watermelon</span><br><b>${esc(String(m.recommendedPrice||0))} ${esc(m.currency||'EUR')}</b></div></div><p style="font-size:12px">${esc(m.rationale||'')}</p>${comps?'<div class="comp-list">'+comps+'</div>':''}</div>`;
+  return `<div class="market-panel"><div class="market-head"><div><b>Pesquisa de mercado</b><div class="hint">${esc(m.pricedComparableCount||0)} comparáveis com preço · confiança ${esc(m.confidence||'low')}</div></div><span class="badge ${m.method==='market_researched'?'live':'paused'}">${m.method==='market_researched'?'Preço pesquisado':'Provisório'}</span></div><div class="market-grid"><div><span class="hint">Faixa baixa</span><br><b>${esc(String(m.lowMarketPrice||0))} ${esc(m.currency||'EUR')}</b></div><div><span class="hint">Mediana</span><br><b>${esc(String(m.medianMarketPrice||0))} ${esc(m.currency||'EUR')}</b></div><div><span class="hint">Sugestão IA · não aplicada</span><br><b>${esc(String(m.recommendedPrice||0))} ${esc(m.currency||'EUR')}</b></div></div><p style="font-size:12px">${esc(m.rationale||'')}</p>${comps?'<div class="comp-list">'+comps+'</div>':''}</div>`;
 }
 function marketReview(p){return p?.marketResearch?marketHtml(p.marketResearch):''}
 function applyGenerated(data,briefLabel){
@@ -379,14 +379,14 @@ function applyGenerated(data,briefLabel){
     highlights:aiLines(p.highlights),itinerary:aiLines(p.itinerary),
     meetingPoint:p.meetingPoint||'',pickup:p.pickup||'',dropoff:p.dropoff||'',
     included:aiLines(p.included),excluded:aiLines(p.excluded),
-    language:p.language||'English',groupType:p.groupType||'Private',
-    maxGuests:String(p.maxGuests||8),optionTitle:p.optionTitle||'Standard',
-    optionCode:p.optionCode||'OPT-1',priceType:p.priceType||'Per group',
-    adultPrice:p.suggestedPrice===0?'':String(p.suggestedPrice??''),
-    childPrice:p.childPrice===0?'0':String(p.childPrice??''),
+    language:p.language||'',groupType:p.groupType||'',
+    maxGuests:p.maxGuests>0?String(p.maxGuests):'',optionTitle:p.optionTitle||'Standard',
+    optionCode:p.optionCode||'OPT-1',priceType:p.priceType||'',
+    adultPrice:'',
+    childPrice:'',
     currency:p.currency||'EUR',days:aiLines(p.days).replace(/\n/g,','),
     startTimes:aiLines(p.startTimes).replace(/\n/g,', '),
-    capacity:String(p.capacity||p.maxGuests||8),cutoffHours:String(p.cutoffHours??12),
+    capacity:p.capacity>0?String(p.capacity):'',cutoffHours:p.cutoffHours==null?'':String(p.cutoffHours),
     cancellation:p.cancellation||'',questions:aiLines(p.questions),
     source:'WATERMELON',pricingProvider:'WATERMELON',availabilityProvider:'WATERMELON',
     aiAssumptions:p.assumptions||[],aiMissing:p.missingInformation||[],
@@ -495,26 +495,23 @@ async function saveCloud(product){
 }
 async function upsert(status){
   syncForm();
-  current.status=status;
-  current.updatedAt=new Date().toISOString();
-  let i=products.findIndex(p=>p.id===current.id);
-  if(i>=0)products[i]=JSON.parse(JSON.stringify(current));else products.unshift(JSON.parse(JSON.stringify(current)));
-  save();
-  editingId=current.id;
-  renderWizard();
+  const before=current.status;
+  if(['Ready','Live'].includes(status)){const issues=readyIssues(current);if(issues.length){toast('Falta: '+issues.join(', '));return;}}
+  const candidate={...structuredClone(current),status,updatedAt:new Date().toISOString()};
   try{
-    const saved=await saveCloud(current);
-    const labels={Ready:'Produto Ready',Live:'Produto publicado no site',Paused:'Produto pausado no site',Draft:'Rascunho guardado'};
-    toast((labels[status]||'Produto guardado')+' · revisão '+(saved.revision||''));
+    const saved=await saveCloud(candidate);current=candidate;
+    const i=products.findIndex(p=>p.id===current.id);if(i<0)products.unshift(structuredClone(current));else products[i]=structuredClone(current);
+    save();editingId=current.id;renderWizard();toast('Guardado na cloud · revisão '+(saved.revision||''));
   }catch(e){
-    toast('Guardado neste dispositivo; cloud indisponível');
-    console.error(e);
+    current.status=before;
+    if(status==='Draft'){const i=products.findIndex(p=>p.id===current.id);if(i<0)products.unshift(structuredClone(current));else products[i]=structuredClone(current);save();}
+    toast(e.message||'Não foi guardado na cloud. O estado anterior foi mantido.');
   }
 }
 function saveDraft(){upsert('Draft')}
-function saveReady(){const issues=readyIssues(current);if(issues.length){currentStep=6;renderWizard();toast('Antes de Ready falta: '+issues.join(', '));return}upsert('Ready')}
+function saveReady(){syncForm();const issues=readyIssues(current);if(issues.length){currentStep=6;renderWizard();toast('Antes de Ready falta: '+issues.join(', '));return}upsert('Ready')}
 function publishLive(){
-  const issues=readyIssues(current);
+  syncForm();const issues=readyIssues(current);
   if(issues.length){currentStep=6;renderWizard();toast('Antes de publicar falta: '+issues.join(', '));return}
   if(current.status!=='Ready'){toast('Primeiro marca o produto como Ready');return}
   showModal('<h3>Publicar este produto no site?</h3><p>Ao confirmar, o produto passa a <b>Live</b> e ficará disponível no catálogo público da Watermelon. Os restantes produtos não são alterados.</p>',[
@@ -559,6 +556,6 @@ load();renderDashboard();renderProducts();loadCloud();
 <script src="/getyourguide-publisher.js"></script>
 <script src="/getyourguide-integration.js"></script>
 <script src="/getyourguide-eligibility.js"></script>
-<script type="module" src="/ai-completion.js"></script>
+<script type="module" src="/ai-completion.js?v=20261029-integrity1"></script>
 </body>
 </html>

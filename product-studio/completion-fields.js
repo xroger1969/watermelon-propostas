@@ -53,16 +53,17 @@ export function normalizeCompletionValue(field,value){
 }
 export function pendingCompletionFields(product){
   return Object.entries(product?.aiCompletion?.fields||{}).filter(([field,meta])=>
-    COMPLETION_FIELDS[field]&&meta.requiresReview&&!meta.reviewed&&String(product[field]??'')===meta.value
+    COMPLETION_FIELDS[field]&&meta.requiresReview&&(!meta.reviewed||String(product[field]??'')!==meta.value)
   ).map(([field])=>field);
 }
 
 // The existing cloud API persists inputSource as JSON. Carry editor metadata there
 // so per-field review/history survives reloads without changing the database schema.
 export function packCompletionMetadata(product){
-  if(!product||!product.aiCompletion&&!product.aiSourceUrl&&product.aiAutoComplete===undefined)return product;
+  if(!product||typeof product!=='object')return product;
   const inputSource=product.inputSource&&typeof product.inputSource==='object'?product.inputSource:{};
-  const packed={...product,inputSource:{...inputSource,studioCompletion:{
+  const fieldValues=Object.fromEntries(Object.keys(COMPLETION_FIELDS).filter(f=>product[f]!==undefined).map(f=>[f,product[f]]));
+  const packed={...product,inputSource:{...inputSource,studioFieldValues:fieldValues,studioCompletion:{
     version:1,aiCompletion:product.aiCompletion?{...product.aiCompletion,unsaved:false}:null,
     aiSourceUrl:String(product.aiSourceUrl||''),aiAutoComplete:!!product.aiAutoComplete
   }}};
@@ -71,11 +72,13 @@ export function packCompletionMetadata(product){
   for(const [field,rule] of Object.entries(COMPLETION_FIELDS))if(rule.lines){
     packed[field]=Array.isArray(product[field])?product[field]:String(product[field]||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
   }
+  if(Array.isArray(product.allOptions))packed.allOptions=product.allOptions.map(o=>o.optionCode===product.optionCode?{...o,...Object.fromEntries(['optionTitle','adultPrice','childPrice','priceType','currency'].filter(f=>product[f]!==undefined).map(f=>[f,product[f]]))}:o);
   return packed;
 }
 export function unpackCompletionMetadata(product){
   const state=product?.inputSource?.studioCompletion;
   if(!state||state.version!==1)return product;
-  return {...product,aiCompletion:state.aiCompletion||null,
+  const values=Object.fromEntries(Object.entries(product.inputSource.studioFieldValues||{}).filter(([f])=>Object.hasOwn(COMPLETION_FIELDS,f)));
+  return {...product,...values,aiCompletion:state.aiCompletion||null,
     aiSourceUrl:String(state.aiSourceUrl||''),aiAutoComplete:!!state.aiAutoComplete};
 }
