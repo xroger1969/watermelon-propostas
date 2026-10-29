@@ -1,3 +1,5 @@
+import {cleanCommercialCopy} from './lib/commercial-copy.js';
+
 // Shared validation and field scope for the editor and the completion endpoint.
 export const COMPLETION_FIELDS = Object.freeze({
   title:{label:'Título público',step:1}, shortTitle:{label:'Título curto',step:1},
@@ -29,7 +31,7 @@ export function normalizeCompletionValue(field,value){
   if(!rule)return '';
   if(Array.isArray(value))value=value.join(rule.lines?'\n':', ');
   if(!['string','number'].includes(typeof value))return '';
-  const text=String(value).replace(/\r\n/g,'\n').trim().slice(0,field==='description'?20000:8000);
+  const text=cleanCommercialCopy(String(value)).slice(0,field==='description'?20000:8000);
   if(!text)return '';
   if(rule.options)return rule.options.includes(text)?text:'';
   if(rule.min!==undefined){
@@ -46,7 +48,7 @@ export function normalizeCompletionValue(field,value){
     return values.length&&values.every(x=>/^([01]\d|2[0-3]):[0-5]\d$/.test(x))?[...new Set(values)].join(', '):'';
   }
   if(field==='optionCode'&&!/^[A-Z0-9-]{1,40}$/.test(text))return '';
-  if(rule.lines)return text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean).join('\n');
+  if(rule.lines)return cleanCommercialCopy(text,{list:true}).join('\n');
   return text;
 }
 export function pendingCompletionFields(product){
