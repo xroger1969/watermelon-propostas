@@ -29,8 +29,13 @@ export function sameSource(a,b) {
 }
 export function evidencePrice(excerpt) {
   const s=String(excerpt||'');
-  const money=/(?:€|EUR|\$|USD|£|GBP)\s*(\d+(?:[.,]\d{1,2})?)|(\d+(?:[.,]\d{1,2})?)\s*(?:€|EUR|\$|USD|£|GBP)/gi;
-  const amounts=[...s.matchAll(money)].map(m=>Number((m[1]||m[2]).replace(',','.')));
+  const money=/(?:€|EUR|\$|USD|£|GBP)\s*(\d[\d.,\u00a0 ]*\d|\d)|(\d[\d.,\u00a0 ]*\d|\d)\s*(?:€|EUR|\$|USD|£|GBP)/gi;
+  const amounts=[...s.matchAll(money)].map(m=>{
+    let n=(m[1]||m[2]).replace(/[\s\u00a0]/g,'');
+    if(/[.,]\d{1,2}$/.test(n)){const at=Math.max(n.lastIndexOf(','),n.lastIndexOf('.'));n=n.slice(0,at).replace(/[.,]/g,'')+'.'+n.slice(at+1);}
+    else n=n.replace(/[.,]/g,'');
+    return Number(n);
+  });
   const unique=[...new Set(amounts)];
   const currencies=[/€|\bEUR\b/i.test(s)?'EUR':'',/\$|\bUSD\b/i.test(s)?'USD':'',/£|\bGBP\b/i.test(s)?'GBP':''].filter(Boolean);
   const units=[[/per\s+(?:person|adult)|por\s+pessoa|\/\s*(?:person|pessoa|adult)/i,'Per person'],[/per\s+group|por\s+grupo|\/\s*group/i,'Per group'],[/per\s+(?:vehicle|quad)|por\s+(?:ve[ií]culo|quad)|\/\s*(?:vehicle|quad)/i,'Per vehicle']].filter(([re])=>re.test(s)).map(([,unit])=>unit);
@@ -58,7 +63,7 @@ export function optionsForReview(p) {
 }
 export function priceFingerprint(p) {return JSON.stringify(optionsForReview(p));}
 export function reviewFingerprint(p) {
-  return JSON.stringify([PUBLIC_FIELDS.map(f=>text(p?.[f])),optionsForReview(p),(p?.allOptions||[]).map(o=>[o.optionCode,o.startTimes,o.activeDays,o.capacity,o.cutoffHours]),p?.aiAssumptions||[],p?.aiMissing||[],(p?.gallery||[]).map(g=>g.path||g.url||'')]);
+  return JSON.stringify([PUBLIC_FIELDS.map(f=>text(p?.[f])),optionsForReview(p),(p?.allOptions||[]).filter(o=>o.optionCode!==p.optionCode).map(o=>[o.optionCode,o.startTimes,o.activeDays,o.capacity,o.cutoffHours]),p?.aiAssumptions||[],p?.aiMissing||[],(p?.gallery||[]).map(g=>g.path||g.url||'')]);
 }
 export function safetyState(p) {return p?.inputSource?.studioSafety||{};}
 export function ensureSafety(p) {
@@ -67,9 +72,9 @@ export function ensureSafety(p) {
 }
 export function validateSellingPrice(p) {
   const errors=[];
-  for(const o of optionsForReview(p)) {
+  for(const [index,o] of optionsForReview(p).entries()) {
     // Inactive/unfinished secondary options are retained, not silently made bookable.
-    if(o!==optionsForReview(p)[0]&&!o.adultPrice&&o.optionCode!==p.optionCode)continue;
+    if(index>0&&!o.adultPrice)continue;
     if(!(Number(o.adultPrice)>0)||!Number.isFinite(Number(o.adultPrice)))errors.push('preço positivo');
     if(!PRICE_TYPES.includes(o.priceType))errors.push('unidade de preço (pessoa/grupo/veículo)');
     if(!CURRENCIES.includes(o.currency))errors.push('moeda');
@@ -81,6 +86,7 @@ export function validateSellingPrice(p) {
 export function publicationIssues(p) {
   if(!p)return ['produto em falta'];
   const issues=validateSellingPrice(p),s=safetyState(p);
+  if(!(p.gallery||[]).some(g=>g.path||g.url))issues.push('imagem principal do operador');
   if(s.priceApproved!==priceFingerprint(p))issues.push('aprovação explícita do preço de venda');
   if(s.reviewApproved!==reviewFingerprint(p))issues.push('revisão dos dados e condições do programa');
   const required=['title','destination','duration','description','itinerary','included','language','groupType','maxGuests','capacity','days','startTimes','cancellation'];
@@ -107,3 +113,6 @@ export function priceProposalConsistent(field,value,evidence,product) {
   if(field==='currency')return !!v.currency&&v.currency===value;
   return true;
 }
+
+export const SOURCE_PRICE_SCHEMA={type:'object',additionalProperties:false,properties:{amount:{type:['number','null'],minimum:0},currency:{type:'string',enum:['','EUR','USD','GBP']},unit:{type:'string',enum:['',...PRICE_TYPES]},sourceUrl:{type:'string'},excerpt:{type:'string'},qualifier:{type:'string',enum:['unknown','from','advertised','date_specific']}},required:['amount','currency','unit','sourceUrl','excerpt','qualifier']};
+export function retrievedUrls(raw){const out=[];for(const item of raw?.output||[]){for(const x of item.action?.sources||item.sources||[])if(x.url)out.push({url:x.url});for(const part of item.content||[])for(const x of part.annotations||[])if(x.type==='url_citation'&&x.url)out.push({url:x.url});}return out;}

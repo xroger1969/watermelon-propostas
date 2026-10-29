@@ -24,6 +24,23 @@
   "functions": {
     "api/complete.js": {
       "maxDuration": 240
+    },
+    "api/source-price.js": {
+      "maxDuration": 240
+    },
+    "api/intake.js": {
+      "maxDuration": 240
     }
-  }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store"
+        }
+      ]
+    }
+  ]
 }

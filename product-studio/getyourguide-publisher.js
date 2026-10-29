@@ -166,7 +166,7 @@ function buildGygPayload(product){
 }
 
 function gygReadiness(product,payload){
-  const missing=[];
+  const missing=typeof window.studioPublicationIssues==='function'?window.studioPublicationIssues(product):['commercial review required'];
   const warnings=[];
   if(!payload.title) missing.push("title");
   if(!payload.shortDescription) missing.push("short description");
@@ -258,6 +258,7 @@ async function prepareAllGetYourGuide(){
 async function setGygStatus(id,status){
   const product=products.find(p=>p.id===id);
   if(!product) return;
+  if(['Ready','Submitted','Published'].includes(status)){const issues=window.studioPublicationIssues?.(product)||['commercial review required'];if(issues.length){toast('Rever no editor: '+issues.join(', '));return;}}
   const pub=gygPublication(product);
   if(!pub.payload) pub.payload=buildGygPayload(product);
   const now=new Date().toISOString();

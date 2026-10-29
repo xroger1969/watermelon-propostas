@@ -22,7 +22,7 @@ export function installIntegrityEditor(){
     if(currentStep===4){
       const box=document.createElement('section');box.className='studio-integrity notice';
       box.innerHTML=`<strong>Preço da fonte ≠ sugestão IA ≠ preço de venda</strong><p><b>Fonte ${esc(productSource(current)?.label||'por indicar')}:</b> ${esc(fmt(source))}${source?.qualifier==='from'?' · a partir de':''}</p><p class="hint">${esc(source?.note||'Consulta a tarifa da experiência exata. O preço não será estimado nem convertido.')}</p><div class="actions"><button class="btn" type="button" onclick="studioReadSourcePrice()">Consultar preço da fonte</button>${source?.amount>0?'<button class="btn" type="button" onclick="studioUseSourcePrice()">Usar preço da fonte</button>':''}</div>${suggestion?.amount>0?`<p><b>Sugestão IA, não aplicada:</b> ${esc(fmt(suggestion))} · confiança ${esc(suggestion.confidence)}</p>`:''}<p><b>Preço de venda Watermelon:</b> ${esc(fmt({amount:current.adultPrice,currency:current.currency,unit:current.priceType}))}</p><button class="btn green" type="button" onclick="studioApprovePrice()">${s.priceApproved===priceFingerprint(current)?'✓ Preço aprovado':'Aprovar este preço de venda'}</button><p class="hint">O valor, a moeda e a unidade são aprovados em conjunto. Alterá-los exige nova aprovação. Um preço público não é um custo de compra nem uma reserva confirmada.</p>`;
-      panel.append(box);
+      const assistant=panel.querySelector('.ai-completion-bar');if(assistant)assistant.after(box);else panel.prepend(box);
     }
     if(currentStep===6){
       const box=document.createElement('section');box.className='studio-integrity notice';

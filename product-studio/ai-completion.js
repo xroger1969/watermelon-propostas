@@ -1,5 +1,7 @@
 import {COMPLETION_FIELDS,normalizeCompletionValue,pendingCompletionFields} from './completion-fields.js';
 import {cleanCommercialCopy} from './lib/commercial-copy.js';
+import {PRICE_FIELDS,productSource} from './product-integrity.js';
+import {installIntegrityEditor} from './integrity-editor.js';
 
 let completionBusy=false,completionController=null,pendingCompletion=null,completionSequence=0;
 const baseRenderStep=renderStep,baseSyncForm=syncForm,baseReadyIssues=readyIssues,baseNextStep=nextStep;
@@ -9,7 +11,7 @@ function sourceLink(url,label='Ver fonte'){
   return '';
 }
 function sourceReference(p){
-  return p.aiSourceUrl||p.viatorCode||(p.inputSource?.references||[]).find(s=>['viator','url'].includes(s.type)&&s.url)?.url||(/^(https:\/\/)/i.test(p.inputSource?.label||'')?p.inputSource.label:'');
+  const source=productSource(p);return source?.url||source?.id||'';
 }
 function completionState(){
   if(!current.aiCompletion)current.aiCompletion={version:1,fields:{},history:[]};
@@ -39,7 +41,7 @@ function renderCompletionUI(){
   if(currentStep===2)panel.querySelector('h3')?.insertAdjacentHTML('afterend',`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0"><button class="btn" type="button" onclick="studioAICleanContent()">✦ Limpar formatação IA</button><span class="hint">Remove links, referências e quebras de linha incorretas, sem alterar os dados da fonte.</span></div>`);
   const pending=pendingCompletionFields(current);
   panel.insertAdjacentHTML('afterbegin',`<section class="ai-completion-bar" aria-label="Assistente de preenchimento">
-    <div class="ai-completion-title"><div><strong>✦ Assistente IA</strong><p>Viator ou GetYourGuide: fonte exata primeiro; restantes dados como sugestões para rever.</p></div><span class="ai-level">${current.aiAutoComplete?'Automático em rascunho':'Assistido'}</span></div>
+    <div class="ai-completion-title"><div><strong>✦ Assistente IA</strong><p>Fonte do programa: ${esc(productSource(current)?.label||'não indicada')}. Preços observados e sugestões ficam separados.</p></div><span class="ai-level">${current.aiAutoComplete?'Automático em rascunho':'Assistido'}</span></div>
     <label class="ai-source-label" for="aiSourceUrl">Ligação Viator / GetYourGuide ou código Viator</label>
     <input id="aiSourceUrl" name="aiSourceUrl" value="${esc(sourceReference(current))}" placeholder="Link Viator / GetYourGuide ou 9963P8" autocomplete="off">
     <div class="ai-completion-options"><label><input type="checkbox" id="aiOnlyMissing" checked> Apenas campos vazios</label>
@@ -47,7 +49,7 @@ function renderCompletionUI(){
     <div class="ai-completion-actions"><button class="btn green" type="button" onclick="studioAIRequest('section')">✦ Preencher ${currentStep===6?'campos em falta':'esta secção'}</button>
     <button class="btn" type="button" onclick="studioAIRequest('all')">Preencher programa completo</button>
     ${current.aiCompletion?.history?.length?'<button class="ai-text-button" type="button" onclick="studioAIUndo()">Desfazer último preenchimento</button>':''}</div>
-    <div class="ai-completion-legend"><span class="ai-tag viator">Fonte Viator</span><span class="ai-tag getyourguide">Fonte GetYourGuide</span><span class="ai-tag suggestion">Sugestão IA</span><span class="hint">As sugestões ficam sujeitas a validação antes de Ready.</span></div>
+    <div class="ai-completion-legend"><span class="ai-tag">${esc(productSource(current)?.label||'Sem fonte externa')}</span><span class="ai-tag suggestion">Sugestão IA</span><span class="hint">As sugestões ficam sujeitas a validação antes de Ready.</span></div>
     ${pending.length?`<div class="ai-pending" role="status">${pending.length} campos por validar. <button type="button" class="ai-text-button" onclick="studioAIReview()">Rever preenchimento</button></div>`:''}
     ${current.aiCompletion?.unsaved?'<p class="ai-pending">Alterações no editor. Guarda como rascunho para as sincronizar.</p>':''}
     ${current.aiCompletion?.missing?.length?`<details class="ai-history"><summary>Informação ainda por confirmar (${current.aiCompletion.missing.length})</summary><ul>${current.aiCompletion.missing.map(p=>`<li><b>${esc(COMPLETION_FIELDS[p.field]?.label||p.field)}</b>: ${esc(p.note)}</li>`).join('')}</ul></details>`:''}
@@ -61,7 +63,7 @@ function renderCompletionUI(){
     if(!input.id)input.id='studio-field-'+name;
     if(label)label.htmlFor=input.id;
     const button=document.createElement('button');button.type='button';button.className='ai-field-button';
-    button.textContent='✦ Preencher com IA';button.setAttribute('aria-label','Preencher '+definition.label+' com IA');
+    button.textContent=PRICE_FIELDS.includes(name)?'Rever preço':'✦ Preencher com IA';button.setAttribute('aria-label','Preencher '+definition.label+' com IA');
     button.onclick=()=>requestCompletion(name);
     if(label){const row=document.createElement('div');row.className='ai-field-heading';label.before(row);row.append(label,button);}
     const meta=current.aiCompletion?.fields?.[name];
@@ -103,10 +105,12 @@ async function fetchCompletion(fields,snapshot){
 async function requestCompletion(scope,automatic=false){
   if(completionBusy)return false;
   syncForm();
+  if(PRICE_FIELDS.includes(scope)){currentStep=4;renderWizard();toast('Consulta e aprova o preço nesta etapa.');return false;}
   let fields=COMPLETION_FIELDS[scope]?[scope]:Object.keys(COMPLETION_FIELDS).filter(field=>
     scope==='all'||currentStep===6||COMPLETION_FIELDS[field].step===currentStep);
   const onlyMissing=automatic||(!COMPLETION_FIELDS[scope]&&document.querySelector('#aiOnlyMissing')?.checked!==false);
   if(onlyMissing)fields=fields.filter(field=>!String(current[field]??'').trim());
+  fields=fields.filter(field=>!PRICE_FIELDS.includes(field));
   if(!fields.length){if(!automatic)toast('Esta seleção já está preenchida. Usa o botão de um campo para o melhorar.');return true;}
   if(!current.title&&!sourceReference(current)){toast('Indica primeiro o título ou a referência Viator.');return false;}
   const snapshot=JSON.parse(JSON.stringify(current)),sequence=++completionSequence;
@@ -162,6 +166,7 @@ async function applyCompletion(selected){
   const state=completionState(),previous={},applied=[];
   for(const proposal of pending.result.fields){
     if(!selected.includes(proposal.field)||!COMPLETION_FIELDS[proposal.field])continue;
+    if(PRICE_FIELDS.includes(proposal.field)){toast('Para alterar preços, usa a etapa Opções & preço e aprova o conjunto valor/moeda/unidade.');continue;}
     const value=normalizeCompletionValue(proposal.field,proposal.value);
     if(!value)continue;
     // Protect edits made since the request and retain existing values in automatic mode.
@@ -252,3 +257,5 @@ nextStep=async function(){
 Object.assign(window,{studioAIRequest:requestCompletion,studioAISetAuto,studioAIApplySelected,studioAIValidate,
   studioAIValidateAll,studioAIReview,studioAIUndo,studioAICleanContent,studioAICancel,studioAIDiscard});
 if(current&&document.querySelector('#stepPanel'))renderWizard();
+
+if(typeof applyGenerated==='function')installIntegrityEditor();
