@@ -241,11 +241,11 @@ export default function WhatsAppConversation({
         <div>
           <strong>WhatsApp conversation</strong>
           <span>
-            Only messages linked to an existing commercial request appear here. Unrelated personal WhatsApp chats are excluded. Meta must confirm delivery before a message is considered received.
+            Only replies to CRM messages are imported into this request. Messages written in the WhatsApp phone app are not imported. WhatsApp confirms delivery and read status.
           </span>
         </div>
         {messages.length > 0 && (
-          <b>{messages.length} message{messages.length === 1 ? "" : "s"} · Full contact history</b>
+          <b>{messages.length} message{messages.length === 1 ? "" : "s"} · This request</b>
         )}
       </div>
 
