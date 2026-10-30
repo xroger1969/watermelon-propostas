@@ -1,0 +1,2 @@
+[functions.watermelon-whatsapp-webhook]
+verify_jwt = false
