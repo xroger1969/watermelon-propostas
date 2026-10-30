@@ -14,6 +14,7 @@ import { requireWhatsAppDeliveryMode, wasWhatsAppMessageSubmitted } from "@/lib/
 
 type CRMContact = {
   id: string;
+  is_private?: boolean;
   created_at: string;
   updated_at: string;
   name: string;
@@ -59,6 +60,7 @@ type CRMMessage = {
   created_at: string;
   request_id: string | null;
   contact_id: string | null;
+  is_private?: boolean;
   direction: "inbound" | "outbound";
   text_body: string | null;
   message_type: string;
@@ -376,12 +378,12 @@ export default function AdminCRM() {
     // Retain the visible list when realtime data refreshes in the background.
     if (!crmLoadedRef.current) setLoading(true);
 
-    const [{ data, error }, contactsResult, messagesResult] = await Promise.all([
+    const [{ data, error }, contactsResult] = await Promise.all([
       supabase
         .from("watermelon_requests")
         .select(`
           *,
-          contact:watermelon_contacts(*),
+          contact:watermelon_contacts!inner(*),
           booking:watermelon_booking_requests!watermelon_requests_linked_booking_id_fkey(*),
           items:watermelon_request_items(*),
           activities:watermelon_activities(*),
@@ -389,17 +391,14 @@ export default function AdminCRM() {
           messages:watermelon_messages(*)
         `)
         .eq("is_private", false)
+        .eq("contact.is_private", false)
+        .eq("messages.is_private", false)
         .order("created_at", { ascending: false }),
       supabase
         .from("watermelon_contacts")
         .select("*")
         .eq("is_private", false)
         .order("last_contact_at", { ascending: false }),
-      supabase
-        .from("watermelon_messages")
-        .select("*")
-        .eq("is_private", false)
-        .order("whatsapp_timestamp", { ascending: true, nullsFirst: false }),
     ]);
 
     // A stale response must never overwrite a newer CRM snapshot.
@@ -413,17 +412,13 @@ export default function AdminCRM() {
       );
       // Keep the previously loaded records if this refresh fails.
     } else {
-      const allContactMessages = messagesResult.error
-        ? null
-        : ((messagesResult.data || []) as CRMMessage[]);
-
-      const normalized = ((data || []) as CRMRequest[]).map((request) => {
-        const messages =
-          allContactMessages && request.contact?.id
-            ? allContactMessages.filter(
-                (item) => item.contact_id === request.contact?.id
-              )
-            : [...(request.messages || [])];
+      const commercialRequests = ((data || []) as CRMRequest[]).filter(
+        (request) => request.contact?.is_private === false
+      );
+      const normalized = commercialRequests.map((request) => {
+        const messages = (request.messages || []).filter(
+          (item) => item.request_id === request.id && item.is_private === false
+        );
 
         return {
           ...request,
@@ -446,9 +441,9 @@ export default function AdminCRM() {
       });
       if (loadSequence !== loadSequenceRef.current) return;
 
-      // Include standalone contact messages; compare by database creation time,
+      // Track the latest saved message by database creation time,
       // as the fallback poll also orders messages by created_at.
-      const newestMessage = (allContactMessages || normalized.flatMap((request) => request.messages || []))
+      const newestMessage = normalized.flatMap((request) => request.messages || [])
         .slice()
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
       if (newestMessage?.id) latestMessageIdRef.current = newestMessage.id;
@@ -533,7 +528,10 @@ export default function AdminCRM() {
       try {
         const { data } = await supabase
           .from("watermelon_messages")
-          .select("id, created_at")
+          .select("id,created_at,request:watermelon_requests!inner(id,is_private,contact:watermelon_contacts!inner(id,is_private))")
+          .eq("is_private", false)
+          .eq("request.is_private", false)
+          .eq("request.contact.is_private", false)
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
