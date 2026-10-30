@@ -7,10 +7,21 @@ const { webcrypto, createHmac } = require('node:crypto');
 
 const sourcePath = process.env.WHATSAPP_WEBHOOK_TEST_SOURCE || path.resolve(__dirname, '../supabase/functions/watermelon-whatsapp-webhook/index.ts');
 const source = fs.readFileSync(sourcePath, 'utf8');
-const compiled = ts.transpileModule(source.replace(/^import .*;\n/gm, ''), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS }, reportDiagnostics: true });
-assert.deepEqual((compiled.diagnostics || []).filter(item => item.category === ts.DiagnosticCategory.Error), []);
-const javascript = compiled.outputText;
+function compile(sourceText) {
+  const compiled = ts.transpileModule(sourceText.replace(/^import .*;\n/gm, ''), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS }, reportDiagnostics: true,
+  });
+  assert.deepEqual((compiled.diagnostics || []).filter(item => item.category === ts.DiagnosticCategory.Error), []);
+  return compiled.outputText;
+}
 assert.match(source, /const CRM_OUTBOUND_ENABLED = false;/);
+assert.match(source, /const CRM_INBOUND_ENABLED = false;/);
+const javascript = compile(source);
+// The production source is paused. Enable only the in-memory VM copy below to
+// preserve the commercial-routing regression suite without changing production.
+const routingGuard = 'const CRM_INBOUND_ENABLED = false;';
+assert.equal(source.split(routingGuard).length, 2, 'Only the inbound guard may be overridden for routing tests');
+const routingJavascript = compile(source.replace(routingGuard, 'const CRM_INBOUND_ENABLED = true;'));
 const config = {
   verify_token: 'synthetic-verify-token', app_secret: 'synthetic-secret',
   access_token: 'synthetic-token', phone_number_id: 'test-phone', waba_id: 'test-waba',
@@ -27,7 +38,7 @@ function fixture() {
     watermelon_activities: [],
   };
 }
-function createRuntime(tables = fixture(), fail = () => false) {
+function createRuntimeWithJavascript(tables = fixture(), fail = () => false, javascriptToRun = javascript) {
   const reads = [], writes = [], rpcs = [], logs = [];
   let graphCalls = 0;
   function from(table) {
@@ -78,7 +89,7 @@ function createRuntime(tables = fixture(), fail = () => false) {
     return query;
   }
   const api = {};
-  vm.runInNewContext(javascript + '\napi.sendPendingCRMText = sendPendingCRMText;', {
+  vm.runInNewContext(javascriptToRun + '\napi.sendPendingCRMText = sendPendingCRMText;', {
     api, createClient: () => ({ from, async rpc(name, input) { rpcs.push({ name, input }); return { data: name === 'watermelon_whatsapp_server_config' ? copy(config) : null, error: null }; } }),
     crypto: webcrypto, Request, Response, URL, TextEncoder, Intl, Date,
     console: { error: (...args) => logs.push(args), log() {} },
@@ -86,6 +97,12 @@ function createRuntime(tables = fixture(), fail = () => false) {
     Deno: { env: { get: () => 'synthetic-env' }, serve(handler) { api.handler = handler; } },
   });
   return { api, tables, reads, writes, rpcs, logs, get graphCalls() { return graphCalls; } };
+}
+function createRuntime(tables, fail) {
+  return createRuntimeWithJavascript(tables, fail, javascript);
+}
+function createRoutingRuntime(tables, fail) {
+  return createRuntimeWithJavascript(tables, fail, routingJavascript);
 }
 function inbound(override = {}) {
   return { id: 'inbound-1', from: customerPhone, timestamp: '1793376000', type: 'text', text: { body: 'Synthetic commercial reply' }, context: { id: 'crm-sent-1' }, ...override };
@@ -96,6 +113,9 @@ function event(message = inbound(), options = {}) {
 }
 async function post(runtime, payload, validSignature = true) {
   const body = JSON.stringify(payload);
+  return postRaw(runtime, body, validSignature);
+}
+async function postRaw(runtime, body, validSignature = true) {
   const signature = 'sha256=' + createHmac('sha256', config.app_secret).update(body).digest('hex');
   return runtime.api.handler(new Request('https://synthetic.invalid/webhook', { method: 'POST', headers: validSignature ? { 'x-hub-signature-256': signature } : {}, body }));
 }
@@ -107,7 +127,7 @@ async function test(name, action) {
 async function rejected(name, mutate = () => {}, payload = () => event(), fail = () => false, expectedStatus = 200) {
   await test(name, async () => {
     const tables = fixture(); mutate(tables);
-    const runtime = createRuntime(tables, fail);
+    const runtime = createRoutingRuntime(tables, fail);
     const response = await post(runtime, payload());
     assert.equal(response.status, expectedStatus);
     assert.equal(runtime.writes.length, 0, 'No CRM contact/request/message/activity mutation may occur');
@@ -116,11 +136,61 @@ async function rejected(name, mutate = () => {}, payload = () => event(), fail =
 }
 
 (async () => {
+  const pausedPayloads = [
+    ['personal message', event(inbound({ context: undefined, text: { body: 'SYNTHETIC-PERSONAL' } }))],
+    ['commercial reply', event()],
+    ['delivery status', event(inbound(), { value: { messages: [], statuses: [{ id: 'crm-sent-1', status: 'delivered', timestamp: '1793376000' }] } })],
+    ['phone echo', event(inbound(), { field: 'smb_message_echoes', value: { messages: [], message_echoes: [inbound({ from: businessPhone, to: customerPhone })] } })],
+    ['history', event(inbound(), { field: 'history', value: { history: [{ messages: [inbound()] }] } })],
+    ['contact sync', event(inbound(), { field: 'smb_app_state_sync', value: { contacts: [{ wa_id: customerPhone }] } })],
+    ['mixed batch', { object: 'whatsapp_business_account', entry: [{ id: config.waba_id, changes: [
+      { field: 'messages', value: { metadata: { phone_number_id: config.phone_number_id, display_phone_number: businessPhone }, messages: [inbound(), inbound({ id: 'personal', context: undefined })], statuses: [{ id: 'crm-sent-1', status: 'read' }] } },
+      { field: 'smb_message_echoes', value: { message_echoes: [inbound({ from: businessPhone, to: customerPhone })] } },
+    ] }] }],
+  ];
+  for (const [name, payload] of pausedPayloads) {
+    await test(`production pause discards signed ${name}`, async () => {
+      const runtime = createRuntime();
+      const response = await post(runtime, payload);
+      assert.equal(response.status, 200);
+      assert.equal(runtime.reads.length, 0, 'Paused ingestion must not inspect CRM tables');
+      assert.equal(runtime.writes.length, 0, 'Paused ingestion must not write CRM tables');
+      assert.equal(runtime.graphCalls, 0);
+      assert.ok(!runtime.rpcs.some(item => item.name !== 'watermelon_whatsapp_server_config'), 'Paused ingestion needs only signing configuration');
+    });
+  }
+  await test('production pause discards signed invalid JSON before parsing', async () => {
+    const runtime = createRuntime();
+    assert.equal((await postRaw(runtime, '{invalid-synthetic-json')).status, 200);
+    assert.equal(runtime.reads.length, 0); assert.equal(runtime.writes.length, 0); assert.equal(runtime.graphCalls, 0);
+    assert.equal(runtime.logs.length, 0, 'Discarded contents must not be logged');
+  });
+  await test('production pause still rejects invalid signature', async () => {
+    const runtime = createRuntime();
+    assert.equal((await postRaw(runtime, '{invalid-synthetic-json', false)).status, 401);
+    assert.equal(runtime.reads.length, 0); assert.equal(runtime.writes.length, 0); assert.equal(runtime.graphCalls, 0);
+  });
+  await test('production pause preserves valid handshake', async () => {
+    const runtime = createRuntime();
+    const result = await runtime.api.handler(new Request('https://synthetic.invalid/webhook?hub.mode=subscribe&hub.verify_token=synthetic-verify-token&hub.challenge=paused-challenge'));
+    assert.equal(result.status, 200); assert.equal(await result.text(), 'paused-challenge');
+    assert.equal(runtime.reads.length, 0); assert.equal(runtime.writes.length, 0); assert.equal(runtime.graphCalls, 0);
+  });
+  await test('production pause preserves invalid-handshake rejection', async () => {
+    const runtime = createRuntime();
+    assert.equal((await runtime.api.handler(new Request('https://synthetic.invalid/webhook?hub.mode=subscribe&hub.verify_token=wrong&hub.challenge=paused-challenge'))).status, 403);
+    assert.equal(runtime.reads.length, 0); assert.equal(runtime.writes.length, 0); assert.equal(runtime.graphCalls, 0);
+  });
+  await test('production source also keeps outbound paused', async () => {
+    const runtime = createRuntime();
+    await runtime.api.sendPendingCRMText({ config, requestId: 'request-1', contactId: 'contact-1', customerDigits: customerPhone, businessDigits: businessPhone });
+    assert.equal(runtime.reads.length, 0); assert.equal(runtime.writes.length, 0); assert.equal(runtime.rpcs.length, 0); assert.equal(runtime.graphCalls, 0);
+  });
   for (const sourceName of ['crm_cloud_api', 'crm_cloud_api_template', 'crm_cloud_api_pending']) {
     for (const statusName of ['sent', 'delivered', 'read']) {
       await test(`commercial reply source=${sourceName} status=${statusName}`, async () => {
         const tables = fixture(); tables.watermelon_messages[0].source = sourceName; tables.watermelon_messages[0].status = statusName;
-        const runtime = createRuntime(tables);
+        const runtime = createRoutingRuntime(tables);
         assert.equal((await post(runtime, event())).status, 200);
         const inserted = runtime.writes.filter(w => w.table === 'watermelon_messages' && w.op === 'upsert');
         assert.equal(inserted.length, 1);
@@ -181,7 +251,7 @@ async function rejected(name, mutate = () => {}, payload = () => event(), fail =
   ]) await rejected(`wrong/missing Meta endpoint ${JSON.stringify(metadata)}`, undefined, () => event(inbound(), { value: { metadata } }));
   const statusPayload = options => event(inbound(), { value: { messages: [], statuses: [{ id: 'crm-sent-1', status: 'delivered', timestamp: '1793376000' }] }, ...options });
   await test('status for existing business message', async () => {
-    const runtime = createRuntime();
+    const runtime = createRoutingRuntime();
     assert.equal((await post(runtime, statusPayload())).status, 200);
     assert.equal(runtime.writes.length, 1);
     assert.equal(runtime.writes[0].table, 'watermelon_messages');
@@ -205,20 +275,20 @@ async function rejected(name, mutate = () => {}, payload = () => event(), fail =
   await rejected('status wrong WABA', undefined, () => statusPayload({ waba: 'other-waba' }));
   await rejected('status wrong phone', undefined, () => statusPayload({ value: { messages: [], metadata: { phone_number_id: 'other-phone', display_phone_number: businessPhone }, statuses: [{ id: 'crm-sent-1', status: 'read' }] } }));
   await test('explicit business recipient accepted', async () => {
-    const runtime = createRuntime();
+    const runtime = createRoutingRuntime();
     assert.equal((await post(runtime, event(inbound({ to: businessPhone, recipient_id: businessPhone })))).status, 200);
     assert.equal(runtime.writes.filter(w => w.table === 'watermelon_messages' && w.op === 'upsert').length, 1);
   });
   await test('quoted context chooses its own request among same-contact requests', async () => {
     const tables = fixture();
     tables.watermelon_requests.push({ id: 'later-request', contact_id: 'contact-1', is_private: false, status: 'new', reference: 'WM-OTHER' });
-    const runtime = createRuntime(tables);
+    const runtime = createRoutingRuntime(tables);
     assert.equal((await post(runtime, event())).status, 200);
     assert.equal(runtime.writes.find(w => w.table === 'watermelon_messages' && w.op === 'upsert').input.request_id, 'request-1');
     assert.ok(runtime.writes.filter(w => w.table === 'watermelon_requests').every(w => w.ops.some(op => op[0] === 'eq' && op[1] === 'id' && op[2] === 'request-1')));
   });
   await test('mixed webhook batch stores only explicit commercial reply', async () => {
-    const runtime = createRuntime();
+    const runtime = createRoutingRuntime();
     const payload = event();
     payload.entry[0].changes[0].value.messages = [
       inbound({ id: 'personal-before', context: undefined, text: { body: 'PERSONAL-SYNTHETIC-BEFORE' } }),
@@ -232,22 +302,22 @@ async function rejected(name, mutate = () => {}, payload = () => event(), fail =
     assert.ok(!JSON.stringify(runtime.writes).includes('PERSONAL-SYNTHETIC'));
   });
   await test('paused outbound helper has no side effects', async () => {
-    const runtime = createRuntime();
+    const runtime = createRoutingRuntime();
     await runtime.api.sendPendingCRMText({ config, requestId: 'request-1', contactId: 'contact-1', customerDigits: customerPhone, businessDigits: businessPhone });
     assert.equal(runtime.reads.length, 0); assert.equal(runtime.writes.length, 0); assert.equal(runtime.rpcs.length, 0); assert.equal(runtime.graphCalls, 0);
   });
   await test('valid handshake', async () => {
-    const runtime = createRuntime();
+    const runtime = createRoutingRuntime();
     const result = await runtime.api.handler(new Request('https://synthetic.invalid/webhook?hub.mode=subscribe&hub.verify_token=synthetic-verify-token&hub.challenge=synthetic-challenge'));
     assert.equal(result.status, 200); assert.equal(await result.text(), 'synthetic-challenge'); assert.equal(runtime.writes.length, 0);
   });
   await test('invalid handshake', async () => {
-    const runtime = createRuntime();
+    const runtime = createRoutingRuntime();
     assert.equal((await runtime.api.handler(new Request('https://synthetic.invalid/webhook?hub.mode=subscribe&hub.verify_token=wrong&hub.challenge=synthetic-challenge'))).status, 403);
     assert.equal(runtime.writes.length, 0);
   });
   await test('invalid signature', async () => {
-    const runtime = createRuntime(); assert.equal((await post(runtime, event(), false)).status, 401); assert.equal(runtime.writes.length, 0);
+    const runtime = createRoutingRuntime(); assert.equal((await post(runtime, event(), false)).status, 401); assert.equal(runtime.writes.length, 0);
   });
   console.log(`PASS: ${passed} privacy and preservation scenarios; no real DB/Graph/credentials used. Rejected events produced zero CRM table writes (only ordinary webhook health RPC is allowed).`);
 })().catch(error => { console.error(error); process.exitCode = 1; });

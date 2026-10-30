@@ -10,6 +10,9 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 // Owner-requested pause: all CRM outbound messages remain disabled pending Meta verification.
 const CRM_OUTBOUND_ENABLED = false;
 
+// Pause all incoming CRM ingestion until the dedicated business number is configured.
+const CRM_INBOUND_ENABLED = false;
+
 function normalizePhone(value: unknown) {
   return String(value || "").replace(/\D/g, "");
 }
@@ -479,6 +482,11 @@ const config = await getConfig();
         p_error: "Invalid webhook signature.",
       });
       return new Response("Invalid signature", { status: 401 });
+    }
+
+    // Acknowledge signed events without parsing or storing their content during the transition.
+    if (!CRM_INBOUND_ENABLED) {
+      return new Response("EVENT_RECEIVED", { status: 200 });
     }
 
     const payload = JSON.parse(rawBody);
