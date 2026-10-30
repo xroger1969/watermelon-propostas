@@ -2,11 +2,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
+const ts = require('typescript');
 
 // Exercise the selection expression from the changed component against synthetic
 // records. This verifies a data boundary rather than duplicating its predicate.
-const componentDir = process.env.WHATSAPP_UI_TEST_DIR || path.resolve(__dirname, '../components');
-const source = fs.readFileSync(path.join(componentDir, 'AdminCRM.tsx'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '../components/AdminCRM.tsx'), 'utf8');
 const selection = source.match(/const messages = (\(request\.messages[\s\S]*?\n        \));/);
 assert.ok(selection, 'Request-message selection must be found');
 const select = new Function('request', 'return ' + selection[1]);
@@ -35,12 +36,12 @@ test('embedded request messages are the only source and absent messages fail clo
   assert.deepEqual(select(request).map(m => m.id), ['a']);
   assert.deepEqual(select({id:'request-a'}), []);
   assert.ok(!source.includes('messagesResult'));
-  assert.equal(source.match(/\.from\("watermelon_messages"\)/g).length, 1,
-    'Only metadata safety polling may query messages separately');
+  assert.equal((source.match(/\.from\("watermelon_messages"\)/g) || []).length, 0,
+    'No messages query may fetch records outside the scoped requests');
 });
 
 test('conversation heading describes only this request without claiming full personal-chat exclusion', () => {
-  const heading = fs.readFileSync(path.join(componentDir, 'WhatsAppConversation.tsx'), 'utf8');
+  const heading = fs.readFileSync(path.join(__dirname, '../components/WhatsAppConversation.tsx'), 'utf8');
   assert.ok(heading.includes('Only replies to CRM messages are imported into this request.'));
   assert.ok(heading.includes('Messages written in the WhatsApp phone app are not imported.'));
   assert.ok(!heading.includes('Full contact history'));
@@ -62,8 +63,73 @@ test('embedded query filters contact privacy on the server and preserves request
   assert.ok(!source.includes('messages:watermelon_messages!inner(*)'));
 });
 
-test('metadata poll uses the same message, request and contact privacy scope', () => {
-  assert.ok(source.includes('.select("id,created_at,request:watermelon_requests!inner(id,is_private,contact:watermelon_contacts!inner(id,is_private))")'));
-  assert.ok(source.includes('.eq("request.is_private", false)'));
-  assert.ok(source.includes('.eq("request.contact.is_private", false)'));
+test('private row payloads cannot reach the component through global Realtime subscriptions', () => {
+  assert.ok(!source.includes('.channel('));
+  assert.ok(!source.includes('"postgres_changes"'));
+  assert.ok(!source.includes('latestMessageIdRef'));
+});
+
+test('scoped refresh runs every 10 seconds while visible, refreshes on focus, and does not overlap', async () => {
+  const begin = source.indexOf('useEffect(() => {\n    if (!supabase || !signedIn) return;');
+  const ending = '}, [supabase, signedIn, loadCRM]);';
+  const end = source.indexOf(ending, begin);
+  assert.ok(begin >= 0 && end > begin);
+  const effect = source.slice(begin, end + ending.length);
+  const listeners = new Map();
+  const visibilityListeners = new Map();
+  const timeouts = new Map();
+  let timerId = 0;
+  let interval;
+  let clearedInterval = false;
+  let cleanup;
+  let calls = 0;
+  let completeRefresh;
+  const document = {
+    visibilityState: 'visible',
+    addEventListener: (name, callback) => visibilityListeners.set(name, callback),
+    removeEventListener: (name) => visibilityListeners.delete(name),
+  };
+  const window = {
+    setTimeout: (callback) => { const id = ++timerId; timeouts.set(id, callback); return id; },
+    clearTimeout: (id) => timeouts.delete(id),
+    setInterval: (callback, delay) => { assert.equal(delay, 10000); interval = callback; return ++timerId; },
+    clearInterval: () => { clearedInterval = true; },
+    addEventListener: (name, callback) => listeners.set(name, callback),
+    removeEventListener: (name) => listeners.delete(name),
+  };
+  const flushTimeout = () => {
+    for (const [id, callback] of timeouts) { timeouts.delete(id); callback(); }
+  };
+  vm.runInNewContext(ts.transpileModule(effect, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, {
+    useEffect: (callback) => { cleanup = callback(); },
+    supabase: {}, signedIn: true, document, window,
+    loadCRM: () => { calls += 1; return new Promise(resolve => { completeRefresh = resolve; }); },
+  });
+  interval();
+  assert.equal(calls, 1);
+  interval();
+  listeners.get('focus')();
+  flushTimeout();
+  assert.equal(calls, 1, 'Polling and focus must not overlap an in-flight refresh');
+  completeRefresh();
+  await new Promise(setImmediate);
+  document.visibilityState = 'hidden';
+  interval();
+  assert.equal(calls, 1, 'Hidden tabs must not poll');
+  document.visibilityState = 'visible';
+  visibilityListeners.get('visibilitychange')();
+  flushTimeout();
+  assert.equal(calls, 2, 'Returning to the page must refresh without waiting for a new message ID');
+  completeRefresh();
+  await new Promise(setImmediate);
+  interval();
+  assert.equal(calls, 3, 'Each poll refreshes statuses and privacy even without a new message');
+  completeRefresh();
+  await new Promise(setImmediate);
+  cleanup();
+  assert.ok(clearedInterval);
+  assert.equal(listeners.size, 0);
+  assert.equal(visibilityListeners.size, 0);
+  interval();
+  assert.equal(calls, 3, 'Cleaned-up effects cannot fetch again');
 });

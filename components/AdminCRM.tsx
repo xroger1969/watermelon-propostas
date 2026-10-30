@@ -360,7 +360,6 @@ export default function AdminCRM() {
     NotificationPermission | "unsupported"
   >("default");
   const loadSequenceRef = useRef(0);
-  const latestMessageIdRef = useRef("");
   const crmLoadedRef = useRef(false);
   const operationPendingRef = useRef(false);
 
@@ -441,13 +440,6 @@ export default function AdminCRM() {
       });
       if (loadSequence !== loadSequenceRef.current) return;
 
-      // Track the latest saved message by database creation time,
-      // as the fallback poll also orders messages by created_at.
-      const newestMessage = normalized.flatMap((request) => request.messages || [])
-        .slice()
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-      if (newestMessage?.id) latestMessageIdRef.current = newestMessage.id;
-
       setRequests(normalized);
     }
 
@@ -481,7 +473,6 @@ export default function AdminCRM() {
       if (session) void loadCRM();
       else {
         crmLoadedRef.current = false;
-        latestMessageIdRef.current = "";
         setRequests([]);
         setContacts([]);
       }
@@ -494,105 +485,45 @@ export default function AdminCRM() {
     if (!supabase || !signedIn) return;
 
     let refreshTimer: number | null = null;
-    let messageSettleTimer: number | null = null;
-    let safetyPollBusy = false;
+    let refreshBusy = false;
+    let cancelled = false;
+
+    // Scoped REST reads avoid receiving unrelated private rows over Realtime.
+    const refreshVisible = async () => {
+      if (cancelled || document.visibilityState !== "visible" || refreshBusy) return;
+      refreshBusy = true;
+      try {
+        await loadCRM();
+      } finally {
+        refreshBusy = false;
+      }
+    };
 
     const scheduleRefresh = () => {
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
       refreshTimer = window.setTimeout(() => {
         refreshTimer = null;
-        void loadCRM();
+        void refreshVisible();
       }, 120);
-    };
-
-    const scheduleMessageRefresh = () => {
-      scheduleRefresh();
-
-      if (messageSettleTimer !== null) {
-        window.clearTimeout(messageSettleTimer);
-      }
-      messageSettleTimer = window.setTimeout(() => {
-        messageSettleTimer = null;
-        void loadCRM();
-      }, 900);
     };
 
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") scheduleRefresh();
     };
 
-    const safetyPoll = async () => {
-      if (document.visibilityState !== "visible" || safetyPollBusy) return;
-      safetyPollBusy = true;
-
-      try {
-        const { data } = await supabase
-          .from("watermelon_messages")
-          .select("id,created_at,request:watermelon_requests!inner(id,is_private,contact:watermelon_contacts!inner(id,is_private))")
-          .eq("is_private", false)
-          .eq("request.is_private", false)
-          .eq("request.contact.is_private", false)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (data?.id && data.id !== latestMessageIdRef.current) {
-          latestMessageIdRef.current = data.id;
-          scheduleMessageRefresh();
-        }
-      } finally {
-        safetyPollBusy = false;
-      }
-    };
-
-    const channel = supabase
-      .channel("watermelon-crm-live")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "watermelon_requests" },
-        scheduleRefresh
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "watermelon_request_items" },
-        scheduleRefresh
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "watermelon_proposals" },
-        scheduleRefresh
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "watermelon_activities" },
-        scheduleRefresh
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "watermelon_messages" },
-        scheduleMessageRefresh
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "watermelon_contacts" },
-        scheduleRefresh
-      )
-      .subscribe();
-
-    const safetyPollInterval = window.setInterval(() => {
-      void safetyPoll();
+    const refreshInterval = window.setInterval(() => {
+      void refreshVisible();
     }, 10000);
 
     window.addEventListener("focus", scheduleRefresh);
     document.addEventListener("visibilitychange", refreshWhenVisible);
 
     return () => {
+      cancelled = true;
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
-      if (messageSettleTimer !== null) window.clearTimeout(messageSettleTimer);
-      window.clearInterval(safetyPollInterval);
+      window.clearInterval(refreshInterval);
       window.removeEventListener("focus", scheduleRefresh);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
-      void supabase.removeChannel(channel);
     };
   }, [supabase, signedIn, loadCRM]);
 
