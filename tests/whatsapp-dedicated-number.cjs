@@ -99,7 +99,7 @@ test("wrong or personal phone cannot overwrite the saved Meta CRM configuration"
   const res = await r.post({ phone_number_id: "874910289048462" });
   assert.equal(res.status, 409);
   assert.equal(r.saves.length, 0);
-  assert.equal(r.calls.filter(c => c.path.includes("/subscribed_apps")).length, 0);
+  assert.equal(r.calls.filter(c => c.path?.includes("/subscribed_apps")).length, 0);
 });
 test("new dedicated phone is validated against the Meta Graph result before saving", async () => {
   const r = runtime();
@@ -109,7 +109,7 @@ test("new dedicated phone is validated against the Meta Graph result before savi
   assert.equal(r.saves[0].p_business_phone, "+351965637736");
   assert.equal(r.saves[0].p_phone_number_id, "999000111222333");
   assert.equal(r.saves[0].p_waba_id, "555666777888");
-  assert.equal(r.calls.filter(c => c.path.includes("/subscribed_apps")).length, 2);
+  assert.equal(r.calls.filter(c => c.path?.includes("/subscribed_apps")).length, 2);
 });
 test("inconsistent phone ID and invalid WABA are rejected", async () => {
   const r = runtime();
