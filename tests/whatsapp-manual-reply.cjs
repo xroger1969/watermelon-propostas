@@ -28,6 +28,7 @@ function fixture() {
       channel: 'whatsapp', direction: 'inbound', source: 'cloud_api', status: 'received',
       phone_number_id: PHONE, from_phone: TO, to_phone: BUSINESS, wa_id: TO,
       whatsapp_message_id: 'wamid.inbound', whatsapp_timestamp: new Date(Date.now() - 60_000).toISOString() }],
+    watermelon_activities: [],
   };
 }
 function valueAt(row, column) {
@@ -52,17 +53,18 @@ function runtime(options = {}) {
       operations.push({ table, operation, filters: copy(filters), input: copy(input) });
       if (options.lookupFailure && operation === 'select') return { data: null, error: { code: 'DB_DOWN' } };
       if (operation === 'insert') {
-        if (options.claimFailure) return { data: null, error: { code: 'DB_DOWN' } };
+        if (options.guardFailure && table === 'watermelon_activities') return { data: null, error: { code: 'DB_DOWN' } };
+        if (options.claimFailure && table === 'watermelon_messages') return { data: null, error: { code: 'DB_DOWN' } };
         if (rows.some(row => row.id === input.id)) return { data: null, error: { code: '23505' } };
         // Unique-key reservation is atomic: no await between conflict check and insert.
         rows.push(copy(input));
-        if (options.claimHook) options.claimHook(tables, config);
+        if (options.claimHook && table === 'watermelon_messages') options.claimHook(tables, config);
         return { data: null, error: null };
       }
       let selected = rows.filter(matches);
       if (operation === 'update') {
-        if (options.updateFailure) return { data: null, error: { code: 'DB_DOWN' } };
-        if (options.updateNoRows) return { data: null, error: null };
+        if ((options.updateFailure && table === 'watermelon_messages') || (options.guardReleaseFailure && table === 'watermelon_activities' && input.metadata?.manual_guard?.state === 'released')) return { data: null, error: { code: 'DB_DOWN' } };
+        if (options.updateNoRows && table === 'watermelon_messages') return { data: null, error: null };
         for (const row of selected) Object.assign(row, copy(input));
       }
       if (order) selected.sort((a, b) => String(valueAt(b, order)).localeCompare(String(valueAt(a, order))));
@@ -91,7 +93,8 @@ function runtime(options = {}) {
   };
   async function fetch(url, request) {
     assert.equal(url, `https://graph.facebook.com/v25.0/${PHONE}/messages`);
-    assert.ok(tables.watermelon_messages.some(row => row.id === KEY && row.raw_payload?.manual_reply?.state === 'pending'), 'Durable claim must exist before Graph');
+    assert.ok(tables.watermelon_messages.some(row => row.raw_payload?.manual_reply?.state === 'pending'), 'Durable claim must exist before Graph');
+    assert.ok(tables.watermelon_activities.some(row => row.metadata?.manual_guard?.state === 'locked'), 'Conversation guard must exist before Graph');
     assert.equal(request.headers.Authorization, 'Bearer SYNTHETIC-SERVER-TOKEN');
     assert.equal(request.redirect, 'error', 'Do not forward this authenticated send through redirects');
     const body = JSON.parse(request.body);
@@ -144,6 +147,35 @@ test('concurrent identical clicks make exactly one Graph request', async () => {
   const responses = await Promise.all([r.post(), r.post(), r.post()]);
   assert.equal(r.graphCalls.length, 1); assert.ok(responses.every(x => [200, 409].includes(x.status)));
   assert.equal(r.tables.watermelon_messages.filter(row => row.id === KEY).length, 1);
+});
+test('concurrent different UUIDs for one request produce at most one Graph call', async () => {
+  const r = runtime({ graphHook: () => new Promise(resolve => setTimeout(resolve, 5)) });
+  const second = '66666666-6666-4666-8666-666666666666';
+  const third = '77777777-7777-4777-8777-777777777777';
+  const responses = await Promise.all([r.post(), r.post({ idempotency_key: second }), r.post({ idempotency_key: third, text: 'Outro texto explícito' })]);
+  assert.equal(r.graphCalls.length, 1); assert.equal(responses.filter(x => x.status === 200).length, 1);
+  assert.equal(r.tables.watermelon_activities.length, 1);
+});
+test('uncertain attempt blocks any new UUID even with a different explicit draft', async () => {
+  const r = runtime({ networkThrows: true }); await r.post();
+  const response = await r.post({ idempotency_key: '66666666-6666-4666-8666-666666666666', text: 'Novo rascunho' });
+  assert.equal(response.status, 409); assert.equal((await response.json()).code, 'MANUAL_REPLY_BLOCKED_BY_EXISTING_ATTEMPT');
+  assert.equal(r.graphCalls.length, 1); assert.equal(r.tables.watermelon_messages.filter(row => row.direction === 'outbound').length, 1);
+});
+test('released guard is atomically reacquired for only one of two new UUIDs', async () => {
+  const r = runtime({ graphHook: () => new Promise(resolve => setTimeout(resolve, 5)) }); await r.post();
+  const responses = await Promise.all([
+    r.post({ idempotency_key: '66666666-6666-4666-8666-666666666666', text: 'Segundo rascunho' }),
+    r.post({ idempotency_key: '77777777-7777-4777-8777-777777777777', text: 'Terceiro rascunho' }),
+  ]);
+  assert.equal(r.graphCalls.length, 2); assert.equal(responses.filter(x => x.status === 200).length, 1);
+});
+test('guard storage failure prevents Graph and a failed release conservatively blocks the next key', async () => {
+  const failed = runtime({ guardFailure: true }); assert.equal((await failed.post()).status, 503); assert.equal(failed.graphCalls.length, 0);
+  const r = runtime({ guardReleaseFailure: true }); const first = await r.post();
+  assert.equal(first.status, 200); assert.equal((await first.json()).new_attempts_blocked, true);
+  const next = await r.post({ idempotency_key: '66666666-6666-4666-8666-666666666666' });
+  assert.equal(next.status, 409); assert.equal(r.graphCalls.length, 1);
 });
 test('same key cannot be rebound to changed text, actor or another request', async () => {
   const r = runtime(); await r.post();
