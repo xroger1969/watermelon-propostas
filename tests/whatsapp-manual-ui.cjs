@@ -182,7 +182,7 @@ test('conversation renders only explicitly public rows from the exact dedicated 
     { ...good, id: 'unknown-privacy', is_private: undefined },
     { ...good, id: 'personal-phone', phone_number_id: '874910289048462' },
     { ...good, id: 'missing-phone', phone_number_id: null }, { ...good, id: 'other-phone', phone_number_id: 'unexpected' },
-    ...['crm_cloud_api', 'crm_cloud_api_template', 'crm_cloud_api_pending', null, undefined].map((value, index) => ({ ...good, id: 'legacy-' + index, source: value })),
+    ...['crm_cloud_api', 'crm_cloud_api_template', 'crm_cloud_api_pending', 'crm_cloud_api_manual_guard', null, undefined].map((value, index) => ({ ...good, id: 'legacy-' + index, source: value })),
     { ...good, id: 'manual', source: 'crm_cloud_api_manual' }, { ...good, id: 'test', source: 'crm_cloud_api_controlled_test' }];
   assert.deepEqual(select(rows, phone, allowed).map(message => message.id), ['public', 'manual', 'test']);
 });
