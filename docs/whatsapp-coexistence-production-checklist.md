@@ -25,7 +25,7 @@ Os identificadores acima não são credenciais. Uma alteração de IDs exige nov
 - Receção: `CRM_INBOUND_ENABLED=true` e `CRM_INBOUND_TEST_ONLY=false`, apenas para a correspondência exata de número, Phone ID e WABA empresariais.
 - O webhook mantém `CRM_OUTBOUND_ENABLED=false`. Os endpoints antigos `send` e `send-v2` continuam a devolver 503. Filas, templates automáticos, lembretes, cron e envios em lote permanecem bloqueados.
 - O botão da conversa chama apenas `watermelon-whatsapp-reply`, com `request_id`, texto aprovado pelo operador e `idempotency_key` UUIDv4 estável por tentativa. Não há chamadas de envio ao carregar, atualizar ou receber uma mensagem.
-- O servidor deriva o destinatário do pedido/contacto, exige privacidade explicitamente false e uma mensagem recebida no mesmo pedido, contacto e endpoint empresarial há menos de 24 horas. Fora dessa janela bloqueia a resposta; não substitui o envio por um template.
+- O servidor deriva o destinatário do pedido/contacto, exige privacidade explicitamente false e uma mensagem recebida no mesmo pedido, contacto e endpoint empresarial há menos de 24 horas para responder com texto livre. Fora dessa janela bloqueia a resposta livre; não a substitui automaticamente por um modelo.
 - Mensagens espontâneas podem criar um contacto e pedido empresariais. Um contacto privado ou com privacidade indefinida impede a importação. Pedidos antigos do mesmo telefone não são escolhidos apenas por essa coincidência.
 - Uma mensagem citada exige associação válida a uma resposta manual do CRM ou ao teste controlado. Fontes antigas, templates, filas e contextos desconhecidos não qualificam nem abrem uma importação alternativa.
 - Apenas eventos live `messages` são considerados. Histórico, sincronização de agenda/contactos, ecos da aplicação e tipos não admitidos continuam excluídos.
@@ -74,3 +74,20 @@ Confirmar a fonte efetivamente publicada após o rollback. Não restaurar a conf
 Os testes sintéticos cobrem identidade/autorização, privacidade, endpoint exato, janela de 24 horas, fontes admitidas, concorrência, UUIDs diferentes, fingerprints, resultados incertos, preservação de rascunhos, guards invisíveis e recibos com CAS. Não usam credenciais ou conversas reais.
 
 A evidência real concluída é o inbound empresarial e a resposta única entregue/lida acima. A conclusão do deployment normal depende exclusivamente da checklist de publicação.
+
+## Primeiro contacto manual com pedido do site
+
+Pedidos ativos de origem ai_concierge sem qualquer inbound empresarial anterior no próprio pedido podem ser iniciados através de um modelo Meta aprovado. Este fluxo usa o endpoint separado watermelon-whatsapp-initiate-template, autenticado e com verify_jwt=true. Não reabre automaticamente conversas expiradas nem envia texto livre em vez do modelo.
+
+O operador carrega explicitamente o catálogo, escolhe um modelo APPROVED/UTILITY com BODY estático, consulta o destinatário internacional e o texto, confirma «O cliente autorizou o contacto por WhatsApp sobre este pedido.» e carrega em «Iniciar conversa». Não há outro diálogo de confirmação nem envio ao carregar o catálogo. O telefone digitado no pedido e a origem do site não substituem esta confirmação.
+
+O preview usa exclusivamente o número canónico devolvido pelo servidor. O POST aceita apenas request_id, template_name, language, client_attempt_id e consent_confirmed=true. O backend revalida a aprovação, o corpo estático, a elegibilidade, a privacidade e a associação; deriva o destinatário e regista operador/hora do consentimento. Uma reserva durável impede repetições com a mesma UUID ou com outra tentativa incerta. Nenhuma fila ou texto do rascunho é enviado após a aceitação do modelo.
+
+Uma submissão confirmada usa source crm_whatsapp_manual_template e conserva a auditoria em raw_payload.manual_template. Os recibos preservam essa auditoria e o consentimento, com CAS/ranks e retry de correlação antecipada. Pending/unknown bloqueiam tanto o novo modelo como uma resposta livre; a interface mantém a UUID e o rascunho.
+
+Quando o cliente responde, o webhook resolve primeiro a proveniência do modelo submetido mais recente para o mesmo destinatário/endpoint, antes de escolher um contacto genérico. Reconhece o mesmo número PT local ou E.164 e o prefixo internacional 00, sem alterar o contacto. Duplicados privados bloqueiam a associação. Depois da primeira resposta, a conversa segue o inbound mais recente do mesmo contacto, sem saltar para outro modelo antigo ainda sem resposta.
+
+A aceitação do modelo não abre a janela de texto livre: é necessária uma mensagem efetiva do cliente nesse pedido há menos de 24 horas. Mantêm-se os legados em 503, o helper outbound false e a exclusão do número pessoal como origem da integração.
+
+Publicar e verificar primeiro o endpoint de iniciação e a normalização do endpoint manual, depois o webhook revisto e só então a UI. Não enviar mensagens de teste ou comerciais durante a publicação sem uma ação explicitamente autorizada do operador.
+

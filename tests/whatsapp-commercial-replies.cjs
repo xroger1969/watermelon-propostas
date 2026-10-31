@@ -37,7 +37,7 @@ function fixture() {
   return {
     watermelon_contacts: [{ id: 'contact-1', phone_digits: customerPhone, is_private: false }],
     watermelon_requests: [{ id: 'request-1', contact_id: 'contact-1', is_private: false, status: 'proposal_sent', reference: 'WM-SYNTHETIC' }],
-    watermelon_messages: [{ id: 'outgoing-1', whatsapp_message_id: 'crm-sent-1', contact_id: 'contact-1', request_id: 'request-1', direction: 'outbound', channel: 'whatsapp', is_private: false, source: 'crm_cloud_api_manual', status: 'sent', phone_number_id: config.phone_number_id, to_phone: customerPhone, raw_payload: { manual_reply: { state: 'submitted', actor_id: 'synthetic-actor', operation_hash: 'synthetic-hash', proof_message_id: 'synthetic-proof' } } }],
+    watermelon_messages: [{ id: 'outgoing-1', whatsapp_message_id: 'crm-sent-1', contact_id: 'contact-1', request_id: 'request-1', direction: 'outbound', channel: 'whatsapp', is_private: false, source: 'crm_cloud_api_manual', status: 'sent', phone_number_id: config.phone_number_id, to_phone: customerPhone, wa_id: customerPhone, raw_payload: { manual_reply: { state: 'submitted', actor_id: 'synthetic-actor', operation_hash: 'synthetic-hash', proof_message_id: 'synthetic-proof' } } }],
     watermelon_activities: [],
   };
 }
@@ -56,6 +56,8 @@ function createRuntimeWithJavascript(tables = fixture(), fail = () => false, jav
             ? key.split(/->>?/).reduce((part, name) => part?.[name], row) === value : row[key] === value;
           if (op === 'in') return value.includes(row[key]);
           if (op === 'not' && value === 'in') return !extra.slice(1, -1).split(',').includes(row[key]);
+          if (op === 'gte') return row[key] !== undefined && row[key] >= value;
+          if (op === 'lte') return row[key] !== undefined && row[key] <= value;
           return true;
         });
         const mutation = ops.find(([op]) => ['insert', 'upsert', 'update'].includes(op));
@@ -71,7 +73,7 @@ function createRuntimeWithJavascript(tables = fixture(), fail = () => false, jav
             const entries = (Array.isArray(input) ? input : [input]).filter(row =>
               !(op === 'upsert' && options?.ignoreDuplicates && rows.some(existing => existing[options.onConflict] === row[options.onConflict]))
             );
-            result = entries.map((row, i) => ({ id: `synthetic-new-${writes.length}-${i}`, is_private: false,
+            result = entries.map((row, i) => ({ id: `synthetic-new-${writes.length}-${i}`, is_private: false, created_at: new Date().toISOString(),
               ...(row.phone ? { phone_digits: row.phone.replace(/\D/g, '') } : {}), ...copy(row) }));
             tables[table] ??= [];
             tables[table].push(...result);
@@ -79,6 +81,14 @@ function createRuntimeWithJavascript(tables = fixture(), fail = () => false, jav
         } else {
           reads.push({ table, ops: copy(ops) });
           result = rows.filter(matching);
+          const ordering = ops.filter(([op]) => op === 'order');
+          if (ordering.length) result.sort((a, b) => {
+            for (const [, key, options] of ordering) {
+              if (a[key] === b[key]) continue;
+              return (a[key] > b[key] ? 1 : -1) * (options?.ascending === false ? -1 : 1);
+            }
+            return 0;
+          });
           const limit = ops.find(([op]) => op === 'limit');
           if (limit) result = result.slice(0, limit[1]);
           const select = ops.find(([op]) => op === 'select')?.[1];
@@ -89,7 +99,7 @@ function createRuntimeWithJavascript(tables = fixture(), fail = () => false, jav
       return task;
     }
     const query = { then(resolve, reject) { return execute().then(resolve, reject); } };
-    for (const op of ['select', 'eq', 'in', 'not', 'order', 'limit', 'insert', 'update', 'upsert']) {
+    for (const op of ['select', 'eq', 'in', 'not', 'gte', 'lte', 'order', 'limit', 'insert', 'update', 'upsert']) {
       query[op] = (...args) => { ops.push([op, ...args]); return query; };
     }
     for (const op of ['maybeSingle', 'single']) query[op] = () => { ops.push([op]); return execute(); };
@@ -146,6 +156,94 @@ async function rejected(name, mutate = () => {}, payload = () => event(), fail =
 }
 
 (async () => {
+  const templateAt = new Date(Date.now() - 120000).toISOString();
+  const templateMetadata = () => ({ version: 1, state: 'submitted', actor_id: 'synthetic-actor', operation_hash: 'synthetic-template-hash',
+    template_id: 'synthetic-template', template_name: 'watermelon_request_received', language: 'en_US',
+    consent: { confirmed: true, actor_id: 'synthetic-actor', confirmed_at: templateAt, method: 'operator_confirmation' } });
+  const templateRow = (id = 'template-1', requestId = 'request-1', createdAt = templateAt) => ({
+    id, request_id: requestId, contact_id: 'contact-1', source: 'crm_whatsapp_manual_template', direction: 'outbound', channel: 'whatsapp',
+    phone_number_id: config.phone_number_id, wa_id: customerPhone, from_phone: businessPhone, to_phone: customerPhone,
+    whatsapp_message_id: 'wamid-' + id, created_at: createdAt, whatsapp_timestamp: createdAt, is_private: false, status: 'sent',
+    raw_payload: { manual_template: templateMetadata() },
+  });
+  const templateFixture = () => {
+    const tables = fixture();
+    tables.watermelon_contacts[0].phone_digits = customerPhone.slice(3);
+    tables.watermelon_contacts[0].phone = customerPhone.slice(3);
+    tables.watermelon_requests[0].source = 'ai_concierge'; tables.watermelon_requests[0].status = 'awaiting_customer';
+    tables.watermelon_messages = [templateRow()];
+    return tables;
+  };
+  const freshReply = override => inbound({ context: undefined, timestamp: String(Math.floor(Date.now() / 1000)), text: { body: 'Synthetic customer reply to proposal' }, ...override });
+  await test('local PT website contact receives template reply and receipt in its original request without a duplicate contact', async () => {
+    const tables = templateFixture(); const consent = copy(tables.watermelon_messages[0].raw_payload.manual_template);
+    const runtime = createRoutingRuntime(tables);
+    assert.equal((await post(runtime, event(freshReply()))).status, 200);
+    const stored = tables.watermelon_messages.find(message => message.whatsapp_message_id === 'inbound-1');
+    assert.equal(stored.request_id, 'request-1'); assert.equal(stored.contact_id, 'contact-1');
+    assert.equal(stored.from_phone, customerPhone); assert.equal(stored.to_phone, businessPhone);
+    assert.equal(tables.watermelon_contacts.length, 1); assert.equal(tables.watermelon_requests.length, 1);
+    assert.equal(tables.watermelon_contacts[0].phone_digits, customerPhone.slice(3), 'Original local contact is not rewritten');
+    assert.equal((await post(runtime, event(freshReply(), { value: { messages: [], statuses: [{ id: 'wamid-template-1', status: 'delivered', recipient_id: customerPhone, timestamp: String(Math.floor(Date.now() / 1000)) }] } }))).status, 200);
+    assert.equal(tables.watermelon_messages[0].status, 'delivered');
+    assert.deepEqual(tables.watermelon_messages[0].raw_payload.manual_template, consent);
+    assert.equal(tables.watermelon_messages[0].raw_payload.template_delivery.status, 'delivered');
+    assert.equal(runtime.graphCalls, 0);
+  });
+  await test('international 00-prefixed contact retains template reply and receipt association', async () => {
+    const tables = templateFixture(); const foreign = '33612345678';
+    Object.assign(tables.watermelon_contacts[0], { phone: '0033 6 12 34 56 78', phone_digits: '00' + foreign });
+    Object.assign(tables.watermelon_messages[0], { wa_id: foreign, to_phone: foreign });
+    const runtime = createRoutingRuntime(tables);
+    assert.equal((await post(runtime, event(freshReply({ from: foreign })))).status, 200);
+    const stored = tables.watermelon_messages.find(message => message.whatsapp_message_id === 'inbound-1');
+    assert.equal(stored.request_id, 'request-1'); assert.equal(stored.contact_id, 'contact-1');
+    assert.equal(tables.watermelon_contacts.length, 1);
+    assert.equal((await post(runtime, event(freshReply(), { value: { messages: [], statuses: [{ id: 'wamid-template-1', status: 'read', recipient_id: foreign, timestamp: String(Math.floor(Date.now() / 1000)) }] } }))).status, 200);
+    assert.equal(tables.watermelon_messages[0].status, 'read');
+  });
+  for (const quoted of [false, true]) await test(`template provenance resolves public duplicate contacts ${quoted ? 'with quote' : 'without quote'}`, async () => {
+    const tables = templateFixture();
+    tables.watermelon_contacts.push({ id: 'other-public-contact', phone_digits: customerPhone, is_private: false, last_contact_at: new Date().toISOString() });
+    const runtime = createRoutingRuntime(tables);
+    assert.equal((await post(runtime, event(freshReply(quoted ? { context: { id: 'wamid-template-1' } } : {})))).status, 200);
+    const stored = tables.watermelon_messages.find(message => message.whatsapp_message_id === 'inbound-1');
+    assert.equal(stored.contact_id, 'contact-1'); assert.equal(stored.request_id, 'request-1');
+    assert.equal(tables.watermelon_contacts.length, 2);
+  });
+  await test('second reply follows the latest answered template instead of an older unanswered request', async () => {
+    const tables = templateFixture();
+    tables.watermelon_requests.push({ id: 'old-request', contact_id: 'contact-1', is_private: false, status: 'awaiting_customer', reference: 'WM-OLD' });
+    tables.watermelon_messages.unshift(templateRow('old-template', 'old-request', new Date(Date.now() - 240000).toISOString()));
+    const runtime = createRoutingRuntime(tables);
+    for (const id of ['first-reply', 'second-reply']) assert.equal((await post(runtime, event(freshReply({ id })))).status, 200);
+    for (const id of ['first-reply', 'second-reply']) assert.equal(tables.watermelon_messages.find(message => message.whatsapp_message_id === id).request_id, 'request-1');
+    assert.equal(tables.watermelon_requests.length, 2);
+  });
+  for (const [name, mutate] of [
+    ['private local duplicate', d => { d.watermelon_contacts.push({ id: 'private-duplicate', phone_digits: customerPhone, is_private: true }); }],
+    ['private template', d => { d.watermelon_messages[0].is_private = true; }],
+    ['private request', d => { d.watermelon_requests[0].is_private = true; }],
+  ]) await test(`template reply excludes ${name}`, async () => {
+    const tables = templateFixture(); mutate(tables);
+    const runtime = createRoutingRuntime(tables);
+    assert.equal((await post(runtime, event(freshReply()))).status, 200);
+    assert.equal(runtime.writes.length, 0); assert.equal(runtime.graphCalls, 0);
+  });
+  await test('template in-flight association requests retry without creating a duplicate request', async () => {
+    const tables = templateFixture(); tables.watermelon_messages[0].whatsapp_message_id = null;
+    tables.watermelon_messages[0].raw_payload.manual_template.state = 'pending'; tables.watermelon_messages[0].status = 'failed';
+    const runtime = createRoutingRuntime(tables);
+    assert.equal((await post(runtime, event(freshReply()))).status, 500);
+    assert.equal(runtime.writes.length, 0);
+  });
+  for (const change of [m => { m.consent.confirmed = false; }, m => { m.actor_id = ''; }, m => { m.operation_hash = ''; }]) await test('unverified template audit cannot qualify for a quoted reply or receipt', async () => {
+    const tables = templateFixture(); change(tables.watermelon_messages[0].raw_payload.manual_template);
+    const runtime = createRoutingRuntime(tables);
+    assert.equal((await post(runtime, event(freshReply({ context: { id: 'wamid-template-1' } })))).status, 200);
+    assert.equal((await post(runtime, event(freshReply(), { value: { messages: [], statuses: [{ id: 'wamid-template-1', status: 'delivered', recipient_id: customerPhone, timestamp: '1793376000' }] } }))).status, 200);
+    assert.equal(runtime.writes.length, 0);
+  });
   const testMessage = override => inbound({ context: undefined, text: { body: 'TESTE WATERMELON 965' }, ...override });
   await test('controlled production receives only the exact authorised business test phrase', async () => {
     const tables = fixture(); tables.watermelon_contacts = []; tables.watermelon_messages = [];
