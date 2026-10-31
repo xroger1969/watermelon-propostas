@@ -76,7 +76,7 @@ function runtime(options = {}) {
       assert.equal(row.raw_payload.controlled_test_state, 'pending');
       graphCalls.push({ url, init: clone(init), body: JSON.parse(init.body) });
       if (options.timeout) throw new Error('Synthetic uncertain timeout');
-      if (options.graphReject) return Response.json({ error: { message: 'Synthetic rejection' } }, { status: 400 });
+      if (options.graphReject) return Response.json({ error: options.graphError || { message: 'Synthetic rejection' } }, { status: 400 });
       if (options.missingWamid) return Response.json({ messages: [] });
       return Response.json({ messages: [{ id: 'wamid.synthetic-test-response' }] });
     },
@@ -197,6 +197,25 @@ test('uncertain, rejected and unrecorded submissions keep the durable claim and 
   }
 });
 const uiSource = require('node:fs').readFileSync(require('node:path').join(__dirname, '../components/WhatsAppConversation.tsx'), 'utf8');
+test('Meta rejection records and returns only finite numeric diagnostics without external text or secrets', async () => {
+  for (const [graphError, expected] of [
+    [{ code: 131031, error_subcode: 777, message: 'SENSITIVE-EXTERNAL-BODY', token: 'SENSITIVE-TOKEN', error_data: { details: 'SENSITIVE-DETAIL' } }, { meta_code: 131031, meta_subcode: 777 }],
+    [{ code: '131031', error_subcode: '777', message: 'SENSITIVE-EXTERNAL-BODY' }, {}],
+    [{ code: Infinity, error_subcode: NaN, message: 'SENSITIVE-EXTERNAL-BODY' }, {}],
+  ]) {
+    const r = runtime({ graphReject: true, graphError });
+    const response = await r.post();
+    const body = await response.json();
+    const claim = r.tables.watermelon_messages.find(row => row.id === CLAIM_ID);
+    assert.equal(response.status, 409);
+    assert.equal(body.code, 'TEST_REJECTED');
+    assert.deepEqual(Object.fromEntries(Object.entries(body).filter(([key]) => key.startsWith('meta_'))), expected);
+    assert.deepEqual(claim.raw_payload, { controlled_test_state: 'rejected', inbound_test_message_id: INBOUND_ID, ...expected });
+    assert.ok(!JSON.stringify({ body, persisted: r.writes }).includes('SENSITIVE-'));
+    assert.equal((await r.post()).status, 409);
+    assert.equal(r.graphCalls.length, 1);
+  }
+});
 test('test reply UI selects the newest eligible proof and distinguishes uncertain claims from failure', () => {
   const expression = uiSource.match(/const testProof = ([\s\S]*?);\n/)?.[1];
   assert.ok(expression);

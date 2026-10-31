@@ -85,9 +85,9 @@ Deno.serve(async (req: Request) => {
       code: claimError.code === "23505" ? "TEST_ALREADY_ATTEMPTED" : "TEST_CLAIM_FAILED",
     }, claimError.code === "23505" ? 409 : 500);
 
-    async function record(state: string, patch: Record<string, unknown> = {}) {
+    async function record(state: string, patch: Record<string, unknown> = {}, diagnostics: { meta_code?: number; meta_subcode?: number } = {}) {
       return await admin.from("watermelon_messages").update({
-        ...patch, raw_payload: { controlled_test_state: state, inbound_test_message_id: inbound.id },
+        ...patch, raw_payload: { controlled_test_state: state, inbound_test_message_id: inbound.id, ...diagnostics },
       }).eq("id", CLAIM_ID).eq("source", SOURCE).eq("is_private", false);
     }
     let response: Response;
@@ -103,8 +103,12 @@ Deno.serve(async (req: Request) => {
     }
     const result = await response.json().catch(() => null);
     if (!response.ok) {
-      await record("rejected");
-      return json(req, { error: "Meta rejected this single test. General sending remains paused; the test will not be retried.", code: "TEST_REJECTED" }, 409);
+      const diagnostics = {
+        ...(typeof result?.error?.code === "number" && Number.isFinite(result.error.code) ? { meta_code: result.error.code } : {}),
+        ...(typeof result?.error?.error_subcode === "number" && Number.isFinite(result.error.error_subcode) ? { meta_subcode: result.error.error_subcode } : {}),
+      };
+      await record("rejected", {}, diagnostics);
+      return json(req, { error: "Meta rejected this single test. General sending remains paused; the test will not be retried.", code: "TEST_REJECTED", ...diagnostics }, 409);
     }
     const messageId = typeof result?.messages?.[0]?.id === "string" ? result.messages[0].id : "";
     if (!messageId) {
