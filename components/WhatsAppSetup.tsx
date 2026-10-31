@@ -4,6 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import PrivateAreaNav from "@/components/PrivateAreaNav";
 
+const WATERMELON_BUSINESS_NUMBER = "+351 965 637 736";
+const WATERMELON_BUSINESS_DIGITS = "351965637736";
+const LEGACY_PHONE_ID = "874910289048462";
+function phoneDigits(value: unknown) { return String(value || "").replace(/\D/g, ""); }
+
 type WhatsAppTemplate = {
   id: string | null;
   name: string;
@@ -44,17 +49,11 @@ function dateTime(value: string | null) {
 export default function WhatsAppSetup() {
   const supabase = useMemo(() => createClient(), []);
   const [status, setStatus] = useState<SetupStatus | null>(null);
-  const [appSecret, setAppSecret] = useState("");
-  const [accessToken, setAccessToken] = useState("");
-  const [phoneNumberId, setPhoneNumberId] = useState("");
-  const [wabaId, setWabaId] = useState("");
-  const [businessPhone, setBusinessPhone] = useState("");
-  const [graphVersion, setGraphVersion] = useState("v23.0");
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [copied, setCopied] = useState("");
   const [metaCode, setMetaCode] = useState("");
+  const [metaWabaId, setMetaWabaId] = useState("");
   const [metaRedirectUri, setMetaRedirectUri] = useState("");
   const [coexistenceBusy, setCoexistenceBusy] = useState(false);
   const [coexistenceMessage, setCoexistenceMessage] = useState("");
@@ -78,66 +77,40 @@ export default function WhatsAppSetup() {
 
     const next = data as SetupStatus;
     setStatus(next);
-    setPhoneNumberId(next.phone_number_id || "");
-    setWabaId(next.waba_id || "");
-    setBusinessPhone(next.business_phone || "");
-    setGraphVersion(next.graph_version || "v23.0");
+    if (phoneDigits(next.business_phone) === WATERMELON_BUSINESS_DIGITS && next.phone_number_id !== LEGACY_PHONE_ID) {
+      void loadTemplates();
+    }
     setLoading(false);
   }
 
   useEffect(() => {
     void load();
-    void loadTemplates();
   }, []);
-
-  async function save() {
-    setSaving(true);
-    setMessage("");
-
-    const { data, error } = await supabase.rpc("watermelon_save_whatsapp_config", {
-      p_app_secret: appSecret.trim() || null,
-      p_access_token: accessToken.trim() || null,
-      p_phone_number_id: phoneNumberId.trim() || null,
-      p_waba_id: wabaId.trim() || null,
-      p_business_phone: businessPhone.trim() || null,
-      p_graph_version: graphVersion.trim() || "v23.0",
-    });
-
-    if (error || !data) {
-      setMessage(error?.message || "Unable to save WhatsApp settings.");
-      setSaving(false);
-      return;
-    }
-
-    setStatus(data as SetupStatus);
-    setAppSecret("");
-    setAccessToken("");
-    setMessage("WhatsApp settings saved.");
-    setSaving(false);
-  }
 
   async function connectCoexistence() {
     const code = metaCode.trim();
     const redirect_uri = metaRedirectUri.trim();
-    if (!code || !redirect_uri) {
-      setCoexistenceMessage("Introduce the new authorization code and exact redirect URI from Meta.");
+    const waba_id = metaWabaId.trim();
+    if (!code || !redirect_uri || !/^\d{10,25}$/.test(waba_id)) {
+      setCoexistenceMessage("Introduce o código novo, o redirect URI exato e o WABA ID do número Watermelon.");
       return;
     }
     if (!window.confirm(
-      "Confirm that the authorization code is new and belongs to the existing WhatsApp Business App number +351 918 404 101. This will replace the currently configured test number only after validation by Meta."
+      "Confirmas que este código Meta é para o WhatsApp Business do número +351 965 637 736? O número pessoal +351 918 404 101 NUNCA será ligado ao CRM."
     )) return;
     setCoexistenceBusy(true);
     setCoexistenceMessage("");
     try {
       const { data, error } = await supabase.functions.invoke("watermelon-whatsapp-coexistence", {
         method: "POST",
-        body: { code, redirect_uri },
+        body: { code, redirect_uri, waba_id },
       });
       if (error) throw new Error("Request failed. Check authentication and try a fresh code.");
       if (!data?.ok) throw new Error(String(data?.error || "Meta connection could not be completed."));
       setMetaCode("");
       setMetaRedirectUri("");
-      setCoexistenceMessage("Meta authorization and WABA subscription confirmed. Now test webhook messages.");
+      setMetaWabaId("");
+      setCoexistenceMessage("Autorização e subscrição Meta confirmadas para o número Watermelon. Os envios e a receção no CRM continuam pausados até aos testes controlados.");
       await load();
     } catch (error) {
       setCoexistenceMessage(error instanceof Error ? error.message : "Connection could not be completed.");
@@ -165,6 +138,10 @@ export default function WhatsAppSetup() {
   }
 
   async function createTemplate() {
+    if (phoneDigits(status?.business_phone) !== WATERMELON_BUSINESS_DIGITS || status?.phone_number_id === LEGACY_PHONE_ID) {
+      setMessage("Templates bloqueados até ligar o número empresarial Watermelon. A conta pessoal nunca pode ser usada.");
+      return;
+    }
     const name = templateName
       .trim()
       .toLowerCase()
@@ -217,8 +194,10 @@ export default function WhatsAppSetup() {
     }
   }
 
+  const isDedicated = phoneDigits(status?.business_phone) === WATERMELON_BUSINESS_DIGITS &&
+    status?.phone_number_id !== LEGACY_PHONE_ID;
   const ready = Boolean(
-    status?.has_app_secret &&
+    isDedicated && status?.has_app_secret &&
       status?.has_access_token &&
       status?.phone_number_id &&
       status?.waba_id
@@ -246,13 +225,18 @@ export default function WhatsAppSetup() {
         <p className="admin-loading">Loading WhatsApp setup…</p>
       ) : (
         <>
+          <p className="admin-error" role="status">
+            Integração WhatsApp CRM pausada por segurança. Número pessoal +351 918 404 101 excluído.
+            O único número autorizado para a Watermelon é {WATERMELON_BUSINESS_NUMBER}.
+            A receção e o envio automáticos só serão retomados após validação da Meta e testes reais.
+          </p>
           <div className="whatsapp-setup-status">
             <div>
               <span>Credentials</span>
-              <strong>{ready ? "Configured" : "Incomplete"}</strong>
+              <strong>{ready ? "Novo número validado (envio pausado)" : isDedicated ? "Incompleto" : "Número pessoal antigo isolado"}</strong>
             </div>
             <div>
-              <span>Webhook</span>
+              <span>{isDedicated ? "Webhook" : "Webhook anterior"}</span>
               <strong>{status?.webhook_verified_at ? "Verified" : "Not verified yet"}</strong>
             </div>
             <div>
@@ -305,16 +289,21 @@ export default function WhatsAppSetup() {
             <div className="whatsapp-setup-heading">
               <div>
                 <p className="eyebrow dark">META · BUSINESS APP COEXISTENCE</p>
-                <h2>Connect existing WhatsApp Business (+351 918 404 101)</h2>
+                <h2>Ligar WhatsApp Business Watermelon ({WATERMELON_BUSINESS_NUMBER})</h2>
                 <p>
-                  Meta has already linked the existing iPhone WhatsApp Business account.
-                  Paste only a <strong>fresh, single-use</strong> authorization code from Embedded Signup
-                  and the exact <strong>redirect_uri</strong> shown under Exchange Token.
-                  The server checks the WhatsApp account and number before replacing the test configuration.
+                  Usa exclusivamente o novo número MEO no Embedded Signup da Meta, no modo WhatsApp Business App Coexistence.
+                  Introduz um código de autorização <strong>novo e de utilização única</strong>, o <strong>redirect_uri</strong> exato
+                  e o WABA ID devolvido pela Meta para esta ligação.
+                  O servidor valida que o número associado é o {WATERMELON_BUSINESS_NUMBER} antes de substituir a configuração antiga.
+                  Nunca cole tokens ou códigos nesta conversa.
                 </p>
               </div>
             </div>
             <div className="whatsapp-setup-grid">
+              <label>
+                <span>WABA ID da ligação Watermelon (obtido na Meta)</span>
+                <input inputMode="numeric" autoComplete="off" value={metaWabaId} onChange={(event) => setMetaWabaId(event.target.value)} placeholder="ID da WhatsApp Business Account" />
+              </label>
               <label className="whatsapp-secret-field">
                 <span>New authorization code (never share it in chat)</span>
                 <input
@@ -348,107 +337,11 @@ export default function WhatsAppSetup() {
               <button
                 className="button button-primary"
                 type="button"
-                disabled={coexistenceBusy || !metaCode.trim() || !metaRedirectUri.trim()}
+                disabled={coexistenceBusy || !metaCode.trim() || !metaRedirectUri.trim() || !/^\d{10,25}$/.test(metaWabaId.trim())}
                 onClick={() => void connectCoexistence()}
               >
-                {coexistenceBusy ? "Verifying with Meta…" : "Verify and connect existing number"}
+                {coexistenceBusy ? "A validar na Meta…" : "Validar e ligar o número Watermelon"}
               </button>
-            </div>
-          </article>
-
-          <article className="whatsapp-setup-card">
-            <div className="whatsapp-setup-heading">
-              <div>
-                <p className="eyebrow dark">CLOUD API</p>
-                <h2>2. Save the WhatsApp Business details</h2>
-                <p>
-                  Secrets stay on the server. Leave a secret field blank later if you do not want to replace its saved value.
-                </p>
-              </div>
-            </div>
-
-            <div className="whatsapp-setup-grid">
-              <label>
-                <span>Phone Number ID</span>
-                <input
-                  value={phoneNumberId}
-                  onChange={(event) => setPhoneNumberId(event.target.value)}
-                  placeholder="Example: 123456789012345"
-                />
-              </label>
-
-              <label>
-                <span>WhatsApp Business Account ID (WABA)</span>
-                <input
-                  value={wabaId}
-                  onChange={(event) => setWabaId(event.target.value)}
-                  placeholder="Example: 123456789012345"
-                />
-              </label>
-
-              <label>
-                <span>Business WhatsApp number</span>
-                <input
-                  value={businessPhone}
-                  onChange={(event) => setBusinessPhone(event.target.value)}
-                  placeholder="+351..."
-                />
-              </label>
-
-              <label>
-                <span>Graph API version</span>
-                <input
-                  value={graphVersion}
-                  onChange={(event) => setGraphVersion(event.target.value)}
-                  placeholder="v23.0"
-                />
-              </label>
-
-              <label className="whatsapp-secret-field">
-                <span>Meta App Secret {status?.has_app_secret ? "· saved ✓" : ""}</span>
-                <input
-                  type="password"
-                  autoComplete="off"
-                  value={appSecret}
-                  onChange={(event) => setAppSecret(event.target.value)}
-                  placeholder={status?.has_app_secret ? "Leave blank to keep current secret" : "Paste App Secret"}
-                />
-              </label>
-
-              <label className="whatsapp-secret-field">
-                <span>Permanent/System User Access Token {status?.has_access_token ? "· saved ✓" : ""}</span>
-                <textarea
-                  rows={3}
-                  value={accessToken}
-                  onChange={(event) => setAccessToken(event.target.value)}
-                  placeholder={status?.has_access_token ? "Leave blank to keep current token" : "Paste access token"}
-                />
-              </label>
-            </div>
-
-            {message && (
-              <p className={message.toLowerCase().includes("unable") ? "admin-error" : "crm-proposal-feedback"}>
-                {message}
-              </p>
-            )}
-
-            <div className="whatsapp-setup-actions">
-              <button
-                className="button button-primary"
-                type="button"
-                disabled={saving}
-                onClick={() => void save()}
-              >
-                {saving ? "Saving…" : "Save WhatsApp settings"}
-              </button>
-              <a
-                className="button button-outline"
-                href="https://developers.facebook.com/apps/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Open Meta Developers
-              </a>
             </div>
           </article>
 
@@ -456,7 +349,7 @@ export default function WhatsAppSetup() {
             <div className="whatsapp-setup-heading">
               <div>
                 <p className="eyebrow dark">META APP REVIEW</p>
-                <h2>3. Message templates</h2>
+                <h2>3. Templates de mensagens (apenas número Watermelon)</h2>
                 <p>
                   Manage a WhatsApp message template directly from Watermelon CRM. This demonstrates the
                   <strong> whatsapp_business_management</strong> permission during Meta App Review.
@@ -496,7 +389,7 @@ export default function WhatsAppSetup() {
               <button
                 className="button button-primary"
                 type="button"
-                disabled={templateBusy}
+                disabled={templateBusy || !ready}
                 onClick={() => void createTemplate()}
               >
                 {templateBusy ? "Creating…" : "Create template in Meta"}
@@ -526,9 +419,9 @@ export default function WhatsAppSetup() {
               </div>
             </div>
             <div className="whatsapp-flow-list">
-              <span>Customer sends WhatsApp → message appears automatically in the correct CRM request.</span>
-              <span>CRM changes Waiting for customer → Customer replied automatically.</span>
-              <span>You reply directly from the CRM during the Meta customer-service window.</span>
+              <span>Depois da ativação validada: mensagens recebidas no +351 965 637 736 serão associadas ao pedido comercial correto.</span>
+              <span>Nunca importar conversas nem contactos do WhatsApp pessoal 918 404 101.</span>
+              <span>Os envios a partir do CRM mantêm-se bloqueados até aos testes controlados com a Meta.</span>
               <span>Delivery/read status is synchronized back to the CRM when Meta sends it.</span>
             </div>
           </article>
