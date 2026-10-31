@@ -261,9 +261,9 @@ export default function WhatsAppSetup() {
         <p className="admin-loading">Loading WhatsApp setup…</p>
       ) : (
         <>
-          <p className="admin-error" role="status">
-            {isDedicated
-              ? <>Receção ativa no WhatsApp empresarial {WATERMELON_BUSINESS_NUMBER}. Respostas manuais na conversa; os automatismos continuam pausados.</>
+          <p className={ready ? "crm-proposal-feedback" : "admin-error"} role="status">
+            {ready
+              ? <>Receção automática ativa no WhatsApp empresarial {WATERMELON_BUSINESS_NUMBER}. Para responder aos clientes, usa «Enviar» na conversa. As mensagens automáticas de saída estão desligadas.</>
               : <>Integração WhatsApp CRM pausada por segurança. O único número autorizado para a Watermelon é {WATERMELON_BUSINESS_NUMBER}.</>}
             {" "}O número pessoal +351 918 404 101 continua excluído da sincronização.
           </p>
