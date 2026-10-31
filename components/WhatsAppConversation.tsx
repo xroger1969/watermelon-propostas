@@ -321,6 +321,7 @@ export default function WhatsAppConversation({
         <textarea
           rows={3}
           maxLength={4000}
+          readOnly={sending}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           placeholder={
