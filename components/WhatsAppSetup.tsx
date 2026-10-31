@@ -119,6 +119,39 @@ export default function WhatsAppSetup() {
     }
   }
 
+  async function validateExistingAuthorization() {
+    setCoexistenceBusy(true);
+    setCoexistenceMessage("");
+    try {
+      const request: { operation: "validate_existing_authorization" } = { operation: "validate_existing_authorization" };
+      const { data, error } = await supabase.functions.invoke("watermelon-whatsapp-coexistence", {
+        method: "POST", body: request,
+      });
+      if (error) {
+        const failure = error.context instanceof Response
+          ? await error.context.json().catch(() => null) : null;
+        // The endpoint returns fixed, non-secret diagnostics; never render raw
+        // transport errors, Meta payloads or credentials from an unknown body.
+        const reason = typeof failure?.error === "string" ? failure.error : "";
+        const message = reason.startsWith("The saved Meta authorization")
+          ? "A autorização guardada não concede acesso válido ao novo número empresarial. É necessária uma nova autorização Meta; a configuração foi preservada."
+          : reason.startsWith("No server authorization")
+            ? "Ainda não existe autorização guardada no servidor. Conclui uma nova autorização Meta."
+            : reason.startsWith("This token does not verify access")
+              ? "A Meta não confirmou acesso deste token ao número empresarial. A configuração foi preservada."
+              : "Não foi possível confirmar a autorização na Meta. A configuração foi preservada; verifica a ligação ou conclui uma nova autorização.";
+        throw new Error(message);
+      }
+      if (!data?.ok) throw new Error(String(data?.error || "A Meta não confirmou acesso ao número empresarial."));
+      setCoexistenceMessage("Autorização Meta existente validada para +351 965 637 736. Associação guardada; envio e receção no CRM continuam pausados até aos testes controlados.");
+      await load();
+    } catch (error) {
+      setCoexistenceMessage(error instanceof Error ? error.message : "Não foi possível validar a autorização Meta.");
+    } finally {
+      setCoexistenceBusy(false);
+    }
+  }
+
   async function loadTemplates() {
     setTemplatesLoading(true);
     try {
@@ -300,6 +333,13 @@ export default function WhatsAppSetup() {
               </div>
             </div>
             <div className="whatsapp-setup-grid">
+              <div>
+                <button className="button button-primary" type="button" disabled={coexistenceBusy}
+                  onClick={() => void validateExistingAuthorization()}>
+                  {coexistenceBusy ? "A validar na Meta…" : "Validar autorização Meta já concedida"}
+                </button>
+                <p className="whatsapp-setup-note">Depois de concluíres a autorização na Meta, valida o acesso já guardado no servidor. Apenas o número empresarial +351 965 637 736 pode ser associado. As mensagens continuam pausadas.</p>
+              </div>
               <label>
                 <span>WABA ID da ligação Watermelon (obtido na Meta)</span>
                 <input inputMode="numeric" autoComplete="off" value={metaWabaId} onChange={(event) => setMetaWabaId(event.target.value)} placeholder="ID da WhatsApp Business Account" />
@@ -430,3 +470,4 @@ export default function WhatsAppSetup() {
     </section>
   );
 }
+
