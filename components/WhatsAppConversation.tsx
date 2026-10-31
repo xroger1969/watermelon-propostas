@@ -316,7 +316,7 @@ export default function WhatsAppConversation({
             <p>Resposta fixa: {TEST_REPLY_TEXT}</p>
           </div>
         )}
-        <p className="admin-error" role="status">As mensagens deste número empresarial entram no respetivo pedido. As respostas exigem uma ação manual e uma mensagem recente do cliente; não há envios automáticos.</p>
+        <p className="crm-proposal-feedback" role="status">As mensagens deste número empresarial entram no respetivo pedido. As respostas exigem uma ação manual e uma mensagem recente do cliente; não há envios automáticos.</p>
         {manualReplyUncertain && <p className="admin-error" role="status">Há uma resposta em preparação ou com resultado incerto. Novos envios ficam bloqueados até ser esclarecida.</p>}
         <textarea
           rows={3}
@@ -341,11 +341,11 @@ export default function WhatsAppConversation({
         {feedback && (
           <p
             className={
-              feedback.startsWith("Accepted for processing")
-                ? "crm-whatsapp-window-note"
-                : feedback.toLowerCase().includes("approved template")
-                  ? "crm-proposal-feedback"
-                  : "admin-error"
+              ["Mensagem aceite pela Meta.", "A Meta aceitou a resposta única de teste.", "Texto copiado."].some(
+                (prefix) => feedback.startsWith(prefix)
+              )
+                ? "crm-proposal-feedback"
+                : "admin-error"
             }
           >
             {feedback}
