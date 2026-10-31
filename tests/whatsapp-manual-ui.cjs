@@ -77,7 +77,7 @@ test('submitted and already-submitted results clear the draft without claiming d
 });
 
 test('known rejection keeps the draft and reuses the same key only on another explicit attempt', async () => {
-  for (const code of ['META_REPLY_REJECTED', 'PREVIOUS_REPLY_REJECTED', 'MANUAL_REPLY_ASSOCIATION_CHANGED', 'DEDICATED_SERVICE_WINDOW_REQUIRED', 'AUTH_REQUIRED', 'DURABLE_CLAIM_FAILED']) {
+  for (const code of ['META_REPLY_REJECTED', 'PREVIOUS_REPLY_REJECTED', 'MANUAL_REPLY_ASSOCIATION_CHANGED', 'DEDICATED_SERVICE_WINDOW_REQUIRED', 'AUTH_REQUIRED', 'DURABLE_CLAIM_FAILED', 'MANUAL_REPLY_BLOCKED_BY_EXISTING_ATTEMPT']) {
     const error = { context: Response.json({ code, meta_code: 131047, error: 'SYNTHETIC-SECRET-DO-NOT-RENDER' }) };
     const h = harness({ results: [{ data: null, error }, { data: { ok: false, code: 'PREVIOUS_REPLY_REJECTED' }, error: null }] });
     const draft = h.context.draft;

@@ -206,10 +206,12 @@ export default function WhatsAppConversation({
       } else if (["AUTH_REQUIRED", "ADMIN_REQUIRED", "ORIGIN_NOT_ALLOWED", "INVALID_MANUAL_REPLY",
         "SERVER_NOT_CONFIGURED", "DEDICATED_ACCOUNT_REQUIRED", "CRM_LOOKUP_FAILED",
         "PUBLIC_BUSINESS_REQUEST_REQUIRED", "PUBLIC_BUSINESS_CONTACT_REQUIRED",
-        "DEDICATED_SERVICE_WINDOW_REQUIRED", "DURABLE_CLAIM_FAILED"].includes(code)) {
+        "DEDICATED_SERVICE_WINDOW_REQUIRED", "DURABLE_CLAIM_FAILED", "MANUAL_REPLY_BLOCKED_BY_EXISTING_ATTEMPT"].includes(code)) {
         attempt.outcome = "rejected";
         setUnconfirmedAttemptKey("");
-        setFeedback(code === "DEDICATED_SERVICE_WINDOW_REQUIRED"
+        setFeedback(code === "MANUAL_REPLY_BLOCKED_BY_EXISTING_ATTEMPT"
+          ? "Outra resposta tem um resultado pendente. Esta mensagem não foi enviada; aguarda o esclarecimento da tentativa anterior."
+          : code === "DEDICATED_SERVICE_WINDOW_REQUIRED"
           ? "É necessária uma mensagem recente deste cliente no número empresarial, neste pedido, para responder na janela de 24 horas."
           : "O servidor bloqueou o envio antes de o submeter à Meta. Confirma a sessão, o contacto e a configuração empresarial.");
       } else {
