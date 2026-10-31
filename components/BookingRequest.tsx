@@ -310,7 +310,7 @@ export default function BookingRequest() {
       ].filter(Boolean);
 
       const url =
-        "https://wa.me/351918404101?text=" +
+        "https://wa.me/351965637736?text=" +
         encodeURIComponent("Hello Watermelon Experiences,\n\n" + lines.join("\n"));
 
       window.location.href = url;
