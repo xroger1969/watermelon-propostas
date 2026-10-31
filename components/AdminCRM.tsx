@@ -346,7 +346,8 @@ export default function AdminCRM() {
   const [contacts, setContacts] = useState<CRMContact[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [manualPaymentHref, setManualPaymentHref] = useState("");
+  const [manualWhatsAppText, setManualWhatsAppText] = useState("");
+  const [pendingReviewRequestId, setPendingReviewRequestId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("in_progress");
   const [workspaceView, setWorkspaceView] = useState<"operations" | "marketing">("operations");
   const [query, setQuery] = useState("");
@@ -1315,7 +1316,7 @@ export default function AdminCRM() {
 
   function showSchedulingAfterPayment(request: CRMRequest) {
     setFilter("confirmed");
-    setManualPaymentHref("");
+    setManualWhatsAppText("");
     setMessage("Pagamento confirmado. Próxima ação: agendar o serviço.");
     window.setTimeout(() => {
       document.getElementById("crm-request-" + request.id)?.scrollIntoView({
@@ -1489,7 +1490,8 @@ export default function AdminCRM() {
 
     setEditing(request.id);
     setMessage("");
-    setManualPaymentHref("");
+    setManualWhatsAppText("");
+    setPendingReviewRequestId(null);
 
     const { data, error } = await supabase.rpc(
       "watermelon_prepare_direct_booking_payment",
@@ -1562,19 +1564,15 @@ export default function AdminCRM() {
           deliveryFeedback += " The CRM could not save the communication activity: " + historyError.message;
         }
       } catch (sendError) {
-        deliveryFeedback = "Payment prepared, but WhatsApp delivery is unconfirmed. Check the conversation before sending it manually. " +
+        deliveryFeedback = "Payment prepared but NOT sent. Copy the message and send it exclusively from Watermelon WhatsApp Business (+351 965 637 736). " +
           (sendError instanceof Error ? sendError.message : "");
-        setManualPaymentHref(
-          "https://wa.me/" + phone + "?text=" + encodeURIComponent(paymentMessage)
-        );
+        setManualWhatsAppText(paymentMessage);
       }
     } else if (phone) {
       // The booking has a phone number but the CRM contact does not.
       // Never present a manually opened WhatsApp composer as a delivered message.
-      deliveryFeedback = "Payment prepared. Open WhatsApp and press Send; this is a manual message, not a confirmed CRM delivery.";
-      setManualPaymentHref(
-        "https://wa.me/" + phone + "?text=" + encodeURIComponent(paymentMessage)
-      );
+      deliveryFeedback = "Payment prepared but NOT sent. Copy the message and send it from Watermelon WhatsApp Business (+351 965 637 736).";
+      setManualWhatsAppText(paymentMessage);
     } else {
       try {
         await navigator.clipboard.writeText(paymentUrl);
@@ -1720,8 +1718,9 @@ export default function AdminCRM() {
             "Watermelon Experiences",
           ];
 
-    window.location.href =
-      "https://wa.me/" + phone + "?text=" + encodeURIComponent(lines.filter(Boolean).join("\n"));
+    setManualWhatsAppText(lines.filter(Boolean).join("\n"));
+    setPendingReviewRequestId(null);
+    setMessage("Mensagem preparada mas NÃO enviada. Copia-a para o WhatsApp Business da Watermelon (+351 965 637 736).");
   }
 
   async function prepareThankYouMessage(request: CRMRequest) {
@@ -2024,23 +2023,12 @@ export default function AdminCRM() {
       "Watermelon Experiences",
     ].join("\n");
 
-    setEditing(request.id);
-    setMessage("");
-
-    const { error } = await supabase.rpc("watermelon_mark_review_requested", {
-      p_request_id: request.id,
-    });
-
-    if (error) {
-      setMessage(error.message);
-      setEditing(null);
-      return;
-    }
-
-    await loadCRM();
+    // Preparing a message is NOT the same as sending it. Do not record a review
+    // request until the operator confirms sending it from Watermelon Business.
     setEditing(null);
-    window.location.href =
-      "https://wa.me/" + phone + "?text=" + encodeURIComponent(text);
+    setManualWhatsAppText(text);
+    setPendingReviewRequestId(request.id);
+    setMessage("Pedido de avaliação preparado, ainda NÃO enviado. Copia e envia pelo WhatsApp Business da Watermelon. Depois confirma o envio abaixo.");
   }
 
   function openView(nextFilter: Filter) {
@@ -2541,10 +2529,30 @@ export default function AdminCRM() {
       </div>
 
       {message && <p className="admin-error">{message}</p>}
-      {manualPaymentHref && (
-        <a className="button button-outline" href={manualPaymentHref} target="_blank" rel="noopener noreferrer">
-          Open WhatsApp to send manually
-        </a>
+      {manualWhatsAppText && (
+        <div className="admin-topbar-actions">
+          <button className="button button-outline" type="button" onClick={() => {
+            void navigator.clipboard.writeText(manualWhatsAppText)
+              .then(() => setMessage("Mensagem copiada. Cola-a e envia-a exclusivamente no WhatsApp Business da Watermelon (+351 965 637 736). O CRM não enviou nada."))
+              .catch(() => { window.prompt("Copia esta mensagem para o WhatsApp Business da Watermelon:", manualWhatsAppText); });
+          }}>
+            Copiar mensagem para WhatsApp Business
+          </button>
+          {pendingReviewRequestId && (
+            <button className="button button-outline" type="button" onClick={() => { void (async () => {
+              if (!supabase || !pendingReviewRequestId) return;
+              if (!window.confirm("Confirmas que JÁ enviaste o pedido de avaliação a este cliente pelo WhatsApp Business +351 965 637 736?")) return;
+              const { error } = await supabase.rpc("watermelon_mark_review_requested", { p_request_id: pendingReviewRequestId });
+              if (error) { setMessage(error.message); return; }
+              setPendingReviewRequestId(null);
+              setManualWhatsAppText("");
+              await loadCRM();
+              setMessage("Pedido de avaliação registado após confirmação do envio manual.");
+            })(); }}>
+              Confirmar pedido de avaliação enviado
+            </button>
+          )}
+        </div>
       )}
       {loading && <p className="admin-loading">Loading CRM…</p>}
 

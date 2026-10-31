@@ -596,7 +596,7 @@ export default function AIConcierge({
                   </div>
                   <a
                     className="ai-tailor-action"
-                    href={"https://wa.me/351918404101?text=" + encodeURIComponent(message)}
+                    href={"https://wa.me/351965637736?text=" + encodeURIComponent(message)}
                     target="_blank"
                     rel="noreferrer"
                   >
@@ -664,7 +664,7 @@ export default function AIConcierge({
               <span>Send this shortlist to Watermelon on WhatsApp and we can refine it with you.</span>
             </div>
             <a
-              href={"https://wa.me/351918404101?text=" + encodeURIComponent(whatsappText)}
+              href={"https://wa.me/351965637736?text=" + encodeURIComponent(whatsappText)}
               target="_blank"
               rel="noreferrer"
             >

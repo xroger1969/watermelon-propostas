@@ -275,7 +275,7 @@ export default function ProposalBuilder() {
         proposalText(data.reference);
 
       window.location.href =
-        "https://wa.me/351918404101?text=" + encodeURIComponent(message);
+        "https://wa.me/351965637736?text=" + encodeURIComponent(message);
     } catch (error) {
       setSendError(
         error instanceof Error
