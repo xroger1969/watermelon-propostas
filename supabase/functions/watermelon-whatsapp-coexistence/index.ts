@@ -7,6 +7,8 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const APP_ID = "1725466825210094";
 // Only the dedicated Watermelon SIM can be authorized. The personal number is never eligible here.
 const EXPECTED_BUSINESS_NUMBER = "351965637736";
+const DEDICATED_WABA_ID = "4408982439363483";
+const DEDICATED_PHONE_ID = "1423415737522090";
 const GRAPH_VERSION = "v25.0";
 const GRAPH_URL = "https://graph.facebook.com/" + GRAPH_VERSION;
 
@@ -80,19 +82,28 @@ Deno.serve(async (req: Request) => {
   const { data: current, error: currentError } = await service.rpc("watermelon_whatsapp_server_config");
   if (currentError || !current) return json(req, { error: "WhatsApp server settings are unavailable." }, 503);
 
-  let input: { code?: unknown; redirect_uri?: unknown; waba_id?: unknown; phone_number_id?: unknown };
+  let input: { operation?: unknown; code?: unknown; redirect_uri?: unknown; waba_id?: unknown; phone_number_id?: unknown };
   try {
     if (Number(req.headers.get("content-length") || 0) > 15000) throw new Error("Too large");
     input = await req.json();
+    if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Invalid request");
   } catch {
     return json(req, { error: "Invalid request." }, 400);
   }
 
+  const reuseServerAuthorization = input.operation === "validate_existing_authorization";
+  if (input.operation !== undefined && !reuseServerAuthorization) {
+    return json(req, { error: "Unknown authorization operation." }, 400);
+  }
+  // This operation accepts no browser-supplied token, code, WABA or phone ID.
+  if (reuseServerAuthorization && Object.keys(input).some(key => key !== "operation")) {
+    return json(req, { error: "Existing authorization accepts only the operation name." }, 400);
+  }
   const code = typeof input.code === "string" ? input.code.trim() : "";
   const redirectUri = typeof input.redirect_uri === "string" ? input.redirect_uri.trim() : "";
-  const wabaId = typeof input.waba_id === "string" ? input.waba_id.trim() : "";
-  const expectedPhoneId = typeof input.phone_number_id === "string" ? input.phone_number_id.trim() : "";
-  if (!code || code.length > 4096 || !isMetaRedirect(redirectUri) || !/^\d{10,25}$/.test(wabaId) || (expectedPhoneId && !/^\d{10,25}$/.test(expectedPhoneId))) {
+  const wabaId = reuseServerAuthorization ? DEDICATED_WABA_ID : typeof input.waba_id === "string" ? input.waba_id.trim() : "";
+  const expectedPhoneId = reuseServerAuthorization ? DEDICATED_PHONE_ID : typeof input.phone_number_id === "string" ? input.phone_number_id.trim() : "";
+  if (!reuseServerAuthorization && (!code || code.length > 4096 || !isMetaRedirect(redirectUri) || !/^\d{10,25}$/.test(wabaId) || (expectedPhoneId && !/^\d{10,25}$/.test(expectedPhoneId)))) {
     return json(req, { error: "Provide a fresh Meta code, its exact redirect URI, and the WABA ID returned for the dedicated Watermelon number." }, 400);
   }
   const appSecret = String(current.app_secret || "");
@@ -101,6 +112,26 @@ Deno.serve(async (req: Request) => {
   // The authorization code is single use. Do not log it, return it or persist it.
   let accessToken = "";
   try {
+    if (reuseServerAuthorization) {
+      accessToken = String(current.access_token || "");
+      if (!accessToken) return json(req, { error: "No server authorization is available. Complete a fresh Meta authorization first." }, 409);
+      const debug = await graph("/debug_token?input_token=" + encodeURIComponent(accessToken), APP_ID + "|" + appSecret);
+      const token = debug?.data;
+      const permissions = ["whatsapp_business_management", "whatsapp_business_messaging"];
+      const expiresAt = Number(token?.expires_at || 0);
+      const dataExpiresAt = Number(token?.data_access_expires_at || 0);
+      const now = Math.floor(Date.now() / 1000);
+      const scopes = Array.isArray(token?.scopes) ? token.scopes : [];
+      const granular = Array.isArray(token?.granular_scopes) ? token.granular_scopes : [];
+      if (token?.is_valid !== true || String(token?.app_id || "") !== APP_ID ||
+        (expiresAt > 0 && expiresAt <= now) || (dataExpiresAt > 0 && dataExpiresAt <= now) ||
+        !permissions.every(scope => scopes.includes(scope)) ||
+        granular.some((grant: { scope?: string; target_ids?: string[] }) =>
+          permissions.includes(String(grant.scope || "")) && Array.isArray(grant.target_ids) &&
+          !grant.target_ids.some(id => String(id) === DEDICATED_WABA_ID || String(id) === DEDICATED_PHONE_ID))) {
+        return json(req, { error: "The saved Meta authorization does not grant valid Watermelon CRM access to the dedicated business account. Complete a fresh Meta authorization; existing settings were preserved." }, 409);
+      }
+    } else {
     const exchange = await fetch(GRAPH_URL + "/oauth/access_token", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -121,6 +152,7 @@ Deno.serve(async (req: Request) => {
       }, 409);
     }
     accessToken = String(response.access_token);
+    }
 
     // Fail closed unless Meta proves this authorized WABA contains the new number.
     // Never authorize the old personal SIM or trust a browser-supplied phone ID alone.
@@ -151,7 +183,7 @@ Deno.serve(async (req: Request) => {
 
     const { error: saveError } = await user.rpc("watermelon_save_whatsapp_config", {
       p_app_secret: null,
-      p_access_token: accessToken,
+      p_access_token: reuseServerAuthorization ? null : accessToken,
       p_phone_number_id: String(matchedPhone.id),
       p_waba_id: wabaId,
       p_business_phone: "+351965637736",
@@ -165,6 +197,7 @@ Deno.serve(async (req: Request) => {
       subscription_confirmed: true,
       credentials_saved: true,
       message_delivery_verified: false,
+      authorization_source: reuseServerAuthorization ? "existing_server_token" : "fresh_code",
       next_step: "Confirm Meta messages webhook field and test inbound/outbound messaging.",
     });
   } catch {
@@ -174,3 +207,4 @@ Deno.serve(async (req: Request) => {
     accessToken = "";
   }
 });
+
