@@ -5,7 +5,8 @@ const path = require('node:path');
 const vm = require('node:vm');
 const ts = require('typescript');
 
-const source = fs.readFileSync(path.join(__dirname, '../components/WhatsAppConversation.tsx'), 'utf8');
+const source = process.env.WHATSAPP_TEMPLATE_UI_SOURCE || fs.readFileSync(path.join(__dirname, '../components/WhatsAppConversation.tsx'), 'utf8');
+const failureHelper = source.match(/function isDefinitiveTemplateFailure\([\s\S]*?\n\}/)?.[0] || '';
 const helper = source.match(/function approvedStaticTemplate\([\s\S]*?\n\}/)?.[0];
 const loadFunction = source.match(/  async function loadTemplateCatalogue\(\) \{[\s\S]*?\n  \}\n/)?.[0];
 const sendFunction = source.match(/  async function sendInitiationTemplate\(\) \{[\s\S]*?\n  \}\n/)?.[0];
@@ -17,7 +18,7 @@ function compile(text, jsx = ts.JsxEmit.React) {
   assert.deepEqual((result.diagnostics || []).filter(d => d.category === ts.DiagnosticCategory.Error), []);
   return result.outputText;
 }
-const javascript = compile(helper + '\n' + loadFunction + sendFunction + '\napi.load = loadTemplateCatalogue; api.send = sendInitiationTemplate; api.accepts = approvedStaticTemplate;\napi.derive = () => {\n' + derived + '\nreturn {serverUncertain,manualReplyUncertain,currentCatalogue,selectedTemplate,templateAlreadySubmitted};\n};\napi.window = () => {\n' + windowDerived + '\nreturn serviceWindowOpen;\n};');
+const javascript = compile(failureHelper + '\n' + helper + '\n' + loadFunction + sendFunction + '\napi.load = loadTemplateCatalogue; api.send = sendInitiationTemplate; api.accepts = approvedStaticTemplate;\napi.derive = () => {\n' + derived + '\nreturn {serverUncertain,manualReplyUncertain,currentCatalogue,selectedTemplate,templateAlreadySubmitted};\n};\napi.window = () => {\n' + windowDerived + '\nreturn serviceWindowOpen;\n};');
 const approved = { id: 'synthetic-template', name: 'watermelon_request_received', language: 'en_US', body: 'We received your Watermelon request.', status: 'APPROVED', category: 'UTILITY' };
 const catalogue = extra => ({ ok: true, eligible: true, eligibility_code: 'ELIGIBLE', requires_consent_confirmation: true,
   recipient: { name: 'Canonical server recipient', phone: '+351900000001' }, templates: [approved], ...extra });
@@ -51,6 +52,31 @@ function harness(results = []) {
   async function load() { derive(); await context.api.load(); derive(); }
   async function send() { derive(); await context.api.send(); derive(); }
   return { context, calls, feedback, load, send, derive, get uuidCalls() { return uuids; }, get refreshes() { return refreshes; } };
+}
+
+function renderThread(messages) {
+  const stateNames = Array.from(source.matchAll(/const \[([^,]+),[^\]]+\] = useState/g), match => match[1]);
+  let index = 0;
+  const context = {
+    exports: {}, React: { createElement(type, props, ...children) { return { type, props: props || {}, children }; } },
+    useMemo: fn => fn(), useRef: () => ({ current: null }), useEffect() {},
+    useState(value) { index++; return [value, () => {}]; },
+    createClient: () => ({ functions: { invoke() { throw new Error('Rendering must not send or load'); } } }),
+  };
+  vm.runInNewContext(compile(source.replace(/^import .*;\n/gm, '')), context);
+  const rendered = context.exports.default({ request: { id: 'synthetic-render-request', messages, items: [],
+    contact: { name: 'Synthetic customer', phone: '+351900000001' }, reference: 'SYNTHETIC', currency: 'EUR', estimated_total: null }, onChanged() {} });
+  assert.equal(index, stateNames.length);
+  const flatten = node => !node || typeof node !== 'object' ? [] : [node, ...(Array.isArray(node.children) ? node.children.flat(Infinity).flatMap(flatten) : [])];
+  const text = node => node == null || typeof node === 'boolean' ? '' : typeof node !== 'object' ? String(node) : (node.children || []).flat(Infinity).map(text).join('');
+  return { nodes: flatten(rendered), text };
+}
+
+function templateMessage(id, status = 'failed', state = 'submitted', receiptStatus = status) {
+  return { id, created_at: new Date().toISOString(), whatsapp_timestamp: new Date().toISOString(),
+    phone_number_id: '1423415737522090', is_private: false, direction: 'outbound', channel: 'whatsapp', message_type: 'template',
+    text_body: approved.body, source: 'crm_whatsapp_manual_template', status,
+    raw_payload: { manual_template: { version: 1, state }, ...(receiptStatus ? { template_delivery: { status: receiptStatus, meta_code: 131042 } } : {}) } };
 }
 
 test('catalogue is loaded only by explicit GET and filters to approved utility static BODY templates', async () => {
@@ -147,8 +173,62 @@ test('known rejection preserves draft and client attempt UUID without automatic 
   assert.equal(h.context.draft, draft); assert.equal(h.calls.length, 2); assert.equal(h.uuidCalls, 1);
   assert.ok(!h.feedback.join().includes('SYNTHETIC-SECRET'));
   await Promise.resolve(); assert.equal(h.calls.length, 2);
+  h.context.templateConsent = true;
   await h.send();
   assert.equal(h.calls.length, 3); assert.equal(h.calls[2].request.body.client_attempt_id, key); assert.equal(h.uuidCalls, 1);
+});
+
+test('Meta 131042 receipt renders the exact Portuguese billing explanation', () => {
+  const { nodes, text } = renderThread([templateMessage('synthetic-failed-template')]);
+  const alerts = nodes.filter(node => node.props.role === 'alert').map(text);
+  assert.ok(alerts.some(message => message.includes('A Meta bloqueou a entrega por um problema de faturação do WhatsApp. Verifica o método de pagamento na Meta.')));
+  assert.ok(!alerts.some(message => message.includes('WhatsApp rejected this message.')));
+});
+
+test('definitive failed receipt releases a locally submitted template only for a new consent and a fresh UUID', async () => {
+  const h = harness(); await h.load(); h.context.templateConsent = true; await h.send();
+  const oldKey = h.context.templateAttemptRef.current.key;
+  assert.equal(h.context.templateAlreadySubmitted, true);
+  h.context.messages = [templateMessage(oldKey)]; h.derive();
+  assert.equal(h.context.templateAlreadySubmitted, false, 'A Meta acceptance is not successful delivery after a failed receipt');
+  assert.equal(h.context.manualReplyUncertain, false);
+  assert.equal(h.context.templateConsent, false, 'The earlier POST must consume its consent confirmation');
+  await h.send(); assert.equal(h.calls.length, 2, 'No implicit retry after the receipt');
+  h.context.templateConsent = true; await h.send();
+  assert.equal(h.calls.length, 3);
+  assert.notEqual(h.calls[2].request.body.client_attempt_id, oldKey);
+  assert.equal(h.uuidCalls, 2);
+});
+
+test('unknown HTTP result resolved by a definitive failed receipt also requires new consent and a new UUID', async () => {
+  const h = harness([{ data: catalogue(), error: null }, { data: { ok: false, code: 'TEMPLATE_SEND_UNCERTAIN' }, error: null }]);
+  await h.load(); h.context.templateConsent = true; await h.send();
+  const oldKey = h.context.templateAttemptRef.current.key;
+  assert.equal(h.context.templateAttemptRef.current.outcome, 'unknown');
+  assert.equal(h.context.templateConsent, false);
+  assert.equal(h.context.manualReplyUncertain, true);
+  h.context.messages = [templateMessage(oldKey)]; h.derive();
+  assert.equal(h.context.manualReplyUncertain, false);
+  assert.equal(h.context.templateAlreadySubmitted, false);
+  await h.send(); assert.equal(h.calls.length, 2);
+  h.context.templateConsent = true; await h.send();
+  assert.equal(h.calls.length, 3);
+  assert.notEqual(h.calls[2].request.body.client_attempt_id, oldKey, 'A known failed delivery must not reuse the old attempt, even if the HTTP outcome remained unknown');
+});
+
+test('pending, unknown, sent, delivered, read and unproven failures keep template initiation blocked', async () => {
+  const cases = [
+    ['failed', 'pending', 'failed'], ['failed', 'unknown', 'failed'],
+    ['sent', 'submitted', 'sent'], ['delivered', 'submitted', 'delivered'], ['read', 'submitted', 'read'],
+    ['failed', 'submitted', null], ['failed', 'submitted', 'sent'],
+  ];
+  for (const [status, state, receipt] of cases) {
+    const h = harness(); await h.load(); h.context.templateConsent = true;
+    h.context.messages = [templateMessage('existing-template', status, state, receipt)]; h.derive();
+    assert.equal(h.context.manualReplyUncertain || h.context.templateAlreadySubmitted, true, JSON.stringify([status, state, receipt]));
+    await h.send(); assert.equal(h.calls.length, 1);
+    assert.equal(h.uuidCalls, 0);
+  }
 });
 
 test('backend pre-claim validation errors stay definite while durable-claim uncertainty remains blocked', async () => {

@@ -24,7 +24,7 @@ type ThreadItem = {
   status: "received" | "sent" | "delivered" | "read" | "failed" | "deleted";
   source: string;
   whatsapp_timestamp: string | null;
-  raw_payload?: { controlled_test_state?: string; manual_reply?: { state?: string; [key: string]: unknown }; manual_template?: { version?: number; state?: string; [key: string]: unknown }; errors?: Array<{ code?: number; message?: string }> } | null;
+  raw_payload?: { controlled_test_state?: string; manual_reply?: { state?: string; [key: string]: unknown }; manual_template?: { version?: number; state?: string; [key: string]: unknown }; template_delivery?: { status?: string; meta_code?: number }; errors?: Array<{ code?: number; message?: string }> } | null;
 };
 
 type InitiationTemplate = { id: string; name: string; language: string; body: string; status: "APPROVED"; category: "UTILITY" };
@@ -32,6 +32,11 @@ type TemplateCatalogue = {
   requestId: string; eligible: boolean; eligibility_code: string; requires_consent_confirmation: true;
   recipient: { name: string; phone: string }; templates: InitiationTemplate[];
 };
+
+function isDefinitiveTemplateFailure(message: ThreadItem) {
+  return message.source === MANUAL_TEMPLATE_SOURCE && message.status === "failed" &&
+    message.raw_payload?.manual_template?.state === "submitted" && message.raw_payload?.template_delivery?.status === "failed";
+}
 
 function approvedStaticTemplate(value: unknown): value is InitiationTemplate {
   const template = value as Partial<InitiationTemplate> | null;
@@ -151,8 +156,10 @@ export default function WhatsAppConversation({
     Boolean(templateAttemptRef.current?.requestId === request.id && templateUnconfirmedAttemptKey && !localTemplateAttemptConfirmed);
   const currentCatalogue = templateCatalogue?.requestId === request.id ? templateCatalogue : null;
   const selectedTemplate = currentCatalogue?.templates.find(template => template.name + ":" + template.language === selectedTemplateKey);
-  const templateAlreadySubmitted = messages.some(message => message.source === MANUAL_TEMPLATE_SOURCE && message.raw_payload?.manual_template?.state === "submitted") ||
-    (templateAttemptRef.current?.requestId === request.id && templateAttemptRef.current.outcome === "submitted");
+  const localTemplateDeliveryFailed = messages.some(message => message.id === templateAttemptRef.current?.key && isDefinitiveTemplateFailure(message));
+  const templateAlreadySubmitted = messages.some(message => message.source === MANUAL_TEMPLATE_SOURCE &&
+    message.raw_payload?.manual_template?.state === "submitted" && !isDefinitiveTemplateFailure(message)) ||
+    (templateAttemptRef.current?.requestId === request.id && templateAttemptRef.current.outcome === "submitted" && !localTemplateDeliveryFailed);
 
   useEffect(() => {
     const viewport = messagesViewportRef.current;
@@ -303,11 +310,14 @@ export default function WhatsAppConversation({
     if (sending || templateLoading || manualReplyUncertain || templateAlreadySubmitted || !templateConsent ||
       !currentCatalogue?.eligible || !selectedTemplate || !approvedStaticTemplate(selectedTemplate)) return;
     const previous = templateAttemptRef.current;
-    const attempt = previous?.requestId === request.id && previous.name === selectedTemplate.name && previous.language === selectedTemplate.language && previous.outcome !== "submitted"
+    const previousDeliveryFailed = messages.some(message => message.id === previous?.key && isDefinitiveTemplateFailure(message));
+    const attempt = previous?.requestId === request.id && previous.name === selectedTemplate.name && previous.language === selectedTemplate.language &&
+      previous.outcome !== "submitted" && !previousDeliveryFailed
       ? previous : { requestId: request.id, name: selectedTemplate.name, language: selectedTemplate.language, key: crypto.randomUUID(), outcome: "pending" };
     templateAttemptRef.current = attempt;
     attempt.outcome = "pending";
     setTemplateUnconfirmedAttemptKey(attempt.key);
+    setTemplateConsent(false);
     setSending(true);
     setFeedback("");
     try {
@@ -418,8 +428,10 @@ export default function WhatsAppConversation({
               </span>
               {message.direction === "outbound" && message.status === "failed" && !pendingTest && !pendingManual && !pendingTemplate && (
                 <p className="admin-error" role="alert">
-                  Not delivered — {message.raw_payload?.errors?.[0]?.message || "WhatsApp rejected this message."}
-                  {message.raw_payload?.errors?.[0]?.code ? " (Meta code " + message.raw_payload.errors[0].code + ")" : ""}
+                  {message.source === MANUAL_TEMPLATE_SOURCE && message.raw_payload?.template_delivery?.meta_code === 131042
+                    ? "A Meta bloqueou a entrega por um problema de faturação do WhatsApp. Verifica o método de pagamento na Meta."
+                    : <>Not delivered — {message.raw_payload?.errors?.[0]?.message || "WhatsApp rejected this message."}
+                      {message.raw_payload?.errors?.[0]?.code ? " (Meta code " + message.raw_payload.errors[0].code + ")" : ""}</>}
                 </p>
               )}
             </div>
