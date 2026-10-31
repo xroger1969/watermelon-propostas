@@ -87,7 +87,7 @@ export default function AdminBookings() {
   const [savingPaymentSettings, setSavingPaymentSettings] = useState(false);
   const [paymentSaved, setPaymentSaved] = useState(false);
   const [message, setMessage] = useState("");
-  const [manualPaymentHref, setManualPaymentHref] = useState("");
+  const [manualWhatsAppText, setManualWhatsAppText] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
 
   const supabase = useMemo(() => {
@@ -404,7 +404,7 @@ export default function AdminBookings() {
 
     setEditing(booking.id);
     setMessage("");
-    setManualPaymentHref("");
+    setManualWhatsAppText("");
 
     const { data, error } = await supabase.rpc(
       "watermelon_prepare_direct_booking_payment",
@@ -477,11 +477,10 @@ export default function AdminBookings() {
     } catch (sendError) {
       feedback = "Payment prepared, but it was not automatically sent. " +
         (sendError instanceof Error ? sendError.message : "");
-      // Keep the existing manual send option when automatic delivery fails.
+      // Never open a wa.me link from the CRM: it may select the user's personal WhatsApp.
       if (phone) {
-        const url = "https://wa.me/" + phone + "?text=" + encodeURIComponent(messageText);
-        setManualPaymentHref(url);
-        feedback += " Use the manual WhatsApp link below after checking that the message has not already been sent.";
+        setManualWhatsAppText(messageText);
+        feedback += " Copy the draft and send it exclusively through Watermelon WhatsApp Business (+351 965 637 736). Nothing was automatically sent.";
       } else {
         try {
           await navigator.clipboard.writeText(paymentUrl);
@@ -852,10 +851,14 @@ export default function AdminBookings() {
       </div>
 
       {message && <p className="admin-error">{message}</p>}
-      {manualPaymentHref && (
-        <a className="button button-outline" href={manualPaymentHref} target="_blank" rel="noopener noreferrer">
-          Open WhatsApp to send manually
-        </a>
+      {manualWhatsAppText && (
+        <button className="button button-outline" type="button" onClick={() => {
+          void navigator.clipboard.writeText(manualWhatsAppText)
+            .then(() => setMessage("Mensagem copiada. Cola-a no WhatsApp Business da Watermelon (+351 965 637 736) e envia manualmente."))
+            .catch(() => { window.prompt("Copia esta mensagem para o WhatsApp Business:", manualWhatsAppText); });
+        }}>
+          Copiar para WhatsApp Business
+        </button>
       )}
       {loading && <p className="admin-loading">Loading bookings…</p>}
 
@@ -981,21 +984,16 @@ export default function AdminBookings() {
                   Check Viator bookings
                 </a>
 
-                <a
+                <button
                   className="button button-ghost"
-                  href={
-                    "https://wa.me/" +
-                    booking.customer_phone.replace(/[^0-9]/g, "") +
-                    "?text=" +
-                    encodeURIComponent(
-                      "Hello " + booking.customer_name + ", regarding your Watermelon booking " + booking.reference + ": "
-                    )
-                  }
-                  target="_blank"
-                  rel="noreferrer"
+                  type="button"
+                  onClick={() => {
+                    setManualWhatsAppText("Hello " + booking.customer_name + ", regarding your Watermelon booking " + booking.reference + ": ");
+                    setMessage("Mensagem preparada, não enviada. Usa o botão Copiar para WhatsApp Business, exclusivo da Watermelon.");
+                  }}
                 >
-                  General WhatsApp message
-                </a>
+                  Preparar mensagem WhatsApp Business
+                </button>
               </div>
             </article>
           );
