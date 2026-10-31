@@ -52,20 +52,22 @@ function runtime(options = {}) {
       const rows = tables[table] ||= [];
       operations.push({ table, operation, filters: copy(filters), input: copy(input) });
       if (options.lookupFailure && operation === 'select') return { data: null, error: { code: 'DB_DOWN' } };
-      if (options.guardReadHook && operation === 'select' && table === 'watermelon_activities') await options.guardReadHook();
+      if (options.guardReadHook && operation === 'select' && filters.some(x => x[1] === 'source' && x[2] === 'crm_cloud_api_manual_guard')) await options.guardReadHook();
       if (operation === 'insert') {
-        if (options.guardFailure && table === 'watermelon_activities') return { data: null, error: { code: 'DB_DOWN' } };
-        if (options.claimFailure && table === 'watermelon_messages') return { data: null, error: { code: 'DB_DOWN' } };
+        if (table === 'watermelon_activities' && input.id !== undefined) throw new Error('Schema: activity IDs are GENERATED ALWAYS bigint');
+        if (table === 'watermelon_messages') assert.match(input.id, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, 'Schema: message ID must be UUID');
+        if (options.guardFailure && input.source === 'crm_cloud_api_manual_guard') return { data: null, error: { code: 'DB_DOWN' } };
+        if (options.claimFailure && input.source === 'crm_cloud_api_manual') return { data: null, error: { code: 'DB_DOWN' } };
         if (rows.some(row => row.id === input.id)) return { data: null, error: { code: '23505' } };
         // Unique-key reservation is atomic: no await between conflict check and insert.
         rows.push(copy(input));
-        if (options.claimHook && table === 'watermelon_messages') options.claimHook(tables, config);
+        if (options.claimHook && input.source === 'crm_cloud_api_manual') options.claimHook(tables, config);
         return { data: null, error: null };
       }
       let selected = rows.filter(matches);
       if (operation === 'update') {
-        if ((options.updateFailure && table === 'watermelon_messages') || (options.guardReleaseFailure && table === 'watermelon_activities' && input.metadata?.manual_guard?.state === 'released')) return { data: null, error: { code: 'DB_DOWN' } };
-        if (options.updateNoRows && table === 'watermelon_messages') return { data: null, error: null };
+        if ((options.updateFailure && input.raw_payload?.manual_reply) || (options.guardReleaseFailure && input.raw_payload?.manual_guard?.state === 'released')) return { data: null, error: { code: 'DB_DOWN' } };
+        if (options.updateNoRows && input.raw_payload?.manual_reply) return { data: null, error: null };
         for (const row of selected) Object.assign(row, copy(input));
       }
       if (order) selected.sort((a, b) => String(valueAt(b, order)).localeCompare(String(valueAt(a, order))));
@@ -95,7 +97,7 @@ function runtime(options = {}) {
   async function fetch(url, request) {
     assert.equal(url, `https://graph.facebook.com/v25.0/${PHONE}/messages`);
     assert.ok(tables.watermelon_messages.some(row => row.raw_payload?.manual_reply?.state === 'pending'), 'Durable claim must exist before Graph');
-    assert.ok(tables.watermelon_activities.some(row => row.metadata?.manual_guard?.state === 'locked'), 'Conversation guard must exist before Graph');
+    assert.ok(tables.watermelon_messages.some(row => row.raw_payload?.manual_guard?.state === 'locked'), 'Conversation guard must exist before Graph');
     assert.equal(request.headers.Authorization, 'Bearer SYNTHETIC-SERVER-TOKEN');
     assert.equal(request.redirect, 'error', 'Do not forward this authenticated send through redirects');
     const body = JSON.parse(request.body);
@@ -136,6 +138,10 @@ test('manual send derives recipient and reserves one durable immutable attempt b
   assert.equal(stored.source, 'crm_cloud_api_manual'); assert.equal(stored.status, 'sent');
   assert.equal(stored.raw_payload.manual_reply.state, 'submitted'); assert.equal(stored.whatsapp_message_id, 'wamid.manual-1');
   assert.ok(!JSON.stringify(stored).includes('SYNTHETIC-SERVER-TOKEN'));
+  const guard = r.tables.watermelon_messages.find(row => row.source === 'crm_cloud_api_manual_guard');
+  assert.equal(guard.is_private, true); assert.equal(guard.text_body, null); assert.equal(guard.direction, 'outbound');
+  assert.equal(guard.whatsapp_message_id, null);
+  assert.equal(r.operations.filter(row => row.table === 'watermelon_activities').length, 0, 'Do not override GENERATED ALWAYS bigint activity IDs');
   assert.deepEqual(r.rpcs, ['watermelon_whatsapp_admin_status', 'watermelon_whatsapp_server_config', 'watermelon_whatsapp_server_config']);
 });
 test('submitted retry acknowledges original WAMID without contacting Graph again', async () => {
@@ -155,13 +161,13 @@ test('concurrent different UUIDs for one request produce at most one Graph call'
   const third = '77777777-7777-4777-8777-777777777777';
   const responses = await Promise.all([r.post(), r.post({ idempotency_key: second }), r.post({ idempotency_key: third, text: 'Outro texto explícito' })]);
   assert.equal(r.graphCalls.length, 1); assert.equal(responses.filter(x => x.status === 200).length, 1);
-  assert.equal(r.tables.watermelon_activities.length, 1);
+  assert.equal(r.tables.watermelon_messages.filter(row => row.source === 'crm_cloud_api_manual_guard').length, 1);
 });
 test('uncertain attempt blocks any new UUID even with a different explicit draft', async () => {
   const r = runtime({ networkThrows: true }); await r.post();
   const response = await r.post({ idempotency_key: '66666666-6666-4666-8666-666666666666', text: 'Novo rascunho' });
   assert.equal(response.status, 409); assert.equal((await response.json()).code, 'MANUAL_REPLY_BLOCKED_BY_EXISTING_ATTEMPT');
-  assert.equal(r.graphCalls.length, 1); assert.equal(r.tables.watermelon_messages.filter(row => row.direction === 'outbound').length, 1);
+  assert.equal(r.graphCalls.length, 1); assert.equal(r.tables.watermelon_messages.filter(row => row.source === 'crm_cloud_api_manual').length, 1);
 });
 test('a delayed concurrent new UUID cannot resend the same draft after the winner releases its guard', async () => {
   let releaseRead;
@@ -246,6 +252,13 @@ test('service window requires a non-private inbound in this request/contact and 
 test('a recent old-personal conversation cannot open the service window or create a queue', async () => {
   const tables = fixture(); tables.watermelon_messages[0].phone_number_id = '874910289048462';
   await rejected(runtime({ tables }), 409);
+});
+test('an internal guard cannot open a service window even with an incorrect privacy flag', async () => {
+  for (const privateFlag of [true, false]) {
+    const tables = fixture(); tables.watermelon_messages[0].source = 'crm_cloud_api_manual_guard';
+    tables.watermelon_messages[0].is_private = privateFlag;
+    await rejected(runtime({ tables }), 409);
+  }
 });
 test('read or claim persistence failure prevents all Graph calls', async () => {
   await rejected(runtime({ lookupFailure: true }), 503);
