@@ -52,6 +52,7 @@ function runtime(options = {}) {
       const rows = tables[table] ||= [];
       operations.push({ table, operation, filters: copy(filters), input: copy(input) });
       if (options.lookupFailure && operation === 'select') return { data: null, error: { code: 'DB_DOWN' } };
+      if (options.guardReadHook && operation === 'select' && table === 'watermelon_activities') await options.guardReadHook();
       if (operation === 'insert') {
         if (options.guardFailure && table === 'watermelon_activities') return { data: null, error: { code: 'DB_DOWN' } };
         if (options.claimFailure && table === 'watermelon_messages') return { data: null, error: { code: 'DB_DOWN' } };
@@ -162,6 +163,22 @@ test('uncertain attempt blocks any new UUID even with a different explicit draft
   assert.equal(response.status, 409); assert.equal((await response.json()).code, 'MANUAL_REPLY_BLOCKED_BY_EXISTING_ATTEMPT');
   assert.equal(r.graphCalls.length, 1); assert.equal(r.tables.watermelon_messages.filter(row => row.direction === 'outbound').length, 1);
 });
+test('a delayed concurrent new UUID cannot resend the same draft after the winner releases its guard', async () => {
+  let releaseRead;
+  const winnerFinished = new Promise(resolve => { releaseRead = resolve; });
+  const r = runtime({ graphHook: () => new Promise(resolve => setTimeout(resolve, 5)), guardReadHook: () => winnerFinished });
+  const first = r.post();
+  const delayed = r.post({ idempotency_key: '66666666-6666-4666-8666-666666666666' });
+  assert.equal((await first).status, 200); releaseRead();
+  const duplicate = await delayed;
+  assert.equal(duplicate.status, 200); assert.equal((await duplicate.json()).deduplicated, true); assert.equal(r.graphCalls.length, 1);
+});
+test('same draft/proof remains deduplicated across different UUIDs and operators after submission', async () => {
+  const r = runtime(); await r.post();
+  const another = runtime({ tables: r.tables, actor: '88888888-8888-4888-8888-888888888888' });
+  const response = await another.post({ idempotency_key: '66666666-6666-4666-8666-666666666666' });
+  assert.equal(response.status, 200); assert.equal((await response.json()).deduplicated, true); assert.equal(another.graphCalls.length, 0);
+});
 test('released guard is atomically reacquired for only one of two new UUIDs', async () => {
   const r = runtime({ graphHook: () => new Promise(resolve => setTimeout(resolve, 5)) }); await r.post();
   const responses = await Promise.all([
@@ -251,6 +268,9 @@ test('definitive Meta rejection exposes only finite numeric diagnostics and cons
   assert.ok(!JSON.stringify(body).includes('SYNTHETIC-SENSITIVE'));
   assert.equal((await r.post()).status, 409); assert.equal(r.graphCalls.length, 1);
   assert.equal(r.tables.watermelon_messages.find(row => row.id === KEY).raw_payload.manual_reply.state, 'rejected');
+  // A deliberate new key can retry after a definitive rejection; the old key never sends twice.
+  await r.post({ idempotency_key: '66666666-6666-4666-8666-666666666666' });
+  assert.equal(r.graphCalls.length, 2);
 });
 test('accepted Graph message followed by failed/no-row DB update keeps the durable key consumed', async () => {
   for (const options of [{ updateFailure: true }, { updateNoRows: true }]) {
