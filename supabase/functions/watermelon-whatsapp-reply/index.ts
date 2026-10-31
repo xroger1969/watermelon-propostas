@@ -7,6 +7,7 @@ const BUSINESS = "351965637736";
 const PHONE_ID = "1423415737522090";
 const WABA_ID = "4408982439363483";
 const SOURCE = "crm_cloud_api_manual";
+const GUARD_SOURCE = "crm_cloud_api_manual_guard";
 const GRAPH_VERSION = "v25.0";
 const ORIGINS = new Set(["https://watermelonexperiences.pt", "https://www.watermelonexperiences.pt"]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -115,7 +116,8 @@ Deno.serve(async (req: Request) => {
       receivedAt > now.getTime() || receivedAt <= now.getTime() - 24 * 60 * 60 * 1000)
       return result(req, 409, "DEDICATED_SERVICE_WINDOW_REQUIRED", { retry_allowed: false });
 
-    // A separate activity PK serializes different UUIDs for this conversation.
+    // A private internal row serializes different UUIDs for this conversation.
+    // Its source is excluded from conversations, proofs and delivery receipts.
     // A SELECT alone would allow two tabs to reserve different message PKs.
     const guardHash = await digest(`manual-reply-guard:${requestId}:${contact.id}:${PHONE_ID}`);
     const guardId = `${guardHash.slice(0, 8)}-${guardHash.slice(8, 12)}-8${guardHash.slice(13, 16)}-a${guardHash.slice(17, 20)}-${guardHash.slice(20, 32)}`;
@@ -123,17 +125,19 @@ Deno.serve(async (req: Request) => {
     // inbound proof match. Keep that fingerprint after release as well.
     const draftHash = await digest(JSON.stringify({ requestId, contactId: contact.id, to, text, phoneId: PHONE_ID, proofId: inbound.id }));
     const guardMetadata = { state: "locked", idempotency_key: key, operation_hash: hash, draft_hash: draftHash, proof_message_id: inbound.id };
-    const { error: guardInsertError } = await admin.from("watermelon_activities").insert({
+    const { error: guardInsertError } = await admin.from("watermelon_messages").insert({
       id: guardId, request_id: requestId, contact_id: contact.id,
-      activity_type: "whatsapp_manual_reply_guard", summary: "Envio manual reservado",
-      metadata: { manual_guard: guardMetadata },
+      direction: "outbound", channel: "whatsapp", phone_number_id: PHONE_ID,
+      from_phone: BUSINESS, to_phone: to, wa_id: to, message_type: "text",
+      status: "failed", source: GUARD_SOURCE, is_private: true, text_body: null,
+      whatsapp_message_id: null, raw_payload: { manual_guard: guardMetadata },
     });
     if (guardInsertError) {
       if (guardInsertError.code !== "23505") return result(req, 503, "MANUAL_REPLY_GUARD_UNAVAILABLE", { retry_allowed: false });
-      const { data: guard, error: guardReadError } = await admin.from("watermelon_activities")
-        .select("id,metadata").eq("id", guardId).eq("request_id", requestId).eq("contact_id", contact.id)
-        .eq("activity_type", "whatsapp_manual_reply_guard").maybeSingle();
-      const previousGuard = guard?.metadata?.manual_guard;
+      const { data: guard, error: guardReadError } = await admin.from("watermelon_messages")
+        .select("id,raw_payload").eq("id", guardId).eq("request_id", requestId).eq("contact_id", contact.id)
+        .eq("phone_number_id", PHONE_ID).eq("source", GUARD_SOURCE).eq("is_private", true).maybeSingle();
+      const previousGuard = guard?.raw_payload?.manual_guard;
       if (guardReadError) return result(req, 503, "MANUAL_REPLY_GUARD_UNAVAILABLE", { retry_allowed: false });
       if (previousGuard?.state !== "released" || typeof previousGuard.idempotency_key !== "string" || previousGuard.idempotency_key === key)
         return result(req, 409, "MANUAL_REPLY_BLOCKED_BY_EXISTING_ATTEMPT", { retry_allowed: false });
@@ -149,23 +153,22 @@ Deno.serve(async (req: Request) => {
             whatsapp_message_id: submitted.whatsapp_message_id, delivery_verified: false });
         return result(req, 409, "MANUAL_REPLY_BLOCKED_BY_EXISTING_ATTEMPT", { retry_allowed: false });
       }
-      const { data: acquired, error: acquireError } = await admin.from("watermelon_activities").update({
-        metadata: { manual_guard: guardMetadata }, summary: "Envio manual reservado",
-      }).eq("id", guardId).eq("activity_type", "whatsapp_manual_reply_guard")
-        .eq("metadata->manual_guard->>state", "released")
-        .eq("metadata->manual_guard->>idempotency_key", previousGuard.idempotency_key)
+      const { data: acquired, error: acquireError } = await admin.from("watermelon_messages").update({
+        raw_payload: { manual_guard: guardMetadata },
+      }).eq("id", guardId).eq("source", GUARD_SOURCE).eq("is_private", true).eq("phone_number_id", PHONE_ID)
+        .eq("raw_payload->manual_guard->>state", "released")
+        .eq("raw_payload->manual_guard->>idempotency_key", previousGuard.idempotency_key)
         .select("id").maybeSingle();
       if (acquireError) return result(req, 503, "MANUAL_REPLY_GUARD_UNAVAILABLE", { retry_allowed: false });
       if (!acquired) return result(req, 409, "MANUAL_REPLY_BLOCKED_BY_EXISTING_ATTEMPT", { retry_allowed: false });
     }
     async function setGuardState(state: "released" | "unknown", outcome?: "submitted" | "rejected") {
       try {
-        const { data, error } = await admin.from("watermelon_activities").update({
-          metadata: { manual_guard: { ...guardMetadata, state, ...(outcome ? { outcome } : {}) } },
-          summary: state === "released" ? "Tentativa de envio manual concluída" : "Resultado do envio manual por confirmar",
-        }).eq("id", guardId).eq("activity_type", "whatsapp_manual_reply_guard")
-          .eq("metadata->manual_guard->>idempotency_key", key)
-          .eq("metadata->manual_guard->>operation_hash", hash).eq("metadata->manual_guard->>state", "locked")
+        const { data, error } = await admin.from("watermelon_messages").update({
+          raw_payload: { manual_guard: { ...guardMetadata, state, ...(outcome ? { outcome } : {}) } },
+        }).eq("id", guardId).eq("source", GUARD_SOURCE).eq("is_private", true).eq("phone_number_id", PHONE_ID)
+          .eq("raw_payload->manual_guard->>idempotency_key", key)
+          .eq("raw_payload->manual_guard->>operation_hash", hash).eq("raw_payload->manual_guard->>state", "locked")
           .select("id").maybeSingle();
         return !error && Boolean(data);
       } catch { return false; } // A failed release keeps the conversation blocked.
