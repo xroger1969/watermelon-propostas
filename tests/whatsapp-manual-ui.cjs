@@ -165,3 +165,24 @@ test('refresh failure preserves a confirmed submission and never retries it auto
   assert.equal(h.context.sending, false);
   assert.match(h.feedback.at(-1), /Mensagem aceite pela Meta/);
 });
+
+test('conversation renders only explicitly public rows from the exact dedicated endpoint and allowed sources', () => {
+  const begin = source.indexOf('.filter((message) =>');
+  const end = source.indexOf('\n        .sort', begin);
+  assert.ok(begin >= 0 && end > begin);
+  const phone = source.match(/const DEDICATED_PHONE_ID = "([0-9]+)";/)?.[1];
+  assert.equal(phone, '1423415737522090');
+  const visibleExpression = source.match(/const VISIBLE_SOURCES = ([^;]+);/)?.[1];
+  assert.ok(visibleExpression);
+  const allowed = new Function('MANUAL_REPLY_SOURCE', 'TEST_REPLY_SOURCE', 'return ' + visibleExpression)('crm_cloud_api_manual', 'crm_cloud_api_controlled_test');
+  const select = new Function('messages', 'DEDICATED_PHONE_ID', 'VISIBLE_SOURCES', 'return messages' + source.slice(begin, end));
+  const good = { id: 'public', is_private: false, phone_number_id: phone, source: 'cloud_api' };
+  const rows = [good,
+    { ...good, id: 'private', is_private: true }, { ...good, id: 'null-privacy', is_private: null },
+    { ...good, id: 'unknown-privacy', is_private: undefined },
+    { ...good, id: 'personal-phone', phone_number_id: '874910289048462' },
+    { ...good, id: 'missing-phone', phone_number_id: null }, { ...good, id: 'other-phone', phone_number_id: 'unexpected' },
+    ...['crm_cloud_api', 'crm_cloud_api_template', 'crm_cloud_api_pending', null, undefined].map((value, index) => ({ ...good, id: 'legacy-' + index, source: value })),
+    { ...good, id: 'manual', source: 'crm_cloud_api_manual' }, { ...good, id: 'test', source: 'crm_cloud_api_controlled_test' }];
+  assert.deepEqual(select(rows, phone, allowed).map(message => message.id), ['public', 'manual', 'test']);
+});

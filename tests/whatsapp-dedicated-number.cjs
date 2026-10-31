@@ -31,7 +31,8 @@ test("manual CRM replies use the dedicated endpoint and webhook automated sends 
   assert.doesNotMatch(conversation, /watermelon-whatsapp-send-v2/);
   assert.match(conversation, /Copiar para WhatsApp Business/);
   assert.doesNotMatch(conversation, /wa\.me\/|Open in WhatsApp/);
-  assert.match(conversation, /message\.phone_number_id !== LEGACY_PERSONAL_PHONE_ID/);
+  assert.match(conversation, /message\.phone_number_id === DEDICATED_PHONE_ID/);
+  assert.match(conversation, /message\.is_private === false/);
   assert.match(setup, /WATERMELON_BUSINESS_DIGITS = "351965637736"/);
   assert.doesNotMatch(setup, /p_access_token: accessToken\.trim\(\)/);
   assert.match(templates, /configuredBusiness !== "351965637736"/);

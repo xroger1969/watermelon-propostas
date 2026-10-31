@@ -45,7 +45,8 @@ test('conversation heading makes the temporary pause and business-only workflow 
   assert.ok(heading.includes('WhatsApp empresarial +351 965 637 736.'));
   assert.ok(heading.includes('TESTE WATERMELON 965'));
   assert.ok(heading.includes('Copiar para WhatsApp Business'));
-  assert.ok(heading.includes('message.phone_number_id !== LEGACY_PERSONAL_PHONE_ID'));
+  assert.ok(heading.includes('message.phone_number_id === DEDICATED_PHONE_ID'));
+  assert.ok(heading.includes('message.is_private === false'));
   assert.ok(!heading.includes('wa.me/'));
   assert.ok(!heading.includes('Full contact history'));
 });

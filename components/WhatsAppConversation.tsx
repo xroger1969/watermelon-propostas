@@ -6,9 +6,10 @@ import { createClient } from "@/lib/supabase/client";
 // Only explicit manual replies use the new endpoint; legacy automation stays paused.
 const WHATSAPP_CRM_ENABLED = true;
 const MANUAL_REPLY_SOURCE = "crm_cloud_api_manual";
-const LEGACY_PERSONAL_PHONE_ID = "874910289048462";
+const DEDICATED_PHONE_ID = "1423415737522090";
 const TEST_REPLY_ID = "96563773-6000-8000-a000-000000000001";
 const TEST_REPLY_SOURCE = "crm_cloud_api_controlled_test";
+const VISIBLE_SOURCES = new Set(["cloud_api", MANUAL_REPLY_SOURCE, TEST_REPLY_SOURCE]);
 const TEST_REPLY_TEXT = "Teste Watermelon recebido. A ligação de resposta do CRM está a funcionar.";
 
 type ThreadItem = {
@@ -94,7 +95,8 @@ export default function WhatsAppConversation({
   const messages = useMemo(
     () =>
       [...(request.messages || [])]
-        .filter((message) => message.is_private !== true && message.phone_number_id !== LEGACY_PERSONAL_PHONE_ID)
+        .filter((message) => message.is_private === false &&
+          message.phone_number_id === DEDICATED_PHONE_ID && VISIBLE_SOURCES.has(message.source))
         .sort(
           (a, b) =>
             new Date(a.whatsapp_timestamp || a.created_at).getTime() -
