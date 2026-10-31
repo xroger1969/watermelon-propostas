@@ -253,7 +253,7 @@ export default function WhatsAppConversation({
         <div>
           <strong>WhatsApp conversation</strong>
           <span>
-            WhatsApp CRM temporariamente pausado. O número pessoal não é sincronizado; a ligação ao novo WhatsApp Business +351 965 637 736 está em preparação.
+            Envio WhatsApp pausado. Receção em teste apenas com «TESTE WATERMELON 965» no +351 965 637 736. O número pessoal não é sincronizado.
           </span>
         </div>
         {messages.length > 0 && (
@@ -289,7 +289,7 @@ export default function WhatsAppConversation({
       )}
 
       <div className="crm-whatsapp-compose">
-        <p className="admin-error" role="status">O envio e a receção por WhatsApp no CRM estão suspensos até à validação do novo número empresarial. Para já, copia a mensagem e cola-a na aplicação WhatsApp Business.</p>
+        <p className="admin-error" role="status">Envio pausado. A receção aceita apenas a frase exata «TESTE WATERMELON 965» no número empresarial. Para mensagens de saída, copia o texto para a aplicação WhatsApp Business.</p>
         <textarea
           rows={3}
           value={draft}
@@ -338,9 +338,10 @@ export default function WhatsAppConversation({
         </div>
 
         <p className="crm-whatsapp-window-note">
-          A integração com a Meta ainda não foi validada para o novo número empresarial. Nenhuma mensagem é enviada automaticamente pelo CRM nesta fase.
+          O envio pelo CRM continua pausado. A receção aceita apenas a frase de teste no número empresarial.
         </p>
       </div>
     </section>
   );
 }
+

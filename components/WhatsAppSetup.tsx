@@ -7,6 +7,9 @@ import PrivateAreaNav from "@/components/PrivateAreaNav";
 const WATERMELON_BUSINESS_NUMBER = "+351 965 637 736";
 const WATERMELON_BUSINESS_DIGITS = "351965637736";
 const LEGACY_PHONE_ID = "874910289048462";
+const DEDICATED_PHONE_ID = "1423415737522090";
+const DEDICATED_WABA_ID = "4408982439363483";
+const INBOUND_TEST_PHRASE = "TESTE WATERMELON 965";
 function phoneDigits(value: unknown) { return String(value || "").replace(/\D/g, ""); }
 
 type WhatsAppTemplate = {
@@ -110,7 +113,7 @@ export default function WhatsAppSetup() {
       setMetaCode("");
       setMetaRedirectUri("");
       setMetaWabaId("");
-      setCoexistenceMessage("Autorização e subscrição Meta confirmadas para o número Watermelon. Os envios e a receção no CRM continuam pausados até aos testes controlados.");
+      setCoexistenceMessage("Autorização e subscrição Meta confirmadas. Receção em teste apenas com TESTE WATERMELON 965. Envio pausado.");
       await load();
     } catch (error) {
       setCoexistenceMessage(error instanceof Error ? error.message : "Connection could not be completed.");
@@ -143,7 +146,7 @@ export default function WhatsAppSetup() {
         throw new Error(message);
       }
       if (!data?.ok) throw new Error(String(data?.error || "A Meta não confirmou acesso ao número empresarial."));
-      setCoexistenceMessage("Autorização Meta existente validada para +351 965 637 736. Associação guardada; envio e receção no CRM continuam pausados até aos testes controlados.");
+      setCoexistenceMessage("Autorização Meta existente validada para +351 965 637 736. Receção em teste apenas com TESTE WATERMELON 965. Envio pausado.");
       await load();
     } catch (error) {
       setCoexistenceMessage(error instanceof Error ? error.message : "Não foi possível validar a autorização Meta.");
@@ -228,7 +231,7 @@ export default function WhatsAppSetup() {
   }
 
   const isDedicated = phoneDigits(status?.business_phone) === WATERMELON_BUSINESS_DIGITS &&
-    status?.phone_number_id !== LEGACY_PHONE_ID;
+    status?.phone_number_id === DEDICATED_PHONE_ID && status?.waba_id === DEDICATED_WABA_ID;
   const ready = Boolean(
     isDedicated && status?.has_app_secret &&
       status?.has_access_token &&
@@ -259,14 +262,15 @@ export default function WhatsAppSetup() {
       ) : (
         <>
           <p className="admin-error" role="status">
-            Integração WhatsApp CRM pausada por segurança. Número pessoal +351 918 404 101 excluído.
-            O único número autorizado para a Watermelon é {WATERMELON_BUSINESS_NUMBER}.
-            A receção e o envio automáticos só serão retomados após validação da Meta e testes reais.
+            {isDedicated
+              ? <>Receção em teste: aceita apenas a mensagem exata «{INBOUND_TEST_PHRASE}» enviada para {WATERMELON_BUSINESS_NUMBER}. Envio pausado.</>
+              : <>Integração WhatsApp CRM pausada por segurança. O único número autorizado para a Watermelon é {WATERMELON_BUSINESS_NUMBER}.</>}
+            {" "}O número pessoal +351 918 404 101 continua excluído da sincronização.
           </p>
           <div className="whatsapp-setup-status">
             <div>
               <span>Credentials</span>
-              <strong>{ready ? "Novo número validado (envio pausado)" : isDedicated ? "Incompleto" : "Número pessoal antigo isolado"}</strong>
+              <strong>{ready ? "Receção em teste · Envio pausado" : isDedicated ? "Incompleto" : "Configuração não autorizada"}</strong>
             </div>
             <div>
               <span>{isDedicated ? "Webhook" : "Webhook anterior"}</span>
@@ -338,7 +342,7 @@ export default function WhatsAppSetup() {
                   onClick={() => void validateExistingAuthorization()}>
                   {coexistenceBusy ? "A validar na Meta…" : "Validar autorização Meta já concedida"}
                 </button>
-                <p className="whatsapp-setup-note">Depois de concluíres a autorização na Meta, valida o acesso já guardado no servidor. Apenas o número empresarial +351 965 637 736 pode ser associado. As mensagens continuam pausadas.</p>
+                <p className="whatsapp-setup-note">Depois de concluíres a autorização na Meta, valida o acesso já guardado no servidor. Apenas o número empresarial +351 965 637 736 pode ser associado. Receção limitada à frase de teste; envio pausado.</p>
               </div>
               <label>
                 <span>WABA ID da ligação Watermelon (obtido na Meta)</span>
@@ -459,10 +463,10 @@ export default function WhatsAppSetup() {
               </div>
             </div>
             <div className="whatsapp-flow-list">
-              <span>Depois da ativação validada: mensagens recebidas no +351 965 637 736 serão associadas ao pedido comercial correto.</span>
+              <span>Receção em teste no +351 965 637 736: apenas a frase exata «{INBOUND_TEST_PHRASE}» pode entrar no CRM. Outras mensagens ficam excluídas.</span>
               <span>Nunca importar conversas nem contactos do WhatsApp pessoal 918 404 101.</span>
               <span>Os envios a partir do CRM mantêm-se bloqueados até aos testes controlados com a Meta.</span>
-              <span>Delivery/read status is synchronized back to the CRM when Meta sends it.</span>
+              <span>Os estados de entrega e leitura ficam suspensos durante o teste de receção.</span>
             </div>
           </article>
         </>
@@ -470,4 +474,5 @@ export default function WhatsAppSetup() {
     </section>
   );
 }
+
 

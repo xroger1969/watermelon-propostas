@@ -15,20 +15,22 @@ function compile(sourceText) {
   return compiled.outputText;
 }
 assert.match(source, /const CRM_OUTBOUND_ENABLED = false;/);
-assert.match(source, /const CRM_INBOUND_ENABLED = false;/);
+assert.match(source, /const CRM_INBOUND_ENABLED = true;/);
+assert.match(source, /const CRM_INBOUND_TEST_ONLY = true;/);
 const javascript = compile(source);
-// The production source is paused. Enable only the in-memory VM copy below to
-// preserve the commercial-routing regression suite without changing production.
-const routingGuard = 'const CRM_INBOUND_ENABLED = false;';
-assert.equal(source.split(routingGuard).length, 2, 'Only the inbound guard may be overridden for routing tests');
-const routingJavascript = compile(source.replace(routingGuard, 'const CRM_INBOUND_ENABLED = true;'));
+// Production accepts only the exact test phrase. Separate VM copies exercise
+// the emergency pause and prepared future routing without widening production.
+const routingGuard = 'const CRM_INBOUND_ENABLED = true;';
+assert.equal(source.split(routingGuard).length, 2);
+const pausedJavascript = compile(source.replace(routingGuard, 'const CRM_INBOUND_ENABLED = false;'));
+const routingJavascript = compile(source.replace('const CRM_INBOUND_TEST_ONLY = true;', 'const CRM_INBOUND_TEST_ONLY = false;'));
 const config = {
   verify_token: 'synthetic-verify-token', app_secret: 'synthetic-secret',
-  access_token: 'synthetic-token', phone_number_id: 'test-phone', waba_id: 'test-waba',
-  business_phone: '+351918404101', graph_version: 'v25.0',
+  access_token: 'synthetic-token', phone_number_id: '1423415737522090', waba_id: '4408982439363483',
+  business_phone: '+351965637736', graph_version: 'v25.0',
 };
 const customerPhone = '351900000001';
-const businessPhone = '351918404101';
+const businessPhone = '351965637736';
 const copy = value => structuredClone(value);
 function fixture() {
   return {
@@ -58,14 +60,17 @@ function createRuntimeWithJavascript(tables = fixture(), fail = () => false, jav
         const rows = tables[table] ?? [];
         let result;
         if (mutation) {
-          const [op, input] = mutation;
+          const [op, input, options] = mutation;
           writes.push({ table, op, input: copy(input), ops: copy(ops) });
           if (op === 'update') {
             result = rows.filter(matching);
             for (const row of result) Object.assign(row, copy(input));
           } else {
-            const entries = Array.isArray(input) ? input : [input];
-            result = entries.map((row, i) => ({ id: `synthetic-new-${writes.length}-${i}`, is_private: false, ...copy(row) }));
+            const entries = (Array.isArray(input) ? input : [input]).filter(row =>
+              !(op === 'upsert' && options?.ignoreDuplicates && rows.some(existing => existing[options.onConflict] === row[options.onConflict]))
+            );
+            result = entries.map((row, i) => ({ id: `synthetic-new-${writes.length}-${i}`, is_private: false,
+              ...(row.phone ? { phone_digits: row.phone.replace(/\D/g, '') } : {}), ...copy(row) }));
             tables[table] ??= [];
             tables[table].push(...result);
           }
@@ -99,6 +104,9 @@ function createRuntimeWithJavascript(tables = fixture(), fail = () => false, jav
   return { api, tables, reads, writes, rpcs, logs, get graphCalls() { return graphCalls; } };
 }
 function createRuntime(tables, fail) {
+  return createRuntimeWithJavascript(tables, fail, pausedJavascript);
+}
+function createControlledRuntime(tables, fail) {
   return createRuntimeWithJavascript(tables, fail, javascript);
 }
 function createRoutingRuntime(tables, fail) {
@@ -136,6 +144,62 @@ async function rejected(name, mutate = () => {}, payload = () => event(), fail =
 }
 
 (async () => {
+  const testMessage = override => inbound({ context: undefined, text: { body: 'TESTE WATERMELON 965' }, ...override });
+  await test('controlled production receives only the exact authorised business test phrase', async () => {
+    const tables = fixture(); tables.watermelon_contacts = []; tables.watermelon_messages = [];
+    const runtime = createControlledRuntime(tables);
+    assert.equal((await post(runtime, event(testMessage()))).status, 200);
+    const stored = tables.watermelon_messages;
+    assert.equal(stored.length, 1);
+    assert.equal(stored[0].text_body, 'TESTE WATERMELON 965');
+    assert.equal(stored[0].phone_number_id, '1423415737522090');
+    assert.equal(stored[0].direction, 'inbound');
+    assert.equal(runtime.graphCalls, 0);
+    const count = runtime.writes.length;
+    assert.equal((await post(runtime, event(testMessage()))).status, 200);
+    assert.equal(runtime.writes.length, count, 'Repeated test delivery is idempotent');
+  });
+  for (const message of [
+    inbound(), testMessage({ text: { body: 'ordinary personal or business text' } }),
+    testMessage({ text: { body: 'TESTE WATERMELON 965 ' } }), testMessage({ text: { body: ' TESTE WATERMELON 965' } }),
+    testMessage({ text: { body: 'teste watermelon 965' } }), testMessage({ text: { body: 'TESTE WATERMELON 965\n' } }),
+    ...['image', 'audio', 'document', 'contacts', 'interactive'].map(type => testMessage({ type })),
+  ]) await test(`controlled production discards non-exact text/type ${JSON.stringify(message.text)} ${message.type}`, async () => {
+    const runtime = createControlledRuntime();
+    assert.equal((await post(runtime, event(message))).status, 200);
+    assert.equal(runtime.reads.length, 0);
+    assert.equal(runtime.writes.length, 0);
+    assert.equal(runtime.graphCalls, 0);
+  });
+  const rejectedControlled = async (name, payload, mutate = () => {}) => test(name, async () => {
+    const tables = fixture(); mutate(tables);
+    const runtime = createControlledRuntime(tables);
+    assert.equal((await post(runtime, payload)).status, 200);
+    assert.equal(runtime.writes.length, 0);
+    assert.equal(runtime.graphCalls, 0);
+  });
+  await rejectedControlled('controlled wrong WABA blocked', event(testMessage(), { waba: 'other-waba' }));
+  await rejectedControlled('controlled personal endpoint blocked', event(testMessage(), { value: { metadata: { phone_number_id: '874910289048462', display_phone_number: '351918404101' } } }));
+  await rejectedControlled('controlled wrong display number blocked', event(testMessage(), { value: { metadata: { phone_number_id: config.phone_number_id, display_phone_number: '351918404101' } } }));
+  for (const field of ['history', 'contacts', 'smb_app_state_sync', 'smb_message_echoes', 'message_echoes']) {
+    await rejectedControlled(`controlled ignores ${field} even with exact phrase`, event(testMessage(), { field }));
+  }
+  await rejectedControlled('controlled private sender blocked', event(testMessage()), d => { d.watermelon_contacts[0].is_private = true; });
+  await rejectedControlled('controlled private dedicated thread blocked', event(testMessage()), d => { d.watermelon_requests[0].is_private = true; d.watermelon_messages[0].is_private = true; });
+  await rejectedControlled('controlled delivery status cannot mutate records', event(testMessage(), { value: { messages: [], statuses: [{ id: 'crm-sent-1', status: 'delivered' }] } }));
+  await test('controlled mixed batch stores only the authorised phrase', async () => {
+    const runtime = createControlledRuntime();
+    const payload = event(testMessage());
+    payload.entry[0].changes[0].value.messages.push(inbound({ id: 'unrelated-private-message', text: { body: 'SYNTHETIC-PRIVATE-DISCARDED' } }));
+    assert.equal((await post(runtime, payload)).status, 200);
+    assert.equal(runtime.writes.filter(w => w.table === 'watermelon_messages' && w.op === 'upsert').length, 1);
+    assert.ok(!JSON.stringify(runtime.writes).includes('SYNTHETIC-PRIVATE-DISCARDED'));
+  });
+  await test('controlled invalid signature is rejected before storing the phrase', async () => {
+    const runtime = createControlledRuntime();
+    assert.equal((await post(runtime, event(testMessage()), false)).status, 401);
+    assert.equal(runtime.writes.length, 0);
+  });
   const pausedPayloads = [
     ['personal message', event(inbound({ context: undefined, text: { body: 'SYNTHETIC-PERSONAL' } }))],
     ['commercial reply', event()],
@@ -205,8 +269,90 @@ async function rejected(name, mutate = () => {}, payload = () => event(), fail =
       });
     }
   }
-  await rejected('friend already in CRM but unquoted message', undefined, () => event(inbound({ context: undefined })));
-  await rejected('unknown friend unquoted message', d => { d.watermelon_contacts = []; }, () => event(inbound({ context: undefined })));
+  for (const known of [true, false]) await test(`dedicated spontaneous enquiry from ${known ? 'known' : 'new'} sender`, async () => {
+    const tables = fixture();
+    tables.watermelon_messages[0].phone_number_id = '874910289048462';
+    if (!known) tables.watermelon_contacts = [];
+    const runtime = createRoutingRuntime(tables);
+    const payload = event(inbound({ context: undefined }), { value: { contacts: [{ wa_id: customerPhone, profile: { name: 'Synthetic customer' } }] } });
+    assert.equal((await post(runtime, payload)).status, 200);
+    const stored = runtime.writes.find(w => w.table === 'watermelon_messages' && w.op === 'upsert');
+    assert.ok(stored, 'A fresh business enquiry must enter the CRM');
+    assert.notEqual(stored.input.request_id, 'request-1', 'Never attach to an old request merely because the sender matches');
+    assert.equal(stored.input.phone_number_id, '1423415737522090');
+    assert.equal(runtime.graphCalls, 0);
+    assert.equal(tables.watermelon_requests.length, 2);
+    assert.equal(tables.watermelon_contacts.length, 1);
+    const counts = [tables.watermelon_contacts.length, tables.watermelon_requests.length, tables.watermelon_messages.length];
+    assert.equal((await post(runtime, payload)).status, 200);
+    assert.deepEqual([tables.watermelon_contacts.length, tables.watermelon_requests.length, tables.watermelon_messages.length], counts, 'Redelivery must not duplicate records');
+  });
+  await test('successive unquoted messages continue only the new dedicated request', async () => {
+    const tables = fixture(); tables.watermelon_messages[0].phone_number_id = '874910289048462';
+    const runtime = createRoutingRuntime(tables);
+    assert.equal((await post(runtime, event(inbound({ context: undefined })))).status, 200);
+    assert.equal((await post(runtime, event(inbound({ id: 'second-new', context: undefined })))).status, 200);
+    const stored = runtime.writes.filter(w => w.table === 'watermelon_messages' && w.op === 'upsert');
+    assert.equal(stored.length, 2);
+    assert.equal(stored[0].input.request_id, stored[1].input.request_id);
+    assert.equal(runtime.tables.watermelon_requests.length, 2);
+    assert.equal(runtime.graphCalls, 0);
+  });
+  for (const flag of [true, null, undefined]) await rejected(`spontaneous message private contact ${flag}`, d => { d.watermelon_contacts[0].is_private = flag; }, () => event(inbound({ context: undefined })));
+  for (const flag of [true, null, undefined]) await rejected(`spontaneous message private dedicated request ${flag}`, d => { d.watermelon_requests[0].is_private = flag; }, () => event(inbound({ context: undefined })));
+  for (const flag of [true, null, undefined]) await rejected(`spontaneous message private dedicated routing metadata ${flag}`, d => { d.watermelon_requests[0].is_private = true; d.watermelon_messages[0].is_private = flag; }, () => event(inbound({ context: undefined })));
+  await rejected('spontaneous dedicated thread with missing request fails closed', d => { d.watermelon_requests = []; }, () => event(inbound({ context: undefined })));
+  await test('simultaneous first business messages share one new request', async () => {
+    const tables = fixture(); tables.watermelon_messages = []; tables.watermelon_contacts = [];
+    const runtime = createRoutingRuntime(tables);
+    const responses = await Promise.all(['first-parallel', 'second-parallel'].map(id => post(runtime, event(inbound({ id, context: undefined })))));
+    assert.ok(responses.every(response => response.status === 200));
+    assert.equal(tables.watermelon_contacts.length, 1);
+    assert.equal(tables.watermelon_requests.length, 2, 'Only one new business request in addition to the old request');
+    assert.equal(tables.watermelon_messages.length, 2);
+    assert.equal(tables.watermelon_messages[0].request_id, tables.watermelon_messages[1].request_id);
+  });
+  await test('simultaneous redelivery records one message and activity', async () => {
+    const runtime = createRoutingRuntime();
+    const responses = await Promise.all([post(runtime, event()), post(runtime, event())]);
+    assert.ok(responses.every(response => response.status === 200));
+    assert.equal(runtime.tables.watermelon_messages.filter(message => message.whatsapp_message_id === 'inbound-1').length, 1);
+    assert.equal(runtime.tables.watermelon_activities.filter(activity => activity.activity_type === 'whatsapp_received').length, 1);
+  });
+  await test('retry after partial creation reuses the same contact and request', async () => {
+    const tables = fixture(); tables.watermelon_messages = []; tables.watermelon_contacts = [];
+    let failMessage = true;
+    const runtime = createRoutingRuntime(tables, (table, ops) => failMessage && table === 'watermelon_messages' && ops.some(op => op[0] === 'upsert'));
+    const payload = event(inbound({ context: undefined }));
+    assert.equal((await post(runtime, payload)).status, 500);
+    const counts = [tables.watermelon_contacts.length, tables.watermelon_requests.length];
+    failMessage = false;
+    assert.equal((await post(runtime, payload)).status, 200);
+    assert.deepEqual([tables.watermelon_contacts.length, tables.watermelon_requests.length], counts);
+    assert.equal(tables.watermelon_messages.length, 1);
+  });
+  await rejected('private duplicate is not bypassed for a spontaneous enquiry', d => { d.watermelon_contacts.push({ id: 'private-duplicate', phone_digits: customerPhone, is_private: true }); }, () => event(inbound({ context: undefined })));
+  for (const type of ['contacts', 'reaction', 'sticker', 'unknown']) await rejected(`non-enquiry type ${type}`, undefined, () => event(inbound({ context: undefined, type })));
+  await test('legacy personal configuration cannot route even a quoted CRM reply', async () => {
+    const previous = { ...config };
+    try {
+      Object.assign(config, { phone_number_id: '874910289048462', waba_id: '1785473568789104', business_phone: '+351918404101' });
+      const runtime = createRoutingRuntime();
+      assert.equal((await post(runtime, event())).status, 200);
+      assert.equal(runtime.reads.length, 0);
+      assert.equal(runtime.writes.length, 0);
+    } finally { Object.assign(config, previous); }
+  });
+  for (const key of ['phone_number_id', 'waba_id', 'business_phone']) await test(`configuration fails closed for wrong ${key}`, async () => {
+    const previous = config[key];
+    try {
+      config[key] = 'unexpected';
+      const runtime = createRoutingRuntime();
+      assert.equal((await post(runtime, event(inbound({ context: undefined })))).status, 200);
+      assert.equal(runtime.reads.length, 0);
+      assert.equal(runtime.writes.length, 0);
+    } finally { config[key] = previous; }
+  });
   await rejected('unknown sender with quoted CRM ID', d => { d.watermelon_contacts = []; });
   await rejected('missing sender', undefined, () => event(inbound({ from: undefined })));
   await rejected('phone-app outbound masquerading as message', undefined, () => event(inbound({ from: businessPhone, to: customerPhone })));
@@ -287,18 +433,19 @@ async function rejected(name, mutate = () => {}, payload = () => event(), fail =
     assert.equal(runtime.writes.find(w => w.table === 'watermelon_messages' && w.op === 'upsert').input.request_id, 'request-1');
     assert.ok(runtime.writes.filter(w => w.table === 'watermelon_requests').every(w => w.ops.some(op => op[0] === 'eq' && op[1] === 'id' && op[2] === 'request-1')));
   });
-  await test('mixed webhook batch stores only explicit commercial reply', async () => {
+  await test('mixed endpoint batch ignores personal-number payloads and accepts business enquiries', async () => {
     const runtime = createRoutingRuntime();
     const payload = event();
     payload.entry[0].changes[0].value.messages = [
-      inbound({ id: 'personal-before', context: undefined, text: { body: 'PERSONAL-SYNTHETIC-BEFORE' } }),
+      inbound({ id: 'business-before', context: undefined, text: { body: 'BUSINESS-ENQUIRY' } }),
       inbound(),
-      inbound({ id: 'personal-after', context: undefined, text: { body: 'PERSONAL-SYNTHETIC-AFTER' } }),
+      inbound({ id: 'business-after', context: undefined, text: { body: 'BUSINESS-ENQUIRY' } }),
     ];
+    payload.entry[0].changes.push({ field: 'messages', value: { metadata: { phone_number_id: '874910289048462', display_phone_number: '351918404101' }, messages: [inbound({ id: 'personal-message', context: undefined, text: { body: 'PERSONAL-SYNTHETIC' } })] } });
     assert.equal((await post(runtime, payload)).status, 200);
     const messages = runtime.writes.filter(w => w.table === 'watermelon_messages' && w.op === 'upsert');
-    assert.equal(messages.length, 1);
-    assert.equal(messages[0].input.whatsapp_message_id, 'inbound-1');
+    assert.equal(messages.length, 3);
+    assert.ok(messages.some(message => message.input.whatsapp_message_id === 'inbound-1'));
     assert.ok(!JSON.stringify(runtime.writes).includes('PERSONAL-SYNTHETIC'));
   });
   await test('paused outbound helper has no side effects', async () => {
@@ -321,3 +468,4 @@ async function rejected(name, mutate = () => {}, payload = () => event(), fail =
   });
   console.log(`PASS: ${passed} privacy and preservation scenarios; no real DB/Graph/credentials used. Rejected events produced zero CRM table writes (only ordinary webhook health RPC is allowed).`);
 })().catch(error => { console.error(error); process.exitCode = 1; });
+

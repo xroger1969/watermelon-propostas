@@ -44,8 +44,11 @@ test("booking management uses a clipboard draft rather than an arbitrary WhatsAp
   assert.ok(source.includes("Preparar mensagem WhatsApp Business"));
 });
 
-test("automated WhatsApp webhook remains paused until new Meta Business phone validated", () => {
+test("WhatsApp webhook allows only the explicit inbound acceptance phrase and keeps all sending paused", () => {
   const source = read("supabase/functions/watermelon-whatsapp-webhook/index.ts");
-  assert.match(source, /const CRM_INBOUND_ENABLED = false;/);
+  assert.match(source, /const CRM_INBOUND_ENABLED = true;/);
+  assert.match(source, /const CRM_INBOUND_TEST_ONLY = true;/);
+  assert.match(source, /INBOUND_TEST_PHRASE = "TESTE WATERMELON 965"/);
   assert.match(source, /const CRM_OUTBOUND_ENABLED = false;/);
 });
+
