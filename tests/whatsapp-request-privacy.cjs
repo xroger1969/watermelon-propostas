@@ -40,12 +40,13 @@ test('embedded request messages are the only source and absent messages fail clo
     'No messages query may fetch records outside the scoped requests');
 });
 
-test('conversation heading describes only this request without claiming full personal-chat exclusion', () => {
+test('conversation heading makes the temporary pause and business-only workflow explicit', () => {
   const heading = fs.readFileSync(path.join(__dirname, '../components/WhatsAppConversation.tsx'), 'utf8');
-  assert.ok(heading.includes('Only replies to CRM messages are imported into this request.'));
-  assert.ok(heading.includes('Messages written in the WhatsApp phone app are not imported.'));
+  assert.ok(heading.includes('WhatsApp CRM temporariamente pausado.'));
+  assert.ok(heading.includes('Copiar para WhatsApp Business'));
+  assert.ok(heading.includes('message.phone_number_id !== LEGACY_PERSONAL_PHONE_ID'));
+  assert.ok(!heading.includes('wa.me/'));
   assert.ok(!heading.includes('Full contact history'));
-  assert.ok(!heading.includes('Unrelated personal WhatsApp chats are excluded.'));
 });
 
 test('private contacts and missing contact privacy cannot render their requests', () => {
