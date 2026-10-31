@@ -37,6 +37,7 @@ function valueAt(row, column) {
 }
 function runtime(options = {}) {
   const tables = options.tables || fixture();
+  const expectedTo = options.expectedTo || TO;
   const config = { business_phone: '+' + BUSINESS, phone_number_id: PHONE, waba_id: WABA,
     access_token: 'SYNTHETIC-SERVER-TOKEN', ...options.config };
   const operations = [], graphCalls = [], rpcs = [];
@@ -101,7 +102,7 @@ function runtime(options = {}) {
     assert.equal(request.headers.Authorization, 'Bearer SYNTHETIC-SERVER-TOKEN');
     assert.equal(request.redirect, 'error', 'Do not forward this authenticated send through redirects');
     const body = JSON.parse(request.body);
-    assert.equal(body.to, TO); assert.equal(body.type, 'text'); assert.equal(body.text.preview_url, false);
+    assert.equal(body.to, expectedTo); assert.equal(body.type, 'text'); assert.equal(body.text.preview_url, false);
     assert.ok(!body.template); graphCalls.push({ url, body });
     if (options.graphHook) await options.graphHook();
     if (options.networkThrows) throw new Error('SYNTHETIC-SENSITIVE-NETWORK-ERROR');
@@ -129,6 +130,40 @@ async function rejected(runtime, expected = 403, extra = {}, headers = {}) {
   assert.equal(runtime.graphCalls.length, 0);
   assert.equal(runtime.operations.filter(x => x.operation !== 'select').length, 0);
 }
+
+test('template-origin contact with a local PT number accepts canonical inbound proof and replies internationally', async () => {
+  const tables = fixture();
+  tables.watermelon_requests[0].source = 'ai_concierge';
+  tables.watermelon_contacts[0].phone = '918 404 101';
+  tables.watermelon_contacts[0].phone_digits = '918404101';
+  const canonical = '351918404101';
+  Object.assign(tables.watermelon_messages[0], { from_phone: canonical, wa_id: canonical });
+  tables.watermelon_messages.push({ id: '55555555-5555-4555-8555-555555555555', request_id: REQUEST,
+    contact_id: CONTACT, is_private: false, channel: 'whatsapp', direction: 'outbound',
+    source: 'crm_whatsapp_manual_template', status: 'delivered', phone_number_id: PHONE,
+    from_phone: BUSINESS, to_phone: canonical, wa_id: canonical,
+    raw_payload: { manual_template: { state: 'submitted' } }, whatsapp_message_id: 'wamid.template' });
+  const before = copy(tables.watermelon_contacts[0]);
+  const r = runtime({ tables, expectedTo: canonical });
+  assert.equal((await r.post()).status, 200);
+  assert.equal(r.graphCalls[0].body.to, canonical);
+  assert.deepEqual(tables.watermelon_contacts[0], before, 'The CRM contact is not rewritten');
+});
+test('manual reply normalizes explicit international destinations and refuses ambiguous or inconsistent numbers', async () => {
+  for (const [phone, phoneDigits, expected] of [
+    ['+44 7700 900123', '447700900123', '447700900123'],
+    ['0044 7700 900123', '447700900123', '447700900123'],
+    ['918 404 101', '918404101', '351918404101'],
+  ]) {
+    const tables = fixture(); Object.assign(tables.watermelon_contacts[0], { phone, phone_digits: phoneDigits });
+    Object.assign(tables.watermelon_messages[0], { from_phone: expected, wa_id: expected });
+    const r = runtime({ tables, expectedTo: expected }); assert.equal((await r.post()).status, 200);
+  }
+  for (const [phone, phoneDigits] of [['7700 900123', '7700900123'], ['+351918404101', '918404102'], ['918 404 101 ext 2', '9184041012']]) {
+    const tables = fixture(); Object.assign(tables.watermelon_contacts[0], { phone, phone_digits: phoneDigits });
+    await rejected(runtime({ tables }));
+  }
+});
 
 test('manual send derives recipient and reserves one durable immutable attempt before Graph', async () => {
   const r = runtime(); const res = await r.post(); const body = await res.json();
@@ -308,3 +343,4 @@ test('privacy, recipient, proof or configuration changes while claiming cancel b
     assert.equal(r.tables.watermelon_messages.find(row => row.id === KEY).raw_payload.manual_reply.state, 'rejected');
   }
 });
+
