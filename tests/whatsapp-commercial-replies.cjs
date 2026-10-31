@@ -200,6 +200,77 @@ async function rejected(name, mutate = () => {}, payload = () => event(), fail =
     assert.equal((await post(runtime, event(testMessage()), false)).status, 401);
     assert.equal(runtime.writes.length, 0);
   });
+  const testReplyId = '96563773-6000-8000-a000-000000000001';
+  const testReplySource = 'crm_cloud_api_controlled_test';
+  const receiptTables = () => {
+    const tables = fixture();
+    tables.watermelon_messages.push({ id: testReplyId, request_id: 'request-1', contact_id: 'contact-1',
+      direction: 'outbound', channel: 'whatsapp', source: testReplySource, status: 'sent',
+      is_private: false, phone_number_id: config.phone_number_id, whatsapp_message_id: 'wamid-controlled-test', to_phone: customerPhone });
+    return tables;
+  };
+  const receiptEvent = override => event(inbound(), { value: { messages: [], statuses: [{ id: 'wamid-controlled-test', status: 'delivered', recipient_id: customerPhone, timestamp: '1793376000', ...override }] } });
+  for (const status of ['sent', 'delivered', 'read', 'failed']) await test(`controlled receipt ${status} updates only the single test row`, async () => {
+    const runtime = createControlledRuntime(receiptTables());
+    assert.equal((await post(runtime, receiptEvent({ status, unrelated_private_data: 'DO-NOT-STORE' }))).status, 200);
+    assert.equal(runtime.writes.length, 1);
+    assert.equal(runtime.writes[0].table, 'watermelon_messages');
+    assert.ok(runtime.writes[0].ops.some(op => op[0] === 'eq' && op[1] === 'id' && op[2] === testReplyId));
+    assert.equal(runtime.writes[0].input.status, status);
+    assert.ok(!JSON.stringify(runtime.writes).includes('DO-NOT-STORE'));
+    assert.equal(runtime.graphCalls, 0);
+  });
+  for (const [name, mutate, override] of [
+    ['unrelated wamid', () => {}, { id: 'crm-sent-1' }],
+    ['wrong recipient', () => {}, { recipient_id: '351900000099' }],
+    ['missing recipient', () => {}, { recipient_id: undefined }],
+    ['bad timestamp', () => {}, { timestamp: 'invalid' }],
+    ['unsupported status', () => {}, { status: 'deleted' }],
+    ['private claim', d => { d.watermelon_messages[1].is_private = true; }, {}],
+    ['private contact', d => { d.watermelon_contacts[0].is_private = true; }, {}],
+    ['private request', d => { d.watermelon_requests[0].is_private = true; }, {}],
+    ['wrong claim source', d => { d.watermelon_messages[1].source = 'crm_cloud_api'; }, {}],
+    ['unconfirmed claim wamid', d => { d.watermelon_messages[1].whatsapp_message_id = null; }, {}],
+    ['wrong claim phone', d => { d.watermelon_messages[1].phone_number_id = '874910289048462'; }, {}],
+    ['inconsistent contact recipient', d => { d.watermelon_contacts[0].phone_digits = '351900000099'; }, {}],
+    ['different request contact', d => { d.watermelon_requests[0].contact_id = 'other-contact'; }, {}],
+  ]) await test(`controlled receipt rejects ${name}`, async () => {
+    const tables = receiptTables(); mutate(tables);
+    const runtime = createControlledRuntime(tables);
+    assert.equal((await post(runtime, receiptEvent(override))).status, 200);
+    assert.equal(runtime.writes.length, 0);
+    assert.equal(runtime.graphCalls, 0);
+  });
+  await test('controlled receipt cannot downgrade read status or fail a delivered message', async () => {
+    const tables = receiptTables(); tables.watermelon_messages[1].status = 'read';
+    const runtime = createControlledRuntime(tables);
+    for (const status of ['sent', 'delivered', 'failed']) assert.equal((await post(runtime, receiptEvent({ status }))).status, 200);
+    assert.equal(runtime.writes.length, 0);
+  });
+  await test('early controlled receipt requests retry until the saved WAMID proves correlation', async () => {
+    const tables = receiptTables();
+    tables.watermelon_messages[1].whatsapp_message_id = null;
+    tables.watermelon_messages[1].status = 'failed';
+    tables.watermelon_messages[1].raw_payload = { controlled_test_state: 'pending' };
+    const runtime = createControlledRuntime(tables);
+    assert.equal((await post(runtime, receiptEvent())).status, 500);
+    assert.equal(runtime.writes.length, 0);
+    tables.watermelon_messages[1].whatsapp_message_id = 'wamid-controlled-test';
+    tables.watermelon_messages[1].status = 'sent';
+    assert.equal((await post(runtime, receiptEvent())).status, 200);
+    assert.equal(tables.watermelon_messages[1].status, 'delivered');
+  });
+  await test('concurrent controlled receipts cannot regress read status', async () => {
+    const tables = receiptTables();
+    const runtime = createControlledRuntime(tables);
+    const responses = await Promise.all([
+      post(runtime, receiptEvent({ status: 'read' })), post(runtime, receiptEvent({ status: 'delivered' })),
+    ]);
+    assert.equal(tables.watermelon_messages[1].status, 'read');
+    assert.ok(responses.every(response => [200, 500].includes(response.status)));
+    assert.equal((await post(runtime, receiptEvent({ status: 'delivered' }))).status, 200);
+    assert.equal(tables.watermelon_messages[1].status, 'read');
+  });
   const pausedPayloads = [
     ['personal message', event(inbound({ context: undefined, text: { body: 'SYNTHETIC-PERSONAL' } }))],
     ['commercial reply', event()],
