@@ -21,9 +21,11 @@ test("the old personal WhatsApp number cannot be authorized from the dedicated o
   assert.match(coexistence, /subscription_confirmed: true/);
 });
 
-test("CRM stays paused and cannot open the personal WhatsApp app", () => {
+test("CRM sends stay paused and inbound is limited to the dedicated acceptance test", () => {
   assert.match(webhook, /const CRM_OUTBOUND_ENABLED = false;/);
-  assert.match(webhook, /const CRM_INBOUND_ENABLED = false;/);
+  assert.match(webhook, /const CRM_INBOUND_ENABLED = true;/);
+  assert.match(webhook, /const CRM_INBOUND_TEST_ONLY = true;/);
+  assert.match(webhook, /INBOUND_TEST_PHRASE = "TESTE WATERMELON 965"/);
   assert.match(conversation, /const WHATSAPP_CRM_ENABLED = false;/);
   assert.match(conversation, /Copiar para WhatsApp Business/);
   assert.doesNotMatch(conversation, /wa\.me\/|Open in WhatsApp/);
@@ -171,7 +173,8 @@ test("existing authorization remains admin-only and the UI provides an explicit 
   assert.equal(r.calls.filter(c => c.type === "graph").length, 0);
   assert.match(setup, /Validar autorização Meta já concedida/);
   assert.match(setup, /operation: "validate_existing_authorization"/);
-  assert.match(setup, /envio e receção no CRM continuam pausados/);
+  assert.match(setup, /Receção em teste/);
+  assert.match(setup, /Envio pausado/);
 });
 test("existing-authorization UI explains grant failures without exposing unknown error bodies", async () => {
   const functionSource = setup.match(/  async function validateExistingAuthorization\(\) \{[\s\S]*?\n  \}/)?.[0];
@@ -231,4 +234,5 @@ test("non-admin users cannot perform an exchange", async () => {
   assert.equal(r.saves.length, 0);
   assert.equal(r.calls.filter(c => c.type === "graph").length, 0);
 });
+
 

@@ -10,8 +10,22 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 // Owner-requested pause: all CRM outbound messages remain disabled pending Meta verification.
 const CRM_OUTBOUND_ENABLED = false;
 
-// Pause all incoming CRM ingestion until the dedicated business number is configured.
-const CRM_INBOUND_ENABLED = false;
+// Controlled acceptance test only. Production enquiries remain blocked until
+// this exact-phrase test and a separate authorized delivery test are confirmed.
+const CRM_INBOUND_ENABLED = true;
+const CRM_INBOUND_TEST_ONLY = true;
+const INBOUND_TEST_PHRASE = "TESTE WATERMELON 965";
+
+// Graph-validated dedicated account. Never accept the old personal endpoint,
+// even if an operator accidentally restores its configuration before activation.
+const DEDICATED_BUSINESS_NUMBER = "351965637736";
+const DEDICATED_PHONE_ID = "1423415737522090";
+const DEDICATED_WABA_ID = "4408982439363483";
+
+function isDedicatedConfig(config: { business_phone?: string | null; phone_number_id?: string | null; waba_id?: string | null }) {
+  return normalizePhone(config.business_phone) === DEDICATED_BUSINESS_NUMBER &&
+    config.phone_number_id === DEDICATED_PHONE_ID && config.waba_id === DEDICATED_WABA_ID;
+}
 
 function normalizePhone(value: unknown) {
   return String(value || "").replace(/\D/g, "");
@@ -113,6 +127,77 @@ async function requestFromContext(contextMessageId: string, contactId: string, p
     status: String(request.status),
     reference: String(request.reference),
   };
+}
+
+async function stableDigest(value: string) {
+  const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
+  return Array.from(bytes).map(byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function dedicatedContact(customerDigits: string, profileName: string) {
+  // Check every matching row: a private duplicate must never be bypassed by
+  // creating a fresh public contact with the same phone number.
+  const { data: matches, error: lookupError } = await supabase.from("watermelon_contacts")
+    .select("id,is_private").eq("phone_digits", customerDigits)
+    .order("last_contact_at", { ascending: false });
+  if (lookupError) throw lookupError;
+  if ((matches || []).some((contact: any) => contact.is_private !== false)) return null;
+  if (matches?.length) return String(matches[0].id);
+
+  // A deterministic UUID keeps concurrent retries from creating extra contacts.
+  const hash = await stableDigest(DEDICATED_PHONE_ID + ":contact:" + customerDigits);
+  const id = hash.slice(0, 8) + "-" + hash.slice(8, 12) + "-8" + hash.slice(13, 16) + "-a" + hash.slice(17, 20) + "-" + hash.slice(20, 32);
+  const { error: createError } = await supabase.from("watermelon_contacts").upsert({
+    id, name: profileName.trim().slice(0, 120) || "WhatsApp contact",
+    phone: "+" + customerDigits, source: "whatsapp", is_private: false,
+    last_contact_at: new Date().toISOString(),
+  }, { onConflict: "id", ignoreDuplicates: true });
+  if (createError) throw createError;
+  const { data: contact, error: readError } = await supabase.from("watermelon_contacts")
+    .select("id,is_private").eq("id", id).eq("phone_digits", customerDigits).maybeSingle();
+  if (readError) throw readError;
+  return contact?.is_private === false ? String(contact.id) : null;
+}
+
+async function dedicatedRequest(contactId: string) {
+  // An unquoted message can continue only a request proven to belong to this
+  // dedicated endpoint; never pick an arbitrary older request for the contact.
+  const { data: messages, error: messageError } = await supabase.from("watermelon_messages")
+    .select("request_id,is_private").eq("contact_id", contactId).eq("phone_number_id", DEDICATED_PHONE_ID)
+    .eq("channel", "whatsapp")
+    .in("source", ["cloud_api", "crm_cloud_api", "crm_cloud_api_template", "crm_cloud_api_pending"])
+    .order("created_at", { ascending: false }).limit(20);
+  if (messageError) throw messageError;
+  // Read routing metadata only, including privacy flags, so hiding the last
+  // message cannot make an existing private thread look like a new enquiry.
+  if ((messages || []).some((message: any) => message.is_private !== false)) return null;
+  let lastClosedRequestId = "";
+  for (const requestId of new Set((messages || []).map((message: any) => message.request_id).filter(Boolean))) {
+    const { data: request, error } = await supabase.from("watermelon_requests")
+      .select("id,status,reference,contact_id,is_private").eq("id", requestId).maybeSingle();
+    if (error) throw error;
+    // A hidden/missing linked request must not be bypassed with a public lead.
+    if (!request || request.contact_id !== contactId || request.is_private !== false) return null;
+    if (!["confirmed", "completed", "declined", "cancelled", "no_show"].includes(request.status)) {
+      return request as { id: string; status: string; reference: string };
+    }
+    if (!lastClosedRequestId) lastClosedRequestId = String(request.id);
+  }
+
+  // Share a reference across simultaneous first messages and partial retries.
+  // A closed business request advances the conversation to a new generation.
+  const reference = "WM-WA-" + (await stableDigest(DEDICATED_PHONE_ID + ":contact:" + contactId + ":after:" + lastClosedRequestId)).slice(0, 20).toUpperCase();
+  const { error: createError } = await supabase.from("watermelon_requests").upsert({
+    reference, contact_id: contactId, kind: "manual", status: "customer_replied",
+    source: "whatsapp", currency: "EUR", is_private: false,
+    last_contact_at: new Date().toISOString(),
+  }, { onConflict: "reference", ignoreDuplicates: true });
+  if (createError) throw createError;
+  const { data: request, error: readError } = await supabase.from("watermelon_requests")
+    .select("id,status,reference").eq("reference", reference).eq("contact_id", contactId)
+    .eq("is_private", false).not("status", "in", "(confirmed,completed,declined,cancelled,no_show)").maybeSingle();
+  if (readError) throw readError;
+  return request as { id: string; status: string; reference: string } | null;
 }
 
 
@@ -265,6 +350,7 @@ async function sendPendingCRMText(args: {
 }
 
 async function processMessage(value: any, message: any) {
+  if (CRM_INBOUND_TEST_ONLY && (message?.type !== "text" || message?.text?.body !== INBOUND_TEST_PHRASE)) return;
   const metadataPhoneId = String(value?.metadata?.phone_number_id || "");
   const displayBusinessPhone = normalizePhone(value?.metadata?.display_phone_number);
   const fromDigits = normalizePhone(message?.from);
@@ -274,6 +360,7 @@ async function processMessage(value: any, message: any) {
   const businessDigits = configuredBusinessPhone || displayBusinessPhone;
 
   // Accept only the configured business endpoint, before inspecting CRM contacts.
+  if (!isDedicatedConfig(config)) return;
   if (!metadataPhoneId || metadataPhoneId !== String(config.phone_number_id || "")) return;
   if (!configuredBusinessPhone || displayBusinessPhone !== configuredBusinessPhone) return;
 
@@ -283,10 +370,11 @@ async function processMessage(value: any, message: any) {
   const recipientDigits = normalizePhone(message?.recipient_id);
   if (recipientDigits && recipientDigits !== businessDigits) return;
 
-  // A business contact alone does not make every message in that WhatsApp thread commercial.
-  // Only an explicit reply to a message sent by this CRM belongs to a CRM request.
+  // A fresh enquiry is allowed only on the dedicated business endpoint. A quoted
+  // message still needs its exact CRM association and never falls back to a lead.
   const contextMessageId = String(message?.context?.id || "");
-  if (!contextMessageId) return;
+  if (message?.context && !contextMessageId) return;
+  if (!["text", "button", "interactive", "image", "video", "document", "audio", "location"].includes(String(message?.type || ""))) return;
 
   const customerDigits = fromDigits;
 
@@ -306,15 +394,22 @@ async function processMessage(value: any, message: any) {
     if (existingMessage) return;
   }
 
-  // Explicit CRM association is required: never ingest unsolicited personal chats.
+  // The quoted-reply path retains the strict existing privacy boundary.
   const { data: knownContact, error: contactError } = await supabase
     .from("watermelon_contacts").select("id,is_private")
     .eq("phone_digits",customerDigits).order("last_contact_at",{ascending:false})
     .limit(1).maybeSingle();
   if (contactError) throw contactError;
-  if (!knownContact || knownContact.is_private !== false) return;
-  const contactId = String(knownContact.id);
-  const existingRequest = await requestFromContext(contextMessageId, contactId, metadataPhoneId);
+  if (knownContact && knownContact.is_private !== false) return;
+  if (contextMessageId && !knownContact) return;
+  const profile = Array.isArray(value?.contacts)
+    ? value.contacts.find((contact: any) => normalizePhone(contact?.wa_id) === customerDigits)?.profile?.name
+    : "";
+  const contactId = contextMessageId ? String(knownContact.id) : await dedicatedContact(customerDigits, String(profile || ""));
+  if (!contactId) return;
+  const existingRequest = contextMessageId
+    ? await requestFromContext(contextMessageId, contactId, metadataPhoneId)
+    : await dedicatedRequest(contactId);
   if (!existingRequest) return;
   const crmRequest = existingRequest;
   const timestamp = message?.timestamp
@@ -322,7 +417,7 @@ async function processMessage(value: any, message: any) {
     : new Date().toISOString();
   const text = messageText(message);
 
-  const { error: insertError } = await supabase
+  const { data: insertedMessage, error: insertError } = await supabase
     .from("watermelon_messages")
     .upsert({
       request_id: crmRequest.id,
@@ -344,9 +439,10 @@ async function processMessage(value: any, message: any) {
     }, {
       onConflict: "whatsapp_message_id",
       ignoreDuplicates: true,
-    });
+    }).select("id").maybeSingle();
 
   if (insertError) throw insertError;
+  if (!insertedMessage) return;
 
   const now = new Date().toISOString();
   {
@@ -382,6 +478,8 @@ async function processMessage(value: any, message: any) {
 }
 
 async function processStatuses(value: any) {
+  // Even delivery/read receipts remain outside storage during this inbound test.
+  if (CRM_INBOUND_TEST_ONLY) return;
   const phoneNumberId = String(value?.metadata?.phone_number_id || "");
   const statuses = Array.isArray(value?.statuses) ? value.statuses : [];
   for (const status of statuses) {
@@ -489,6 +587,8 @@ const config = await getConfig();
       return new Response("EVENT_RECEIVED", { status: 200 });
     }
 
+    if (!isDedicatedConfig(config)) return new Response("EVENT_RECEIVED", { status: 200 });
+
     const payload = JSON.parse(rawBody);
 
     if (payload?.object === "whatsapp_business_account") {
@@ -535,4 +635,5 @@ const config = await getConfig();
     return new Response("Webhook error", { status: 500 });
   }
 });
+
 

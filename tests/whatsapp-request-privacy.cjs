@@ -42,7 +42,8 @@ test('embedded request messages are the only source and absent messages fail clo
 
 test('conversation heading makes the temporary pause and business-only workflow explicit', () => {
   const heading = fs.readFileSync(path.join(__dirname, '../components/WhatsAppConversation.tsx'), 'utf8');
-  assert.ok(heading.includes('WhatsApp CRM temporariamente pausado.'));
+  assert.ok(heading.includes('Envio WhatsApp pausado.'));
+  assert.ok(heading.includes('TESTE WATERMELON 965'));
   assert.ok(heading.includes('Copiar para WhatsApp Business'));
   assert.ok(heading.includes('message.phone_number_id !== LEGACY_PERSONAL_PHONE_ID'));
   assert.ok(!heading.includes('wa.me/'));
@@ -134,3 +135,4 @@ test('scoped refresh runs every 10 seconds while visible, refreshes on focus, an
   interval();
   assert.equal(calls, 3, 'Cleaned-up effects cannot fetch again');
 });
+
