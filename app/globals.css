@@ -3596,6 +3596,58 @@ button { cursor: pointer; }
   font-size: 10px;
   line-height: 1.45;
 }
+.crm-whatsapp-template-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #9bc5dd;
+  border-radius: 12px;
+  background: #edf7ff;
+  color: #153b56;
+}
+.crm-whatsapp-template-card p {
+  margin: 5px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.crm-whatsapp-template-card select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #8eb1ca;
+  border-radius: 8px;
+  padding: 9px;
+  background: #fff;
+  color: #153b56;
+  font: inherit;
+}
+.crm-whatsapp-template-preview {
+  margin: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: #fff;
+  color: #153b56;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.crm-whatsapp-template-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 8px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.crm-whatsapp-template-consent input {
+  flex: none;
+  width: 19px;
+  height: 19px;
+  margin: 0;
+  accent-color: #08666c;
+}
 
 /* WhatsApp setup */
 .whatsapp-setup-shell {
@@ -5845,3 +5897,4 @@ button { cursor: pointer; }
   .crm-flow-buttons > button { flex: 1 1 auto; }
   .crm-extra-actions { margin: 0 10px 12px; }
 }
+

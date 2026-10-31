@@ -21,7 +21,8 @@ function harness(options = {}) {
   const context = {
     api: {}, request: { id: options.requestId || 'synthetic-request' }, draft: options.draft ?? '  Resposta manual exata.  ', sending: false,
     messages: [], manualReplyUncertain: false, unconfirmedAttemptKey: '', manualAttemptRef: { current: null },
-    MANUAL_REPLY_SOURCE: 'crm_cloud_api_manual', TEST_REPLY_SOURCE: 'crm_cloud_api_controlled_test', Response,
+    templateUnconfirmedAttemptKey: '', templateAttemptRef: { current: null }, serviceWindowOpen: true, recentInbound: { id: 'synthetic-inbound' },
+    MANUAL_REPLY_SOURCE: 'crm_cloud_api_manual', TEST_REPLY_SOURCE: 'crm_cloud_api_controlled_test', MANUAL_TEMPLATE_SOURCE: 'crm_whatsapp_manual_template', Response,
     crypto: { randomUUID() { return '11111111-1111-4111-8111-' + String(++uuidCalls).padStart(12, '0'); } },
     supabase: { functions: { async invoke(endpoint, request) {
       calls.push({ endpoint, request: structuredClone(request) });
@@ -33,6 +34,7 @@ function harness(options = {}) {
     setSending(value) { context.sending = value; busyChanges.push(value); },
     setFeedback(value) { feedback.push(value); },
     setUnconfirmedAttemptKey(value) { context.unconfirmedAttemptKey = value; unconfirmedChanges.push(value); },
+    setServiceWindowRequiredForInbound(value) { context.serviceWindowRequiredForInbound = value; },
     async onChanged() { refreshes++; if (options.refreshFails) throw new Error('Synthetic refresh failure'); },
   };
   vm.runInNewContext(compiled.outputText, context);
@@ -174,7 +176,7 @@ test('conversation renders only explicitly public rows from the exact dedicated 
   assert.equal(phone, '1423415737522090');
   const visibleExpression = source.match(/const VISIBLE_SOURCES = ([^;]+);/)?.[1];
   assert.ok(visibleExpression);
-  const allowed = new Function('MANUAL_REPLY_SOURCE', 'TEST_REPLY_SOURCE', 'return ' + visibleExpression)('crm_cloud_api_manual', 'crm_cloud_api_controlled_test');
+  const allowed = new Function('MANUAL_REPLY_SOURCE', 'TEST_REPLY_SOURCE', 'MANUAL_TEMPLATE_SOURCE', 'return ' + visibleExpression)('crm_cloud_api_manual', 'crm_cloud_api_controlled_test', 'crm_whatsapp_manual_template');
   const select = new Function('messages', 'DEDICATED_PHONE_ID', 'VISIBLE_SOURCES', 'return messages' + source.slice(begin, end));
   const good = { id: 'public', is_private: false, phone_number_id: phone, source: 'cloud_api' };
   const rows = [good,
