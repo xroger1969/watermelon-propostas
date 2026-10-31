@@ -8,6 +8,9 @@ import { requireWhatsAppDeliveryMode } from "@/lib/whatsapp-delivery";
 // Sending and inbound ingestion remain disabled in production until Meta verifies the dedicated number.
 const WHATSAPP_CRM_ENABLED = false;
 const LEGACY_PERSONAL_PHONE_ID = "874910289048462";
+const TEST_REPLY_ID = "96563773-6000-8000-a000-000000000001";
+const TEST_REPLY_SOURCE = "crm_cloud_api_controlled_test";
+const TEST_REPLY_TEXT = "Teste Watermelon recebido. A ligação de resposta do CRM está a funcionar.";
 
 type ThreadItem = {
   id: string;
@@ -20,7 +23,7 @@ type ThreadItem = {
   status: "received" | "sent" | "delivered" | "read" | "failed" | "deleted";
   source: string;
   whatsapp_timestamp: string | null;
-  raw_payload?: { errors?: Array<{ code?: number; message?: string }> } | null;
+  raw_payload?: { controlled_test_state?: string; errors?: Array<{ code?: number; message?: string }> } | null;
 };
 
 type RequestItem = {
@@ -100,6 +103,13 @@ export default function WhatsAppConversation({
   );
 
   const newestMessageId = messages[messages.length - 1]?.id || "";
+  const testProof = [...messages].reverse().find(message => message.direction === "inbound" && message.is_private === false &&
+    message.phone_number_id === "1423415737522090" && message.source === "cloud_api" &&
+    message.status === "received" && message.text_body === "TESTE WATERMELON 965" &&
+    Number.isFinite(Date.parse(message.whatsapp_timestamp || "")) &&
+    Date.now() - Date.parse(message.whatsapp_timestamp || "") >= 0 &&
+    Date.now() - Date.parse(message.whatsapp_timestamp || "") < 24 * 60 * 60 * 1000);
+  const testAttempted = messages.some(message => message.id === TEST_REPLY_ID || message.source === TEST_REPLY_SOURCE);
 
   useEffect(() => {
     const viewport = messagesViewportRef.current;
@@ -247,6 +257,34 @@ export default function WhatsAppConversation({
     }
   }
 
+  async function sendControlledTestReply() {
+    if (!testProof || testAttempted || sending) return;
+    if (!window.confirm("Enviar UMA resposta de teste do WhatsApp empresarial +351 965 637 736 para o remetente deste teste (" +
+      (request.contact?.phone || "número confirmado no servidor") + ")?\n\n" + TEST_REPLY_TEXT +
+      "\n\nOs envios gerais continuam pausados. Este teste não pode ser repetido automaticamente.")) return;
+    setSending(true);
+    setFeedback("");
+    try {
+      const { data, error } = await supabase.functions.invoke("watermelon-whatsapp-test-reply", {
+        method: "POST", body: { operation: "send_single_test_reply", inbound_test_message_id: testProof.id },
+      });
+      if (error || !data?.ok) {
+        const failure = error?.context instanceof Response ? await error.context.json().catch(() => null) : data;
+        const code = failure?.code;
+        setFeedback(code === "TEST_ALREADY_ATTEMPTED"
+          ? "O teste único já foi iniciado. Não será enviado novamente; confirma o resultado nesta conversa e no telemóvel."
+          : code === "TEST_REJECTED" ? "A Meta rejeitou o teste. Os envios gerais continuam pausados e não há repetição automática."
+          : "O resultado do teste não foi confirmado. Verifica esta conversa e o telemóvel antes de qualquer outra ação; não repitas o envio.");
+      } else {
+        setFeedback("A Meta aceitou a resposta única de teste. Aguarda o estado de entrega ou confirma no telemóvel; os envios gerais continuam pausados.");
+      }
+      await onChanged();
+    } catch {
+      setFeedback("Não foi possível confirmar o resultado do teste. Verifica o telemóvel e a conversa; não repitas um envio incerto.");
+      await onChanged();
+    } finally { setSending(false); }
+  }
+
   return (
     <section className="crm-whatsapp-thread">
       <div className="crm-whatsapp-thread-heading">
@@ -263,7 +301,10 @@ export default function WhatsAppConversation({
 
       {messages.length > 0 && (
         <div className="crm-whatsapp-messages" ref={messagesViewportRef}>
-          {messages.map((message) => (
+          {messages.map((message) => {
+            const pendingTest = message.source === TEST_REPLY_SOURCE &&
+              ["pending", "unknown"].includes(message.raw_payload?.controlled_test_state || "");
+            return (
             <div
               className={
                 message.direction === "outbound"
@@ -275,20 +316,31 @@ export default function WhatsAppConversation({
               <p>{message.text_body || "[" + message.message_type + "]"}</p>
               <span>
                 {timeLabel(message.whatsapp_timestamp || message.created_at)}
-                {message.direction === "outbound" ? " · " + message.status : ""}
+                {message.direction === "outbound" ? " · " + (pendingTest
+                  ? message.raw_payload?.controlled_test_state === "pending" ? "Teste em preparação; não repetir" : "Resultado do teste incerto; não repetir"
+                  : message.status) : ""}
               </span>
-              {message.direction === "outbound" && message.status === "failed" && (
+              {message.direction === "outbound" && message.status === "failed" && !pendingTest && (
                 <p className="admin-error" role="alert">
                   Not delivered — {message.raw_payload?.errors?.[0]?.message || "WhatsApp rejected this message."}
                   {message.raw_payload?.errors?.[0]?.code ? " (Meta code " + message.raw_payload.errors[0].code + ")" : ""}
                 </p>
               )}
             </div>
-          ))}
+          ); })}
         </div>
       )}
 
       <div className="crm-whatsapp-compose">
+        {testProof && (
+          <div className="crm-whatsapp-compose-actions">
+            <button type="button" className="button button-outline" disabled={sending || testAttempted}
+              onClick={() => void sendControlledTestReply()}>
+              {testAttempted ? "Resposta única de teste já iniciada" : sending ? "A enviar teste único…" : "Enviar resposta única de teste"}
+            </button>
+            <p>Resposta fixa: {TEST_REPLY_TEXT}</p>
+          </div>
+        )}
         <p className="admin-error" role="status">Envio pausado. A receção aceita apenas a frase exata «TESTE WATERMELON 965» no número empresarial. Para mensagens de saída, copia o texto para a aplicação WhatsApp Business.</p>
         <textarea
           rows={3}

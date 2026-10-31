@@ -466,7 +466,7 @@ export default function WhatsAppSetup() {
               <span>Receção em teste no +351 965 637 736: apenas a frase exata «{INBOUND_TEST_PHRASE}» pode entrar no CRM. Outras mensagens ficam excluídas.</span>
               <span>Nunca importar conversas nem contactos do WhatsApp pessoal 918 404 101.</span>
               <span>Os envios a partir do CRM mantêm-se bloqueados até aos testes controlados com a Meta.</span>
-              <span>Os estados de entrega e leitura ficam suspensos durante o teste de receção.</span>
+              <span>Apenas os estados da resposta única de teste são acompanhados. Os envios gerais continuam pausados.</span>
             </div>
           </article>
         </>

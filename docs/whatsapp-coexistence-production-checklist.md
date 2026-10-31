@@ -20,7 +20,7 @@ These identifiers identify the approved endpoint; they are not credentials. If M
 
 ## Preparation in the repository
 
-- `CRM_INBOUND_ENABLED = true`, `CRM_INBOUND_TEST_ONLY = true` and `CRM_OUTBOUND_ENABLED = false`. The CRM send UI remains paused. Only a text body exactly equal to **TESTE WATERMELON 965** can be stored from the authorized endpoint; whitespace, case changes, attachments, other texts and delivery/read statuses are discarded.
+- `CRM_INBOUND_ENABLED = true`, `CRM_INBOUND_TEST_ONLY = true` and `CRM_OUTBOUND_ENABLED = false`. General CRM sends remain paused. Only a text body exactly equal to **TESTE WATERMELON 965** can be stored from the authorized endpoint; whitespace, case changes, attachments and other texts are discarded. Only receipts for the single controlled reply below may update its own record; unrelated receipts remain discarded.
 - The server-side coexistence exchange validates the dedicated display number through Meta Graph, verifies the app subscription, and only then saves configuration. The webhook additionally requires the exact number, Phone Number ID and WABA above.
 - The acceptance phrase can create a business contact/request without a quoted message. General enquiry routing is prepared behind the explicit test gate and is not enabled in this release. Existing private or unclassified matching contacts block ingestion.
 - Unquoted messages continue only a request linked by non-private messages from this dedicated endpoint. A private, missing or inconsistent linked request blocks fallback creation. Old personal-endpoint requests are not chosen merely because the customer number matches.
@@ -47,4 +47,18 @@ Rollback: set `CRM_INBOUND_ENABLED = false` and retain `CRM_OUTBOUND_ENABLED = f
 Synthetic tests exercise the exact production test-phrase gate in memory, plus separate in-memory copies for emergency pause and prepared future routing. The suite includes exact/non-exact phrases, attachments, private/legacy exclusion, concurrent initial messages, repeated deliveries, quoted replies, signed-event authentication, ignored statuses and paused outbound behavior. Tests use no real CRM records, credentials or Graph delivery.
 
 Live authorization, deployment and two-way delivery remain separate acceptance steps. Do not mark the integration operational until those steps pass.
+
+## Single controlled reply
+
+The authenticated conversation provides a separate **Enviar resposta única de teste** button only when a recent, non-private inbound acceptance phrase is loaded. A native confirmation identifies the recipient and fixed reply. General sends stay disabled.
+
+The new `watermelon-whatsapp-test-reply` endpoint must be deployed with `verify_jwt=true`. It accepts only `operation: send_single_test_reply` and `inbound_test_message_id`. The server derives the request, contact and recipient from that exact validated inbound record, checks the dedicated endpoint, strict privacy flags and a service window under 24 hours, then sends only:
+
+> Teste Watermelon recebido. A ligação de resposta do CRM está a funcionar.
+
+A constant message-row primary key reserves one attempt for the entire test cycle before any Graph request. The existing database constraint has no pending status: the reservation conservatively uses `failed` plus `raw_payload.controlled_test_state=pending`. The UI displays **Teste em preparação; não repetir**, rather than rejection. A timeout or missing Meta message ID uses state `unknown` and displays an uncertain result. Only a valid Meta message ID permits `sent`. Any claim conflict blocks repeat delivery, including concurrent clicks and retries after failures. Do not delete the reservation to retry an uncertain send.
+
+The webhook accepts receipts only for this constant row, controlled-test source, saved Meta message ID, dedicated endpoint and validated non-private recipient/request. State updates use compare-and-set; a concurrent conflict requests webhook retry rather than regressing delivery state. An early receipt for the intended recipient requests retry until the sender saves its message ID. Uncorrelated receipts are never assumed to prove delivery.
+
+Publish only the new endpoint and reviewed webhook update; preserve the webhook's HMAC authentication and `verify_jwt=false`. Leave `send` and `send-v2` returning 503. A successful Graph submission is not delivery confirmation: check a delivered/read receipt and the recipient's phone before preparing general manual operation. No automatic reminders, pending queues, templates or bulk replies are enabled.
 

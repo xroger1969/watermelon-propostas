@@ -15,6 +15,8 @@ const CRM_OUTBOUND_ENABLED = false;
 const CRM_INBOUND_ENABLED = true;
 const CRM_INBOUND_TEST_ONLY = true;
 const INBOUND_TEST_PHRASE = "TESTE WATERMELON 965";
+const CONTROLLED_TEST_REPLY_ID = "96563773-6000-8000-a000-000000000001";
+const CONTROLLED_TEST_SOURCE = "crm_cloud_api_controlled_test";
 
 // Graph-validated dedicated account. Never accept the old personal endpoint,
 // even if an operator accidentally restores its configuration before activation.
@@ -477,9 +479,64 @@ async function processMessage(value: any, message: any) {
   }
 }
 
+async function processControlledTestStatuses(value: any) {
+  if (String(value?.metadata?.phone_number_id || "") !== DEDICATED_PHONE_ID ||
+    normalizePhone(value?.metadata?.display_phone_number) !== DEDICATED_BUSINESS_NUMBER) return;
+  for (const status of Array.isArray(value?.statuses) ? value.statuses : []) {
+    const messageId = String(status?.id || "");
+    const nextStatus = String(status?.status || "");
+    if (!messageId || !["sent", "delivered", "read", "failed"].includes(nextStatus)) continue;
+    const { data: tracked, error } = await supabase.from("watermelon_messages")
+      .select("id,request_id,contact_id,to_phone,status")
+      .eq("id", CONTROLLED_TEST_REPLY_ID).eq("source", CONTROLLED_TEST_SOURCE)
+      .eq("phone_number_id", DEDICATED_PHONE_ID).eq("whatsapp_message_id", messageId)
+      .eq("channel", "whatsapp").eq("direction", "outbound").eq("is_private", false).maybeSingle();
+    if (error) throw new Error("Controlled test receipt lookup requires retry.");
+    if (!tracked) {
+      // A receipt can beat the sender's WAMID update. Do not guess its identity
+      // or acknowledge it permanently while the single claim is uncorrelated.
+      const { data: pending, error: pendingError } = await supabase.from("watermelon_messages")
+        .select("whatsapp_message_id,to_phone,raw_payload").eq("id", CONTROLLED_TEST_REPLY_ID)
+        .eq("source", CONTROLLED_TEST_SOURCE).eq("phone_number_id", DEDICATED_PHONE_ID)
+        .eq("direction", "outbound").eq("is_private", false).maybeSingle();
+      if (pendingError || (pending && !pending.whatsapp_message_id &&
+        ["pending", "unknown"].includes(String(pending.raw_payload?.controlled_test_state || "")) &&
+        normalizePhone(status?.recipient_id) === normalizePhone(pending.to_phone))) {
+        throw new Error("Controlled test receipt awaiting message correlation; retry required.");
+      }
+      continue;
+    }
+    if (!tracked.request_id || !tracked.contact_id ||
+      normalizePhone(status?.recipient_id) !== normalizePhone(tracked.to_phone)) continue;
+    const [{ data: contact, error: contactError }, { data: request, error: requestError }] = await Promise.all([
+      supabase.from("watermelon_contacts").select("id,phone_digits").eq("id", tracked.contact_id).eq("is_private", false).maybeSingle(),
+      supabase.from("watermelon_requests").select("id").eq("id", tracked.request_id)
+        .eq("contact_id", tracked.contact_id).eq("is_private", false).maybeSingle(),
+    ]);
+    if (contactError || requestError || !contact || !request ||
+      normalizePhone(contact.phone_digits) !== normalizePhone(tracked.to_phone)) continue;
+    const rank: Record<string, number> = { sent: 1, delivered: 2, read: 3 };
+    if ((rank[nextStatus] && rank[tracked.status] > rank[nextStatus]) ||
+      (nextStatus === "failed" && ["delivered", "read"].includes(tracked.status))) continue;
+    const at = Number(status.timestamp) * 1000;
+    if (!Number.isFinite(at) || at <= 0) continue;
+    const patch: Record<string, unknown> = {
+      status: nextStatus, raw_payload: { controlled_test_state: "receipt", receipt_status: nextStatus },
+    };
+    if (nextStatus === "delivered") patch.delivered_at = new Date(at).toISOString();
+    if (nextStatus === "read") patch.read_at = new Date(at).toISOString();
+    if (nextStatus === "failed") patch.failed_at = new Date(at).toISOString();
+    const { data: updated, error: updateError } = await supabase.from("watermelon_messages").update(patch)
+      .eq("id", CONTROLLED_TEST_REPLY_ID).eq("source", CONTROLLED_TEST_SOURCE)
+      .eq("whatsapp_message_id", messageId).eq("is_private", false).eq("status", tracked.status)
+      .select("id").maybeSingle();
+    if (updateError || !updated) throw new Error("Concurrent controlled test receipt requires retry.");
+  }
+}
+
 async function processStatuses(value: any) {
-  // Even delivery/read receipts remain outside storage during this inbound test.
-  if (CRM_INBOUND_TEST_ONLY) return;
+  // General receipts stay blocked. Only the single controlled test may update.
+  if (CRM_INBOUND_TEST_ONLY) return await processControlledTestStatuses(value);
   const phoneNumberId = String(value?.metadata?.phone_number_id || "");
   const statuses = Array.isArray(value?.statuses) ? value.statuses : [];
   for (const status of statuses) {
