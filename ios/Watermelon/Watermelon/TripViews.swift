@@ -53,7 +53,7 @@ struct ReceiptView: View {
          + receipt.items.map { "\($0.title) · \(PortugalDate.display($0.date)) · \($0.guests) guests" }).joined(separator: "\n")
     }
     private var contactURL: URL {
-        var components = URLComponents(string: "https://wa.me/351918404101")!
+        var components = URLComponents(string: "https://wa.me/351965637736")!
         components.queryItems = [URLQueryItem(name: "text", value: "Hello Watermelon, I would like to check request " + receipt.reference)]
         return components.url!
     }
@@ -233,7 +233,7 @@ struct MoreView: View {
                 .accessibilityIdentifier("appLanguagePicker")
             }
             Section("Contact") {
-                Link("WhatsApp Watermelon", destination: URL(string: "https://wa.me/351918404101")!)
+                Link("WhatsApp Watermelon", destination: URL(string: "https://wa.me/351965637736")!)
                 Link("Website", destination: URL(string: "https://www.watermelonexperiences.pt")!)
             }
             Section("Privacy") {
