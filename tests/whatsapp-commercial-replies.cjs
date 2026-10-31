@@ -16,14 +16,15 @@ function compile(sourceText) {
 }
 assert.match(source, /const CRM_OUTBOUND_ENABLED = false;/);
 assert.match(source, /const CRM_INBOUND_ENABLED = true;/);
-assert.match(source, /const CRM_INBOUND_TEST_ONLY = true;/);
+assert.match(source, /const CRM_INBOUND_TEST_ONLY = false;/);
 const javascript = compile(source);
 // Production accepts only the exact test phrase. Separate VM copies exercise
 // the emergency pause and prepared future routing without widening production.
 const routingGuard = 'const CRM_INBOUND_ENABLED = true;';
 assert.equal(source.split(routingGuard).length, 2);
 const pausedJavascript = compile(source.replace(routingGuard, 'const CRM_INBOUND_ENABLED = false;'));
-const routingJavascript = compile(source.replace('const CRM_INBOUND_TEST_ONLY = true;', 'const CRM_INBOUND_TEST_ONLY = false;'));
+const routingJavascript = javascript;
+const controlledJavascript = compile(source.replace('const CRM_INBOUND_TEST_ONLY = false;', 'const CRM_INBOUND_TEST_ONLY = true;'));
 const config = {
   verify_token: 'synthetic-verify-token', app_secret: 'synthetic-secret',
   access_token: 'synthetic-token', phone_number_id: '1423415737522090', waba_id: '4408982439363483',
@@ -36,7 +37,7 @@ function fixture() {
   return {
     watermelon_contacts: [{ id: 'contact-1', phone_digits: customerPhone, is_private: false }],
     watermelon_requests: [{ id: 'request-1', contact_id: 'contact-1', is_private: false, status: 'proposal_sent', reference: 'WM-SYNTHETIC' }],
-    watermelon_messages: [{ id: 'outgoing-1', whatsapp_message_id: 'crm-sent-1', contact_id: 'contact-1', request_id: 'request-1', direction: 'outbound', channel: 'whatsapp', is_private: false, source: 'crm_cloud_api', status: 'sent', phone_number_id: config.phone_number_id }],
+    watermelon_messages: [{ id: 'outgoing-1', whatsapp_message_id: 'crm-sent-1', contact_id: 'contact-1', request_id: 'request-1', direction: 'outbound', channel: 'whatsapp', is_private: false, source: 'crm_cloud_api_manual', status: 'sent', phone_number_id: config.phone_number_id, to_phone: customerPhone, raw_payload: { manual_reply: { state: 'submitted', actor_id: 'synthetic-actor', operation_hash: 'synthetic-hash', proof_message_id: 'synthetic-proof' } } }],
     watermelon_activities: [],
   };
 }
@@ -51,7 +52,8 @@ function createRuntimeWithJavascript(tables = fixture(), fail = () => false, jav
       task = Promise.resolve().then(() => {
         if (fail(table, ops)) return { data: null, error: { message: 'Synthetic lookup failure' } };
         const matching = row => ops.every(([op, key, value, extra]) => {
-          if (op === 'eq') return row[key] === value;
+          if (op === 'eq') return key.includes('->')
+            ? key.split(/->>?/).reduce((part, name) => part?.[name], row) === value : row[key] === value;
           if (op === 'in') return value.includes(row[key]);
           if (op === 'not' && value === 'in') return !extra.slice(1, -1).split(',').includes(row[key]);
           return true;
@@ -107,7 +109,7 @@ function createRuntime(tables, fail) {
   return createRuntimeWithJavascript(tables, fail, pausedJavascript);
 }
 function createControlledRuntime(tables, fail) {
-  return createRuntimeWithJavascript(tables, fail, javascript);
+  return createRuntimeWithJavascript(tables, fail, controlledJavascript);
 }
 function createRoutingRuntime(tables, fail) {
   return createRuntimeWithJavascript(tables, fail, routingJavascript);
@@ -321,7 +323,7 @@ async function rejected(name, mutate = () => {}, payload = () => event(), fail =
     await runtime.api.sendPendingCRMText({ config, requestId: 'request-1', contactId: 'contact-1', customerDigits: customerPhone, businessDigits: businessPhone });
     assert.equal(runtime.reads.length, 0); assert.equal(runtime.writes.length, 0); assert.equal(runtime.rpcs.length, 0); assert.equal(runtime.graphCalls, 0);
   });
-  for (const sourceName of ['crm_cloud_api', 'crm_cloud_api_template', 'crm_cloud_api_pending']) {
+  for (const sourceName of ['crm_cloud_api_manual', 'crm_cloud_api_controlled_test']) {
     for (const statusName of ['sent', 'delivered', 'read']) {
       await test(`commercial reply source=${sourceName} status=${statusName}`, async () => {
         const tables = fixture(); tables.watermelon_messages[0].source = sourceName; tables.watermelon_messages[0].status = statusName;
@@ -444,7 +446,7 @@ async function rejected(name, mutate = () => {}, payload = () => event(), fail =
   for (const statusName of ['failed', 'queued', 'pending', 'deleted']) {
     await rejected(`context is ${statusName}`, d => { d.watermelon_messages[0].status = statusName; });
   }
-  for (const sourceName of ['whatsapp_business_app', 'cloud_api', 'untrusted_source']) {
+  for (const sourceName of ['whatsapp_business_app', 'cloud_api', 'untrusted_source', 'crm_cloud_api', 'crm_cloud_api_template', 'crm_cloud_api_pending']) {
     await rejected(`context source ${sourceName}`, d => { d.watermelon_messages[0].source = sourceName; });
   }
   await rejected('context from different contact', d => { d.watermelon_messages[0].contact_id = 'other-contact'; });
@@ -466,19 +468,57 @@ async function rejected(name, mutate = () => {}, payload = () => event(), fail =
     { phone_number_id: config.phone_number_id, display_phone_number: '351900000099' },
     { phone_number_id: config.phone_number_id },
   ]) await rejected(`wrong/missing Meta endpoint ${JSON.stringify(metadata)}`, undefined, () => event(inbound(), { value: { metadata } }));
-  const statusPayload = options => event(inbound(), { value: { messages: [], statuses: [{ id: 'crm-sent-1', status: 'delivered', timestamp: '1793376000' }] }, ...options });
+  const statusPayload = options => event(inbound(), { value: { messages: [], statuses: [{ id: 'crm-sent-1', status: 'delivered', recipient_id: customerPhone, timestamp: '1793376000' }] }, ...options });
   await test('status for existing business message', async () => {
     const runtime = createRoutingRuntime();
+    const original = copy(runtime.tables.watermelon_messages[0].raw_payload.manual_reply);
     assert.equal((await post(runtime, statusPayload())).status, 200);
     assert.equal(runtime.writes.length, 1);
     assert.equal(runtime.writes[0].table, 'watermelon_messages');
     assert.equal(runtime.writes[0].op, 'update');
     assert.equal(runtime.writes[0].input.status, 'delivered');
+    assert.deepEqual(runtime.tables.watermelon_messages[0].raw_payload.manual_reply, original);
+    assert.equal(runtime.tables.watermelon_messages[0].raw_payload.manual_delivery.status, 'delivered');
     assert.ok(runtime.writes[0].ops.some(op => op[0] === 'eq' && op[1] === 'id' && op[2] === 'outgoing-1'));
   });
   const rejectedStatus = (name, mutate, fail) => rejected(name, mutate, () => statusPayload(), fail);
   await rejectedStatus('status missing message', d => { d.watermelon_messages = []; });
   await rejectedStatus('status phone-app message', d => { d.watermelon_messages[0].source = 'whatsapp_business_app'; });
+  for (const sourceName of ['crm_cloud_api', 'crm_cloud_api_template', 'crm_cloud_api_pending']) {
+    await rejectedStatus(`legacy or queued receipt remains excluded ${sourceName}`, d => { d.watermelon_messages[0].source = sourceName; });
+  }
+  await rejectedStatus('manual receipt missing claim metadata', d => { d.watermelon_messages[0].raw_payload = {}; });
+  await rejectedStatus('manual receipt not yet submitted', d => { d.watermelon_messages[0].raw_payload.manual_reply.state = 'pending'; });
+  await test('early manual receipt retries until the sender saves correlation', async () => {
+    const tables = fixture();
+    tables.watermelon_messages[0].whatsapp_message_id = null;
+    tables.watermelon_messages[0].raw_payload.manual_reply.state = 'pending';
+    const runtime = createRoutingRuntime(tables);
+    assert.equal((await post(runtime, statusPayload())).status, 500);
+    assert.equal(runtime.writes.length, 0);
+    tables.watermelon_messages[0].whatsapp_message_id = 'crm-sent-1';
+    tables.watermelon_messages[0].raw_payload.manual_reply.state = 'submitted';
+    assert.equal((await post(runtime, statusPayload())).status, 200);
+    assert.equal(tables.watermelon_messages[0].status, 'delivered');
+    assert.equal(tables.watermelon_messages[0].raw_payload.manual_reply.operation_hash, 'synthetic-hash');
+  });
+  await test('concurrent manual receipts preserve metadata and cannot regress read', async () => {
+    const tables = fixture(); const original = copy(tables.watermelon_messages[0].raw_payload.manual_reply);
+    const runtime = createRoutingRuntime(tables);
+    const make = status => event(inbound(), { value: { messages: [], statuses: [{ id: 'crm-sent-1', recipient_id: customerPhone, timestamp: '1793376000', status }] } });
+    const responses = await Promise.all([post(runtime, make('read')), post(runtime, make('delivered'))]);
+    assert.ok(responses.every(response => [200, 500].includes(response.status)));
+    assert.equal(tables.watermelon_messages[0].status, 'read');
+    assert.deepEqual(tables.watermelon_messages[0].raw_payload.manual_reply, original);
+  });
+  await test('old queue source on the same endpoint cannot attach a fresh enquiry to its request', async () => {
+    const tables = fixture(); tables.watermelon_messages[0].source = 'crm_cloud_api_pending';
+    const runtime = createRoutingRuntime(tables);
+    assert.equal((await post(runtime, event(inbound({ context: undefined })))).status, 200);
+    const stored = runtime.writes.find(w => w.table === 'watermelon_messages' && w.op === 'upsert');
+    assert.notEqual(stored.input.request_id, 'request-1');
+    assert.equal(runtime.graphCalls, 0);
+  });
   await rejectedStatus('status inbound message', d => { d.watermelon_messages[0].direction = 'inbound'; });
   await rejectedStatus('status private message', d => { d.watermelon_messages[0].is_private = true; });
   await rejectedStatus('status private contact', d => { d.watermelon_contacts[0].is_private = true; });
@@ -488,7 +528,7 @@ async function rejected(name, mutate = () => {}, payload = () => event(), fail =
   await rejectedStatus('status request points to other contact', d => { d.watermelon_requests[0].contact_id = 'other-contact'; });
   await rejectedStatus('status message belongs to another phone endpoint', d => { d.watermelon_messages[0].phone_number_id = 'other-phone'; });
   await rejectedStatus('status message has no phone endpoint', d => { delete d.watermelon_messages[0].phone_number_id; });
-  for (const tableName of ['watermelon_messages', 'watermelon_contacts', 'watermelon_requests']) await rejectedStatus(`status lookup error ${tableName}`, undefined, table => table === tableName);
+  for (const tableName of ['watermelon_messages', 'watermelon_contacts', 'watermelon_requests']) await rejected(`status lookup error ${tableName}`, undefined, () => statusPayload(), table => table === tableName, 500);
   await rejected('status wrong WABA', undefined, () => statusPayload({ waba: 'other-waba' }));
   await rejected('status wrong phone', undefined, () => statusPayload({ value: { messages: [], metadata: { phone_number_id: 'other-phone', display_phone_number: businessPhone }, statuses: [{ id: 'crm-sent-1', status: 'read' }] } }));
   await test('explicit business recipient accepted', async () => {

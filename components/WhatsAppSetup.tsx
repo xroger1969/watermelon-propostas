@@ -113,7 +113,7 @@ export default function WhatsAppSetup() {
       setMetaCode("");
       setMetaRedirectUri("");
       setMetaWabaId("");
-      setCoexistenceMessage("Autorização e subscrição Meta confirmadas. Receção em teste apenas com TESTE WATERMELON 965. Envio pausado.");
+      setCoexistenceMessage("Autorização e subscrição Meta confirmadas. Receção ativa no número empresarial; respostas apenas por ação manual.");
       await load();
     } catch (error) {
       setCoexistenceMessage(error instanceof Error ? error.message : "Connection could not be completed.");
@@ -146,7 +146,7 @@ export default function WhatsAppSetup() {
         throw new Error(message);
       }
       if (!data?.ok) throw new Error(String(data?.error || "A Meta não confirmou acesso ao número empresarial."));
-      setCoexistenceMessage("Autorização Meta existente validada para +351 965 637 736. Receção em teste apenas com TESTE WATERMELON 965. Envio pausado.");
+      setCoexistenceMessage("Autorização Meta existente validada para +351 965 637 736. Receção ativa; respostas apenas por ação manual.");
       await load();
     } catch (error) {
       setCoexistenceMessage(error instanceof Error ? error.message : "Não foi possível validar a autorização Meta.");
@@ -263,14 +263,14 @@ export default function WhatsAppSetup() {
         <>
           <p className="admin-error" role="status">
             {isDedicated
-              ? <>Receção em teste: aceita apenas a mensagem exata «{INBOUND_TEST_PHRASE}» enviada para {WATERMELON_BUSINESS_NUMBER}. Envio pausado.</>
+              ? <>Receção ativa no WhatsApp empresarial {WATERMELON_BUSINESS_NUMBER}. Respostas manuais na conversa; os automatismos continuam pausados.</>
               : <>Integração WhatsApp CRM pausada por segurança. O único número autorizado para a Watermelon é {WATERMELON_BUSINESS_NUMBER}.</>}
             {" "}O número pessoal +351 918 404 101 continua excluído da sincronização.
           </p>
           <div className="whatsapp-setup-status">
             <div>
               <span>Credentials</span>
-              <strong>{ready ? "Receção em teste · Envio pausado" : isDedicated ? "Incompleto" : "Configuração não autorizada"}</strong>
+              <strong>{ready ? "Receção ativa · Respostas manuais" : isDedicated ? "Incompleto" : "Configuração não autorizada"}</strong>
             </div>
             <div>
               <span>{isDedicated ? "Webhook" : "Webhook anterior"}</span>
@@ -342,7 +342,7 @@ export default function WhatsAppSetup() {
                   onClick={() => void validateExistingAuthorization()}>
                   {coexistenceBusy ? "A validar na Meta…" : "Validar autorização Meta já concedida"}
                 </button>
-                <p className="whatsapp-setup-note">Depois de concluíres a autorização na Meta, valida o acesso já guardado no servidor. Apenas o número empresarial +351 965 637 736 pode ser associado. Receção limitada à frase de teste; envio pausado.</p>
+                <p className="whatsapp-setup-note">Depois de concluíres a autorização na Meta, valida o acesso já guardado no servidor. Apenas o número empresarial +351 965 637 736 pode ser associado. Nenhuma mensagem é enviada por esta validação.</p>
               </div>
               <label>
                 <span>WABA ID da ligação Watermelon (obtido na Meta)</span>
@@ -463,10 +463,10 @@ export default function WhatsAppSetup() {
               </div>
             </div>
             <div className="whatsapp-flow-list">
-              <span>Receção em teste no +351 965 637 736: apenas a frase exata «{INBOUND_TEST_PHRASE}» pode entrar no CRM. Outras mensagens ficam excluídas.</span>
+              <span>As mensagens de clientes para +351 965 637 736 são associadas a pedidos comerciais. Histórico, agenda e ecos da aplicação ficam excluídos.</span>
               <span>Nunca importar conversas nem contactos do WhatsApp pessoal 918 404 101.</span>
-              <span>Os envios a partir do CRM mantêm-se bloqueados até aos testes controlados com a Meta.</span>
-              <span>Apenas os estados da resposta única de teste são acompanhados. Os envios gerais continuam pausados.</span>
+              <span>As respostas são enviadas apenas pelo botão da conversa, durante a janela válida de 24 horas. Não há envios automáticos.</span>
+              <span>Os recibos atualizam apenas respostas manuais e o teste único, preservando o respetivo histórico de tentativa.</span>
             </div>
           </article>
         </>

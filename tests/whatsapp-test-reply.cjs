@@ -228,5 +228,7 @@ test('test reply UI selects the newest eligible proof and distinguishes uncertai
   assert.match(uiSource, /window\.confirm\("Enviar UMA resposta de teste/);
   assert.match(uiSource, /\["pending", "unknown"\]\.includes/);
   assert.match(uiSource, /message\.status === "failed" && !pendingTest/);
-  assert.match(uiSource, /const WHATSAPP_CRM_ENABLED = false;/);
+  assert.match(uiSource, /const WHATSAPP_CRM_ENABLED = true;/);
+  assert.match(uiSource, /functions\.invoke\("watermelon-whatsapp-reply"/);
+  assert.doesNotMatch(uiSource, /watermelon-whatsapp-send-v2/);
 });
