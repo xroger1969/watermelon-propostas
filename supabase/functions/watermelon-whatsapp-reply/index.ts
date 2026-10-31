@@ -115,6 +115,46 @@ Deno.serve(async (req: Request) => {
       receivedAt > now.getTime() || receivedAt <= now.getTime() - 24 * 60 * 60 * 1000)
       return result(req, 409, "DEDICATED_SERVICE_WINDOW_REQUIRED", { retry_allowed: false });
 
+    // A separate activity PK serializes different UUIDs for this conversation.
+    // A SELECT alone would allow two tabs to reserve different message PKs.
+    const guardHash = await digest(`manual-reply-guard:${requestId}:${contact.id}:${PHONE_ID}`);
+    const guardId = `${guardHash.slice(0, 8)}-${guardHash.slice(8, 12)}-8${guardHash.slice(13, 16)}-a${guardHash.slice(17, 20)}-${guardHash.slice(20, 32)}`;
+    const guardMetadata = { state: "locked", idempotency_key: key, operation_hash: hash };
+    const { error: guardInsertError } = await admin.from("watermelon_activities").insert({
+      id: guardId, request_id: requestId, contact_id: contact.id,
+      activity_type: "whatsapp_manual_reply_guard", summary: "Envio manual reservado",
+      metadata: { manual_guard: guardMetadata },
+    });
+    if (guardInsertError) {
+      if (guardInsertError.code !== "23505") return result(req, 503, "MANUAL_REPLY_GUARD_UNAVAILABLE", { retry_allowed: false });
+      const { data: guard, error: guardReadError } = await admin.from("watermelon_activities")
+        .select("id,metadata").eq("id", guardId).eq("request_id", requestId).eq("contact_id", contact.id)
+        .eq("activity_type", "whatsapp_manual_reply_guard").maybeSingle();
+      const previousGuard = guard?.metadata?.manual_guard;
+      if (guardReadError) return result(req, 503, "MANUAL_REPLY_GUARD_UNAVAILABLE", { retry_allowed: false });
+      if (previousGuard?.state !== "released" || typeof previousGuard.idempotency_key !== "string" || previousGuard.idempotency_key === key)
+        return result(req, 409, "MANUAL_REPLY_BLOCKED_BY_EXISTING_ATTEMPT", { retry_allowed: false });
+      const { data: acquired, error: acquireError } = await admin.from("watermelon_activities").update({
+        metadata: { manual_guard: guardMetadata }, summary: "Envio manual reservado",
+      }).eq("id", guardId).eq("activity_type", "whatsapp_manual_reply_guard")
+        .eq("metadata->manual_guard->>state", "released")
+        .eq("metadata->manual_guard->>idempotency_key", previousGuard.idempotency_key)
+        .select("id").maybeSingle();
+      if (acquireError) return result(req, 503, "MANUAL_REPLY_GUARD_UNAVAILABLE", { retry_allowed: false });
+      if (!acquired) return result(req, 409, "MANUAL_REPLY_BLOCKED_BY_EXISTING_ATTEMPT", { retry_allowed: false });
+    }
+    async function setGuardState(state: "released" | "unknown") {
+      try {
+        const { data, error } = await admin.from("watermelon_activities").update({
+          metadata: { manual_guard: { ...guardMetadata, state } },
+          summary: state === "released" ? "Tentativa de envio manual concluída" : "Resultado do envio manual por confirmar",
+        }).eq("id", guardId).eq("activity_type", "whatsapp_manual_reply_guard")
+          .eq("metadata->manual_guard->>idempotency_key", key)
+          .eq("metadata->manual_guard->>operation_hash", hash).eq("metadata->manual_guard->>state", "locked")
+          .select("id").maybeSingle();
+        return !error && Boolean(data);
+      } catch { return false; } // A failed release keeps the conversation blocked.
+    }
     const claimMetadata = { version: 1, state: "pending", actor_id: actorId, operation_hash: hash, proof_message_id: inbound.id };
     const { error: claimError } = await admin.from("watermelon_messages").insert({
       id: key, request_id: requestId, contact_id: contact.id, direction: "outbound", channel: "whatsapp",
@@ -138,6 +178,7 @@ Deno.serve(async (req: Request) => {
     }
     async function uncertain() {
       try { await finalize("unknown"); } catch { /* The durable pending claim still blocks replay. */ }
+      await setGuardState("unknown");
       return result(req, 409, "MANUAL_REPLY_UNCERTAIN", { retry_allowed: false,
         message: "A Meta pode ter recebido a mensagem. Verifica a conversa antes de qualquer nova tentativa." });
     }
@@ -161,7 +202,9 @@ Deno.serve(async (req: Request) => {
       freshProof.data?.is_private !== false || !Number.isFinite(freshTime) || freshTime > freshNow || freshTime <= freshNow - 24 * 60 * 60 * 1000 ||
       digits(freshConfig.data?.business_phone) !== BUSINESS || freshConfig.data?.phone_number_id !== PHONE_ID ||
       freshConfig.data?.waba_id !== WABA_ID || !freshConfig.data?.access_token) {
-      await finalize("rejected");
+      const cancelled = await finalize("rejected");
+      if (!cancelled) return await uncertain();
+      await setGuardState("released");
       return result(req, 409, "MANUAL_REPLY_ASSOCIATION_CHANGED", { retry_allowed: false });
     }
     const controller = new AbortController();
@@ -184,6 +227,7 @@ Deno.serve(async (req: Request) => {
       const diagnostic: Record<string, number> = { meta_code: meta.error.code };
       if (typeof meta.error.error_subcode === "number" && Number.isFinite(meta.error.error_subcode)) diagnostic.meta_subcode = meta.error.error_subcode;
       const saved = await finalize("rejected", { failed_at: new Date().toISOString() }, diagnostic);
+      await setGuardState(saved ? "released" : "unknown");
       return result(req, saved ? 409 : 503, saved ? "META_REPLY_REJECTED" : "MANUAL_REPLY_UNCERTAIN", { retry_allowed: false, ...diagnostic });
     }
     const wamid = typeof meta?.messages?.[0]?.id === "string" ? meta.messages[0].id : "";
@@ -192,7 +236,8 @@ Deno.serve(async (req: Request) => {
     try { saved = await finalize("submitted", { status: "sent", whatsapp_message_id: wamid, whatsapp_timestamp: new Date().toISOString() }); }
     catch { /* The claim remains pending and blocks replay if persistence is unavailable. */ }
     if (!saved) return await uncertain();
-    return result(req, 200, "MANUAL_REPLY_SUBMITTED", { mode: "text", whatsapp_message_id: wamid, delivery_verified: false });
+    const released = await setGuardState("released");
+    return result(req, 200, "MANUAL_REPLY_SUBMITTED", { mode: "text", whatsapp_message_id: wamid, delivery_verified: false, new_attempts_blocked: !released });
   } catch {
     // Never return or log transport errors, credentials, request contents, or raw Meta payloads.
     return result(req, 503, "MANUAL_REPLY_FAILED", { retry_allowed: false });
