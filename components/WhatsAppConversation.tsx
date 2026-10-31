@@ -5,9 +5,15 @@ import { createClient } from "@/lib/supabase/client";
 import { SUPABASE_BOOKING_URL } from "@/lib/supabase/config";
 import { requireWhatsAppDeliveryMode } from "@/lib/whatsapp-delivery";
 
+// Sending and inbound ingestion remain disabled in production until Meta verifies the dedicated number.
+const WHATSAPP_CRM_ENABLED = false;
+const LEGACY_PERSONAL_PHONE_ID = "874910289048462";
+
 type ThreadItem = {
   id: string;
   created_at: string;
+  phone_number_id?: string | null;
+  is_private?: boolean;
   direction: "inbound" | "outbound";
   text_body: string | null;
   message_type: string;
@@ -84,6 +90,7 @@ export default function WhatsAppConversation({
   const messages = useMemo(
     () =>
       [...(request.messages || [])]
+        .filter((message) => message.is_private !== true && message.phone_number_id !== LEGACY_PERSONAL_PHONE_ID)
         .sort(
           (a, b) =>
             new Date(a.whatsapp_timestamp || a.created_at).getTime() -
@@ -141,10 +148,15 @@ export default function WhatsAppConversation({
     return fullFirstMessage();
   }
 
-  function fallbackUrl() {
-    const phone = (request.contact?.phone || "").replace(/[^0-9]/g, "");
-    if (!phone) return "#";
-    return "https://wa.me/" + phone + "?text=" + encodeURIComponent(preparedText());
+  async function copyForBusiness() {
+    const text = preparedText();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setFeedback("Texto copiado. Cola-o exclusivamente no WhatsApp Business do número +351 965 637 736; não uses o WhatsApp pessoal.");
+    } catch {
+      setFeedback("Não foi possível copiar. Copia manualmente o texto para o WhatsApp Business.");
+    }
   }
 
   async function sendFromCRM() {
@@ -241,7 +253,7 @@ export default function WhatsAppConversation({
         <div>
           <strong>WhatsApp conversation</strong>
           <span>
-            Only replies to CRM messages are imported into this request. Messages written in the WhatsApp phone app are not imported. WhatsApp confirms delivery and read status.
+            WhatsApp CRM temporariamente pausado. O número pessoal não é sincronizado; a ligação ao novo WhatsApp Business +351 965 637 736 está em preparação.
           </span>
         </div>
         {messages.length > 0 && (
@@ -277,6 +289,7 @@ export default function WhatsAppConversation({
       )}
 
       <div className="crm-whatsapp-compose">
+        <p className="admin-error" role="status">O envio e a receção por WhatsApp no CRM estão suspensos até à validação do novo número empresarial. Para já, copia a mensagem e cola-a na aplicação WhatsApp Business.</p>
         <textarea
           rows={3}
           value={draft}
@@ -313,24 +326,19 @@ export default function WhatsAppConversation({
           <button
             className="button button-primary"
             type="button"
-            disabled={!draft.trim() || sending}
+            disabled={!WHATSAPP_CRM_ENABLED || !draft.trim() || sending}
             onClick={() => void sendFromCRM()}
           >
-            {sending ? "Sending…" : "Send from CRM"}
+            {sending ? "Sending…" : WHATSAPP_CRM_ENABLED ? "Send from CRM" : "CRM WhatsApp pausado"}
           </button>
 
-          <a
-            className="button button-outline"
-            href={fallbackUrl()}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Open in WhatsApp
-          </a>
+          <button className="button button-outline" type="button" onClick={() => void copyForBusiness()}>
+            Copiar para WhatsApp Business
+          </button>
         </div>
 
         <p className="crm-whatsapp-window-note">
-          CRM replies use free-form WhatsApp messages during the 24-hour customer-service window. If that window is closed, the CRM automatically sends an approved Watermelon template first and keeps your reply ready until the customer answers.
+          A integração com a Meta ainda não foi validada para o novo número empresarial. Nenhuma mensagem é enviada automaticamente pelo CRM nesta fase.
         </p>
       </div>
     </section>
