@@ -13,6 +13,25 @@ const ORIGINS = new Set(["https://watermelonexperiences.pt", "https://www.waterm
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const IDEMPOTENCY_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const digits = (value: unknown) => String(value || "").replace(/\D/g, "");
+function internationalPhone(phone: unknown, phoneDigits?: unknown): string | null {
+  const raw = String(phone || phoneDigits || "").trim();
+  if (!raw || !/^[+\d\s().-]+$/.test(raw)) return null;
+  const compact = raw.replace(/[\s().-]/g, "");
+  let normalized: string;
+  if (compact.startsWith("+")) normalized = compact.slice(1);
+  else if (compact.startsWith("00")) normalized = compact.slice(2);
+  else if (/^9\d{8}$/.test(compact)) normalized = "351" + compact;
+  else if (/^3519\d{8}$/.test(compact)) normalized = compact;
+  else return null;
+  if (!/^[1-9]\d{7,14}$/.test(normalized)) return null;
+  if (phoneDigits) {
+    let stored = digits(phoneDigits);
+    if (stored.startsWith("00")) stored = stored.slice(2);
+    if (/^9\d{8}$/.test(stored)) stored = "351" + stored;
+    if (stored !== normalized) return null;
+  }
+  return normalized;
+}
 
 function headers(req: Request) {
   const origin = req.headers.get("origin") || "";
@@ -76,9 +95,9 @@ Deno.serve(async (req: Request) => {
     if (!request || request.is_private !== false || !request.contact_id) return result(req, 403, "PUBLIC_BUSINESS_REQUEST_REQUIRED");
     const { data: contact, error: contactError } = await admin.from("watermelon_contacts")
       .select("id,phone,phone_digits,is_private").eq("id", request.contact_id).maybeSingle();
-    const to = digits(contact?.phone_digits || contact?.phone);
+    const to = internationalPhone(contact?.phone, contact?.phone_digits);
     if (contactError) return result(req, 503, "CRM_LOOKUP_FAILED");
-    if (!contact || contact.id !== request.contact_id || contact.is_private !== false || !/^\d{8,15}$/.test(to) || to === BUSINESS)
+    if (!contact || contact.id !== request.contact_id || contact.is_private !== false || !to || to === BUSINESS)
       return result(req, 403, "PUBLIC_BUSINESS_CONTACT_REQUIRED");
 
     const hash = await digest(JSON.stringify({ requestId, contactId: contact.id, to, text, actorId, phoneId: PHONE_ID, wabaId: WABA_ID }));
@@ -216,7 +235,7 @@ Deno.serve(async (req: Request) => {
     const freshNow = Date.now();
     if (freshRequest.error || freshContact.error || freshProof.error || freshConfig.error ||
       freshRequest.data?.is_private !== false || freshRequest.data?.contact_id !== contact.id ||
-      freshContact.data?.is_private !== false || digits(freshContact.data?.phone_digits || freshContact.data?.phone) !== to ||
+      freshContact.data?.is_private !== false || internationalPhone(freshContact.data?.phone, freshContact.data?.phone_digits) !== to ||
       freshProof.data?.is_private !== false || !Number.isFinite(freshTime) || freshTime > freshNow || freshTime <= freshNow - 24 * 60 * 60 * 1000 ||
       digits(freshConfig.data?.business_phone) !== BUSINESS || freshConfig.data?.phone_number_id !== PHONE_ID ||
       freshConfig.data?.waba_id !== WABA_ID || !freshConfig.data?.access_token) {
@@ -261,3 +280,4 @@ Deno.serve(async (req: Request) => {
     return result(req, 503, "MANUAL_REPLY_FAILED", { retry_allowed: false });
   }
 });
+
