@@ -2,11 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { SUPABASE_BOOKING_URL } from "@/lib/supabase/config";
-import { requireWhatsAppDeliveryMode } from "@/lib/whatsapp-delivery";
 
-// Sending and inbound ingestion remain disabled in production until Meta verifies the dedicated number.
-const WHATSAPP_CRM_ENABLED = false;
+// Only explicit manual replies use the new endpoint; legacy automation stays paused.
+const WHATSAPP_CRM_ENABLED = true;
+const MANUAL_REPLY_SOURCE = "crm_cloud_api_manual";
 const LEGACY_PERSONAL_PHONE_ID = "874910289048462";
 const TEST_REPLY_ID = "96563773-6000-8000-a000-000000000001";
 const TEST_REPLY_SOURCE = "crm_cloud_api_controlled_test";
@@ -23,7 +22,7 @@ type ThreadItem = {
   status: "received" | "sent" | "delivered" | "read" | "failed" | "deleted";
   source: string;
   whatsapp_timestamp: string | null;
-  raw_payload?: { controlled_test_state?: string; errors?: Array<{ code?: number; message?: string }> } | null;
+  raw_payload?: { controlled_test_state?: string; manual_reply?: { state?: string; [key: string]: unknown }; errors?: Array<{ code?: number; message?: string }> } | null;
 };
 
 type RequestItem = {
@@ -88,6 +87,8 @@ export default function WhatsAppConversation({
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [unconfirmedAttemptKey, setUnconfirmedAttemptKey] = useState("");
+  const manualAttemptRef = useRef<{ requestId: string; text: string; key: string; outcome: string } | null>(null);
   const messagesViewportRef = useRef<HTMLDivElement | null>(null);
 
   const messages = useMemo(
@@ -110,6 +111,12 @@ export default function WhatsAppConversation({
     Date.now() - Date.parse(message.whatsapp_timestamp || "") >= 0 &&
     Date.now() - Date.parse(message.whatsapp_timestamp || "") < 24 * 60 * 60 * 1000);
   const testAttempted = messages.some(message => message.id === TEST_REPLY_ID || message.source === TEST_REPLY_SOURCE);
+  const serverUncertain = messages.some(message =>
+    (message.source === MANUAL_REPLY_SOURCE && ["pending", "unknown"].includes(message.raw_payload?.manual_reply?.state || "")) ||
+    (message.source === TEST_REPLY_SOURCE && ["pending", "unknown"].includes(message.raw_payload?.controlled_test_state || "")));
+  const localAttemptConfirmed = messages.some(message => message.id === unconfirmedAttemptKey &&
+    message.source === MANUAL_REPLY_SOURCE && ["submitted", "rejected"].includes(message.raw_payload?.manual_reply?.state || ""));
+  const manualReplyUncertain = serverUncertain || Boolean(manualAttemptRef.current?.requestId === request.id && unconfirmedAttemptKey && !localAttemptConfirmed);
 
   useEffect(() => {
     const viewport = messagesViewportRef.current;
@@ -170,89 +177,50 @@ export default function WhatsAppConversation({
   }
 
   async function sendFromCRM() {
-    const text = preparedText();
-    if (!text || sending) return;
-
+    const text = draft;
+    if (!text.trim() || text.length > 4000 || sending || manualReplyUncertain) return;
+    const previous = manualAttemptRef.current;
+    const attempt = previous?.requestId === request.id && previous.text === text && previous.outcome !== "submitted"
+      ? previous : { requestId: request.id, text, key: crypto.randomUUID(), outcome: "pending" };
+    manualAttemptRef.current = attempt;
+    attempt.outcome = "pending";
+    setUnconfirmedAttemptKey(attempt.key);
     setSending(true);
     setFeedback("");
-
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData.session?.access_token;
-
-    if (!accessToken) {
-      setFeedback("Your private-area session has expired. Please sign in again.");
-      setSending(false);
-      return;
-    }
-
     try {
-      const response = await fetch(
-        SUPABASE_BOOKING_URL + "/functions/v1/watermelon-whatsapp-send-v2",
-        {
-          method: "POST",
-          headers: {
-            Authorization: "Bearer " + accessToken,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            request_id: request.id,
-            text,
-          }),
-        }
-      );
-
-      const data = (await response.json().catch(() => ({}))) as {
-        ok?: boolean;
-        error?: string;
-        hint?: string;
-        code?: number | string | null;
-        subcode?: number | string | null;
-        mode?: "text" | "template" | "pending";
-        template_name?: string | null;
-        customer_service_window_open?: boolean;
-      };
-
-      if (!response.ok || !data.ok) {
-        if (Number(data.code) === 190) {
-          throw new Error(
-            "Meta access token expired or is no longer valid. Generate a new test token in Meta Developers → WhatsApp → Step 1 · Try it out, save it in WhatsApp CRM settings, then try again."
-          );
-        }
-        if (Number(data.code) === 131030) {
-          throw new Error(
-            "This recipient is not in Meta's allowed test list. Add and verify the phone number in Meta Developers → WhatsApp → Step 1 · Try it out."
-          );
-        }
-        throw new Error(
-          [data.error, data.hint].filter(Boolean).join(" ") ||
-            "WhatsApp could not send the message."
-        );
-      }
-
-      // Never assume that ok=true means the message was actually submitted.
-      const deliveryMode = requireWhatsAppDeliveryMode(data.mode);
-      if (deliveryMode === "template") {
-        setFeedback(
-          "The 24-hour WhatsApp service window is closed. One approved Watermelon template was sent and your message is queued. It will be delivered automatically as soon as the customer replies."
-        );
-      } else if (data.mode === "pending") {
-        setFeedback(
-          "An approved Watermelon template was already sent recently, so the CRM did not send another duplicate. Your message is queued and will be delivered automatically as soon as the customer replies."
-        );
-      } else {
+      const { data, error } = await supabase.functions.invoke("watermelon-whatsapp-reply", {
+        method: "POST", body: { request_id: request.id, text, idempotency_key: attempt.key },
+      });
+      const reply = error?.context instanceof Response ? await error.context.json().catch(() => null) : data;
+      const code = String(reply?.code || "");
+      if (!error && reply?.ok === true && ["MANUAL_REPLY_SUBMITTED", "ALREADY_SUBMITTED"].includes(code)) {
+        attempt.outcome = "submitted";
+        setUnconfirmedAttemptKey("");
         setDraft("");
-        setFeedback(
-          "Accepted for processing by WhatsApp; this is NOT a delivery confirmation. Check for Delivered, Read or Failed below."
-        );
+        setFeedback("Mensagem aceite pela Meta. Aguarda o estado de entrega; esta resposta foi enviada apenas por ação manual.");
+      } else if (["META_REPLY_REJECTED", "PREVIOUS_REPLY_REJECTED", "MANUAL_REPLY_ASSOCIATION_CHANGED"].includes(code)) {
+        attempt.outcome = "rejected";
+        setUnconfirmedAttemptKey("");
+        const diagnostic = typeof reply?.meta_code === "number" && Number.isFinite(reply.meta_code) ? " Código Meta: " + reply.meta_code + "." : "";
+        setFeedback("A resposta foi recusada ou bloqueada. Não houve repetição automática. Verifica a conversa antes de preparar outra mensagem." + diagnostic);
+      } else if (["AUTH_REQUIRED", "ADMIN_REQUIRED", "ORIGIN_NOT_ALLOWED", "INVALID_MANUAL_REPLY",
+        "SERVER_NOT_CONFIGURED", "DEDICATED_ACCOUNT_REQUIRED", "CRM_LOOKUP_FAILED",
+        "PUBLIC_BUSINESS_REQUEST_REQUIRED", "PUBLIC_BUSINESS_CONTACT_REQUIRED",
+        "DEDICATED_SERVICE_WINDOW_REQUIRED", "DURABLE_CLAIM_FAILED"].includes(code)) {
+        attempt.outcome = "rejected";
+        setUnconfirmedAttemptKey("");
+        setFeedback(code === "DEDICATED_SERVICE_WINDOW_REQUIRED"
+          ? "É necessária uma mensagem recente deste cliente no número empresarial, neste pedido, para responder na janela de 24 horas."
+          : "O servidor bloqueou o envio antes de o submeter à Meta. Confirma a sessão, o contacto e a configuração empresarial.");
+      } else {
+        attempt.outcome = "unknown";
+        setFeedback("O resultado da resposta é incerto. O envio de novas mensagens fica bloqueado até a tentativa ser esclarecida. Não repitas o envio.");
       }
-      await onChanged();
-    } catch (error) {
-      setFeedback(
-        error instanceof Error
-          ? error.message
-          : "WhatsApp could not send the message."
-      );
+    } catch {
+      attempt.outcome = "unknown";
+      setFeedback("Não foi possível confirmar o resultado. Verifica a conversa e o telemóvel; não repitas um envio incerto.");
     } finally {
+      try { await onChanged(); } catch { /* Preserve the submission result if the view cannot refresh. */ }
       setSending(false);
     }
   }
@@ -291,7 +259,7 @@ export default function WhatsAppConversation({
         <div>
           <strong>WhatsApp conversation</strong>
           <span>
-            Envio WhatsApp pausado. Receção em teste apenas com «TESTE WATERMELON 965» no +351 965 637 736. O número pessoal não é sincronizado.
+            WhatsApp empresarial +351 965 637 736. Respostas enviadas apenas quando carregas em Enviar. O número pessoal não é sincronizado.
           </span>
         </div>
         {messages.length > 0 && (
@@ -304,6 +272,8 @@ export default function WhatsAppConversation({
           {messages.map((message) => {
             const pendingTest = message.source === TEST_REPLY_SOURCE &&
               ["pending", "unknown"].includes(message.raw_payload?.controlled_test_state || "");
+            const pendingManual = message.source === MANUAL_REPLY_SOURCE &&
+              ["pending", "unknown"].includes(message.raw_payload?.manual_reply?.state || "");
             return (
             <div
               className={
@@ -318,9 +288,10 @@ export default function WhatsAppConversation({
                 {timeLabel(message.whatsapp_timestamp || message.created_at)}
                 {message.direction === "outbound" ? " · " + (pendingTest
                   ? message.raw_payload?.controlled_test_state === "pending" ? "Teste em preparação; não repetir" : "Resultado do teste incerto; não repetir"
+                  : pendingManual ? message.raw_payload?.manual_reply?.state === "pending" ? "Resposta em preparação; não repetir" : "Resultado incerto; não repetir"
                   : message.status) : ""}
               </span>
-              {message.direction === "outbound" && message.status === "failed" && !pendingTest && (
+              {message.direction === "outbound" && message.status === "failed" && !pendingTest && !pendingManual && (
                 <p className="admin-error" role="alert">
                   Not delivered — {message.raw_payload?.errors?.[0]?.message || "WhatsApp rejected this message."}
                   {message.raw_payload?.errors?.[0]?.code ? " (Meta code " + message.raw_payload.errors[0].code + ")" : ""}
@@ -341,9 +312,11 @@ export default function WhatsAppConversation({
             <p>Resposta fixa: {TEST_REPLY_TEXT}</p>
           </div>
         )}
-        <p className="admin-error" role="status">Envio pausado. A receção aceita apenas a frase exata «TESTE WATERMELON 965» no número empresarial. Para mensagens de saída, copia o texto para a aplicação WhatsApp Business.</p>
+        <p className="admin-error" role="status">As mensagens deste número empresarial entram no respetivo pedido. As respostas exigem uma ação manual e uma mensagem recente do cliente; não há envios automáticos.</p>
+        {manualReplyUncertain && <p className="admin-error" role="status">Há uma resposta em preparação ou com resultado incerto. Novos envios ficam bloqueados até ser esclarecida.</p>}
         <textarea
           rows={3}
+          maxLength={4000}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           placeholder={
@@ -378,7 +351,7 @@ export default function WhatsAppConversation({
           <button
             className="button button-primary"
             type="button"
-            disabled={!WHATSAPP_CRM_ENABLED || !draft.trim() || sending}
+            disabled={!WHATSAPP_CRM_ENABLED || !draft.trim() || sending || manualReplyUncertain}
             onClick={() => void sendFromCRM()}
           >
             {sending ? "Sending…" : WHATSAPP_CRM_ENABLED ? "Send from CRM" : "CRM WhatsApp pausado"}
@@ -390,7 +363,7 @@ export default function WhatsAppConversation({
         </div>
 
         <p className="crm-whatsapp-window-note">
-          O envio pelo CRM continua pausado. A receção aceita apenas a frase de teste no número empresarial.
+          Cada clique prepara uma única tentativa, sem repetição automática. Os estados de entrega são confirmados pela Meta.
         </p>
       </div>
     </section>

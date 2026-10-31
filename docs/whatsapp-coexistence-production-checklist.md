@@ -1,6 +1,6 @@
 # Dedicated Watermelon WhatsApp — activation checklist
 
-Status on 31 October 2026: **controlled reception test prepared; general enquiries and all automated delivery remain blocked**. The existing server authorization has been validated against the dedicated account and its app subscription. Deploy this release before asking for the real acceptance message. This document replaces the earlier checklist that treated the personal number as a business number.
+Status on 31 October 2026: **draft normal activation; do not publish until the controlled reply is confirmed delivered**. The dedicated account authorization and real inbound acceptance phrase have been validated. This release additionally depends on the separate authenticated manual-reply endpoint and its review. No automatic sending is enabled.
 
 ## Authorized account
 
@@ -20,14 +20,14 @@ These identifiers identify the approved endpoint; they are not credentials. If M
 
 ## Preparation in the repository
 
-- `CRM_INBOUND_ENABLED = true`, `CRM_INBOUND_TEST_ONLY = true` and `CRM_OUTBOUND_ENABLED = false`. General CRM sends remain paused. Only a text body exactly equal to **TESTE WATERMELON 965** can be stored from the authorized endpoint; whitespace, case changes, attachments and other texts are discarded. Only receipts for the single controlled reply below may update its own record; unrelated receipts remain discarded.
+- The draft sets `CRM_INBOUND_ENABLED = true`, `CRM_INBOUND_TEST_ONLY = false` and keeps `CRM_OUTBOUND_ENABLED = false`. General reception is allowed only at the exact dedicated endpoint; history, address-book sync, echoes and private records remain excluded. Outbound requests use only the authenticated manual-reply endpoint when an operator presses the conversation button. Legacy send/send-v2, pending queues, automatic templates and reminders remain blocked.
 - The server-side coexistence exchange validates the dedicated display number through Meta Graph, verifies the app subscription, and only then saves configuration. The webhook additionally requires the exact number, Phone Number ID and WABA above.
-- The acceptance phrase can create a business contact/request without a quoted message. General enquiry routing is prepared behind the explicit test gate and is not enabled in this release. Existing private or unclassified matching contacts block ingestion.
+- Fresh enquiries can create a business contact/request without a quoted message. Existing private or unclassified matching contacts block ingestion. A quoted message still needs a valid association with a manual CRM reply or the controlled test, and never falls back to importing an older queued conversation.
 - Unquoted messages continue only a request linked by non-private messages from this dedicated endpoint. A private, missing or inconsistent linked request blocks fallback creation. Old personal-endpoint requests are not chosen merely because the customer number matches.
 - Concurrent first enquiries share a deterministic request reference. A closed dedicated request starts a new generation. Repeated message deliveries do not create duplicate messages or receipt activities.
-- Explicit replies still require the exact non-private CRM outbound message, contact and request. An unknown or invalid quoted context never falls back to creating a lead.
+- Explicit replies still require the exact non-private CRM outbound message, contact and request. Only `crm_cloud_api_manual` and the controlled-test source qualify. An unknown or invalid quoted context never falls back to creating a lead. Old cloud-api/template/pending sources do not qualify.
 - Only live `messages` events are processed. Phone-app echoes, address-book sync and history fields are ignored. Shared contact cards, stickers, reactions and unknown message types do not create enquiries.
-- This release does not enable sends, change credentials, execute SQL migrations or send a test message. Deploying the Edge Function remains a separate action.
+- This draft does not change credentials or execute SQL migrations. Deployment and every manual message remain separate actions; publishing this branch before the delivery gate is forbidden.
 
 ## Before activation
 
@@ -41,6 +41,16 @@ These identifiers identify the approved endpoint; they are not credentials. If M
 8. Confirm the personal iPhone WhatsApp remains independent and the dedicated WhatsApp Business still works. Check the released iOS build uses the new contact links; source changes alone do not update installed apps.
 
 Rollback: set `CRM_INBOUND_ENABLED = false` and retain `CRM_OUTBOUND_ENABLED = false`, the dedicated endpoint allowlist and the test-only gate. Verify the deployed source. Do not restore the personal account's configuration. General reception requires a separate explicit change to the test-only gate after this acceptance test; outbound delivery requires its own authorized test.
+
+## Normal manual activation gate
+
+1. Confirm the single controlled reply was delivered and retain its durable reservation.
+2. Review and deploy `watermelon-whatsapp-reply` separately with `verify_jwt=true`. It accepts only `request_id`, exact operator-approved `text`, and a stable UUIDv4 `idempotency_key`; it derives the business recipient and verifies strict privacy, dedicated endpoint and a request-scoped service window under 24 hours.
+3. Only after that endpoint is ready, publish this UI and webhook together. Preserve webhook HMAC authentication, `verify_jwt=false` and its existing import map. Do not update the suspended send/send-v2 endpoints or enable cron/queue draining.
+4. The composer invokes the new endpoint only from its click handler. A draft attempt retains its UUID across uncertainty; no automatic retries occur. Pending/unknown messages, including the controlled test, block new sends in that conversation until an explicit submitted/rejected outcome resolves them. The backend also needs to prevent a new key from bypassing an existing uncertain attempt.
+5. Manual receipts must preserve `raw_payload.manual_reply`, including actor, operation hash, proof and submission state. Receipt metadata lives alongside it, never replaces it. Match only the manual source, dedicated endpoint, WAMID and non-private request/contact, then use compare-and-set and monotonic delivery ranks. Early or concurrent uncorrelated receipts request retry; they never trigger an outbound send.
+
+The draft depends on the backend manual-reply PR. Do not combine deployment approval with proof of delivery: production remains in controlled-test mode until the owner has confirmed that proof.
 
 ## Verification performed for this preparation
 
