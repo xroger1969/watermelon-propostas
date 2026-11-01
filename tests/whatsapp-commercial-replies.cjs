@@ -42,7 +42,7 @@ function fixture() {
   };
 }
 function createRuntimeWithJavascript(tables = fixture(), fail = () => false, javascriptToRun = javascript) {
-  const reads = [], writes = [], rpcs = [], logs = [];
+  const reads = [], writes = [], rpcs = [], logs = [], diagnostics = [];
   let graphCalls = 0;
   function from(table) {
     const ops = [];
@@ -109,11 +109,11 @@ function createRuntimeWithJavascript(tables = fixture(), fail = () => false, jav
   vm.runInNewContext(javascriptToRun + '\napi.sendPendingCRMText = sendPendingCRMText;', {
     api, createClient: () => ({ from, async rpc(name, input) { rpcs.push({ name, input }); return { data: name === 'watermelon_whatsapp_server_config' ? copy(config) : null, error: null }; } }),
     crypto: webcrypto, Request, Response, URL, TextEncoder, Intl, Date,
-    console: { error: (...args) => logs.push(args), log() {} },
+    console: { error: (...args) => logs.push(args), log: value => diagnostics.push(JSON.parse(value)) },
     fetch: async () => { graphCalls++; throw new Error('Real network is forbidden in this synthetic test'); },
     Deno: { env: { get: () => 'synthetic-env' }, serve(handler) { api.handler = handler; } },
   });
-  return { api, tables, reads, writes, rpcs, logs, get graphCalls() { return graphCalls; } };
+  return { api, tables, reads, writes, rpcs, logs, diagnostics, get graphCalls() { return graphCalls; } };
 }
 function createRuntime(tables, fail) {
   return createRuntimeWithJavascript(tables, fail, pausedJavascript);
@@ -554,9 +554,9 @@ async function rejected(name, mutate = () => {}, payload = () => event(), fail =
   await rejected('context non-WhatsApp', d => { d.watermelon_messages[0].channel = 'email'; });
   for (const statusName of ['declined', 'cancelled']) await rejected(`closed request ${statusName}`, d => { d.watermelon_requests[0].status = statusName; });
   await rejected('contact lookup error', undefined, undefined, table => table === 'watermelon_contacts', 500);
-  await rejected('context lookup error', undefined, undefined, (table, ops) => table === 'watermelon_messages' && ops.some(op => op[0] === 'eq' && op[1] === 'whatsapp_message_id' && op[2] === 'crm-sent-1'));
+  await rejected('context lookup error requests retry', undefined, undefined, (table, ops) => table === 'watermelon_messages' && ops.some(op => op[0] === 'eq' && op[1] === 'whatsapp_message_id' && op[2] === 'crm-sent-1'), 500);
   await rejected('duplicate lookup error fails closed', undefined, undefined, (table, ops) => table === 'watermelon_messages' && ops.some(op => op[0] === 'eq' && op[1] === 'whatsapp_message_id' && op[2] === 'inbound-1'), 500);
-  await rejected('request lookup error', undefined, undefined, table => table === 'watermelon_requests');
+  await rejected('request lookup error requests retry', undefined, undefined, table => table === 'watermelon_requests', 500);
   await rejected('context belongs to another phone endpoint', d => { d.watermelon_messages[0].phone_number_id = 'other-phone'; });
   await rejected('context has no phone endpoint', d => { delete d.watermelon_messages[0].phone_number_id; });
   await rejected('wrong WABA', undefined, () => event(inbound(), { waba: 'other-waba' }));
@@ -656,6 +656,29 @@ async function rejected(name, mutate = () => {}, payload = () => event(), fail =
     assert.equal(messages.length, 3);
     assert.ok(messages.some(message => message.input.whatsapp_message_id === 'inbound-1'));
     assert.ok(!JSON.stringify(runtime.writes).includes('PERSONAL-SYNTHETIC'));
+  });
+  await test('diagnostics distinguish stored, blocked and receipt events without customer data', async () => {
+    const bodyMarker = 'PRIVATE CONTENT MUST NEVER APPEAR IN DIAGNOSTICS';
+    const accepted = createRoutingRuntime();
+    assert.equal((await post(accepted, event(inbound({text:{body:bodyMarker}})))).status,200);
+    assert.ok(accepted.diagnostics.some(item => item.outcome === 'stored'));
+    const privateTables=fixture(); privateTables.watermelon_contacts[0].is_private=true;
+    const blocked=createRoutingRuntime(privateTables);
+    await post(blocked,event(inbound({text:{body:bodyMarker}})));
+    assert.ok(blocked.diagnostics.some(item=>item.outcome==='private_contact'));
+    assert.equal(blocked.writes.length,0);
+    const unknown=createRoutingRuntime();
+    await post(unknown,event(inbound({context:{id:'UNKNOWN-CONTEXT-SECRET'},text:{body:bodyMarker}})));
+    assert.ok(unknown.diagnostics.some(item=>item.outcome==='unrecognized_context'));
+    const receipts=createRoutingRuntime();
+    await post(receipts,statusPayload());
+    assert.ok(receipts.diagnostics.some(item=>item.outcome==='receipt_event'));
+    for(const runtime of [accepted,blocked,unknown,receipts]) {
+      assert.equal(runtime.graphCalls,0);
+      for(const entry of runtime.diagnostics) assert.deepEqual(Object.keys(entry).sort(),['component','event','outcome']);
+      const encoded=JSON.stringify(runtime.diagnostics);
+      for(const secret of [bodyMarker,customerPhone,businessPhone,config.app_secret,config.access_token,'UNKNOWN-CONTEXT-SECRET','inbound-1']) assert.ok(!encoded.includes(secret));
+    }
   });
   await test('paused outbound helper has no side effects', async () => {
     const runtime = createRoutingRuntime();

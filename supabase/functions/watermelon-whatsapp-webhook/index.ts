@@ -131,7 +131,8 @@ async function requestFromContext(contextMessageId: string, contactId: string, p
     .limit(1)
     .maybeSingle();
 
-  if (messageError || !linkedMessage?.request_id) return null;
+  if (messageError) throw new Error("Quoted message association requires retry.");
+  if (!linkedMessage?.request_id) return null;
   if (linkedMessage.source === MANUAL_TEMPLATE_SOURCE && !submittedManualTemplate(linkedMessage)) return null;
 
   const { data: request, error: requestError } = await supabase
@@ -143,7 +144,8 @@ async function requestFromContext(contextMessageId: string, contactId: string, p
     .not("status", "in", "(declined,cancelled)")
     .maybeSingle();
 
-  if (requestError || !request || request.contact_id !== contactId) return null;
+  if (requestError) throw new Error("Quoted request lookup requires retry.");
+  if (!request || request.contact_id !== contactId) return null;
 
   return {
     id: String(request.id),
@@ -410,8 +412,18 @@ async function sendPendingCRMText(args: {
     .eq("id", requestId);
 }
 
+// Fixed diagnostic codes only: never log payloads, message text, names, phones or IDs.
+type InboundDiagnostic = "test_only" | "configuration_mismatch" | "endpoint_mismatch" |
+  "invalid_sender" | "recipient_mismatch" | "invalid_context" | "unsupported_type" |
+  "missing_message_id" | "duplicate" | "private_contact" | "unrecognized_context" |
+  "template_association_blocked" | "ambiguous_contact" | "contact_blocked" | "request_blocked" |
+  "stored" | "receipt_event" | "unsupported_event" | "account_mismatch";
+function inboundDiagnostic(outcome: InboundDiagnostic) {
+  console.log(JSON.stringify({ component: "watermelon-whatsapp", event: "inbound_diagnostic", outcome }));
+}
+
 async function processMessage(value: any, message: any) {
-  if (CRM_INBOUND_TEST_ONLY && (message?.type !== "text" || message?.text?.body !== INBOUND_TEST_PHRASE)) return;
+  if (CRM_INBOUND_TEST_ONLY && (message?.type !== "text" || message?.text?.body !== INBOUND_TEST_PHRASE)) return inboundDiagnostic("test_only");
   const metadataPhoneId = String(value?.metadata?.phone_number_id || "");
   const displayBusinessPhone = normalizePhone(value?.metadata?.display_phone_number);
   const fromDigits = normalizePhone(message?.from);
@@ -421,28 +433,28 @@ async function processMessage(value: any, message: any) {
   const businessDigits = configuredBusinessPhone || displayBusinessPhone;
 
   // Accept only the configured business endpoint, before inspecting CRM contacts.
-  if (!isDedicatedConfig(config)) return;
-  if (!metadataPhoneId || metadataPhoneId !== String(config.phone_number_id || "")) return;
-  if (!configuredBusinessPhone || displayBusinessPhone !== configuredBusinessPhone) return;
+  if (!isDedicatedConfig(config)) return inboundDiagnostic("configuration_mismatch");
+  if (!metadataPhoneId || metadataPhoneId !== String(config.phone_number_id || "")) return inboundDiagnostic("endpoint_mismatch");
+  if (!configuredBusinessPhone || displayBusinessPhone !== configuredBusinessPhone) return inboundDiagnostic("endpoint_mismatch");
 
   // Accept inbound customer messages only; reject phone-app messages and ambiguous recipients.
-  if (!fromDigits || fromDigits === businessDigits) return;
-  if (toDigits && toDigits !== businessDigits) return;
+  if (!fromDigits || fromDigits === businessDigits) return inboundDiagnostic("invalid_sender");
+  if (toDigits && toDigits !== businessDigits) return inboundDiagnostic("recipient_mismatch");
   const recipientDigits = normalizePhone(message?.recipient_id);
-  if (recipientDigits && recipientDigits !== businessDigits) return;
+  if (recipientDigits && recipientDigits !== businessDigits) return inboundDiagnostic("recipient_mismatch");
 
   // A fresh enquiry is allowed only on the dedicated business endpoint. A quoted
   // message still needs its exact CRM association and never falls back to a lead.
   const contextMessageId = String(message?.context?.id || "");
-  if (message?.context && !contextMessageId) return;
-  if (!["text", "button", "interactive", "image", "video", "document", "audio", "location"].includes(String(message?.type || ""))) return;
+  if (message?.context && !contextMessageId) return inboundDiagnostic("invalid_context");
+  if (!["text", "button", "interactive", "image", "video", "document", "audio", "location"].includes(String(message?.type || ""))) return inboundDiagnostic("unsupported_type");
 
   const customerDigits = fromDigits;
 
-  if (!customerDigits) return;
+  if (!customerDigits) return inboundDiagnostic("invalid_sender");
 
   const messageId = String(message?.id || "");
-  if (!messageId) return;
+  if (!messageId) return inboundDiagnostic("missing_message_id");
   if (messageId) {
     const { data: existingMessage, error: existingError } = await supabase
       .from("watermelon_messages")
@@ -452,7 +464,7 @@ async function processMessage(value: any, message: any) {
       .maybeSingle();
 
     if (existingError) throw existingError;
-    if (existingMessage) return;
+    if (existingMessage) return inboundDiagnostic("duplicate");
   }
 
   // Match local PT and E.164 without rewriting contact data. A private duplicate
@@ -461,7 +473,7 @@ async function processMessage(value: any, message: any) {
     .from("watermelon_contacts").select("id,is_private")
     .in("phone_digits",contactPhoneVariants(customerDigits)).order("last_contact_at",{ascending:false});
   if (contactError) throw contactError;
-  if ((knownContacts || []).some((contact: any) => contact.is_private !== false)) return;
+  if ((knownContacts || []).some((contact: any) => contact.is_private !== false)) return inboundDiagnostic("private_contact");
   let contactId = "";
   let existingRequest: { id: string; status: string; reference: string } | null = null;
   if (contextMessageId) {
@@ -471,22 +483,23 @@ async function processMessage(value: any, message: any) {
       .eq("wa_id", customerDigits).eq("to_phone", customerDigits)
       .in("source", ["crm_cloud_api_manual", CONTROLLED_TEST_SOURCE, MANUAL_TEMPLATE_SOURCE])
       .in("status", ["sent", "delivered", "read"]).maybeSingle();
-    if (quotedError || !quoted || !(knownContacts || []).some((contact: any) => contact.id === quoted.contact_id)) return;
+    if (quotedError) throw new Error("Quoted message lookup requires retry.");
+    if (!quoted || !(knownContacts || []).some((contact: any) => contact.id === quoted.contact_id)) return inboundDiagnostic("unrecognized_context");
     contactId = String(quoted.contact_id);
     existingRequest = await requestFromContext(contextMessageId, contactId, metadataPhoneId);
   } else {
     const binding = await pendingTemplateRequest(customerDigits, knownContacts || []);
-    if (binding === false) return;
+    if (binding === false) return inboundDiagnostic("template_association_blocked");
     if (binding) { contactId = binding.contactId; existingRequest = binding.request; }
-    else if ((knownContacts || []).length > 1) return;
+    else if ((knownContacts || []).length > 1) return inboundDiagnostic("ambiguous_contact");
   }
   const profile = Array.isArray(value?.contacts)
     ? value.contacts.find((contact: any) => normalizePhone(contact?.wa_id) === customerDigits)?.profile?.name
     : "";
   if (!contactId && !contextMessageId) contactId = await dedicatedContact(customerDigits, String(profile || "")) || "";
-  if (!contactId) return;
+  if (!contactId) return inboundDiagnostic("contact_blocked");
   if (!existingRequest && !contextMessageId) existingRequest = await dedicatedRequest(contactId);
-  if (!existingRequest) return;
+  if (!existingRequest) return inboundDiagnostic("request_blocked");
   const crmRequest = existingRequest;
   const timestamp = message?.timestamp
     ? new Date(Number(message.timestamp) * 1000).toISOString()
@@ -518,7 +531,8 @@ async function processMessage(value: any, message: any) {
     }).select("id").maybeSingle();
 
   if (insertError) throw insertError;
-  if (!insertedMessage) return;
+  if (!insertedMessage) return inboundDiagnostic("duplicate");
+  inboundDiagnostic("stored");
 
   const now = new Date().toISOString();
   {
@@ -728,30 +742,35 @@ const config = await getConfig();
       return new Response("EVENT_RECEIVED", { status: 200 });
     }
 
-    if (!isDedicatedConfig(config)) return new Response("EVENT_RECEIVED", { status: 200 });
+    if (!isDedicatedConfig(config)) {
+      inboundDiagnostic("configuration_mismatch");
+      return new Response("EVENT_RECEIVED", { status: 200 });
+    }
 
     const payload = JSON.parse(rawBody);
 
     if (payload?.object === "whatsapp_business_account") {
       for (const entry of payload.entry || []) {
-        if (!config.waba_id || String(entry?.id || "") !== String(config.waba_id)) continue;
+        if (!config.waba_id || String(entry?.id || "") !== String(config.waba_id)) { inboundDiagnostic("account_mismatch"); continue; }
         for (const change of entry?.changes || []) {
           const field = String(change?.field || "");
           const value = change?.value || {};
 
           if (field === "messages") {
-            if (!config.phone_number_id || String(value?.metadata?.phone_number_id || "") !== String(config.phone_number_id)) continue;
-            if (!config.business_phone || normalizePhone(value?.metadata?.display_phone_number) !== normalizePhone(config.business_phone)) continue;
+            if (!config.phone_number_id || String(value?.metadata?.phone_number_id || "") !== String(config.phone_number_id)) { inboundDiagnostic("endpoint_mismatch"); continue; }
+            if (!config.business_phone || normalizePhone(value?.metadata?.display_phone_number) !== normalizePhone(config.business_phone)) { inboundDiagnostic("endpoint_mismatch"); continue; }
             if (Array.isArray(value.messages)) {
               for (const message of value.messages) {
                 await processMessage(value, message);
               }
             }
+            if (Array.isArray(value.statuses) && value.statuses.length) inboundDiagnostic("receipt_event");
             await processStatuses(value);
             continue;
           }
 
           // Phone-app echoes, address-book sync and history imports stay outside the CRM.
+          inboundDiagnostic("unsupported_event");
         }
       }
     }
