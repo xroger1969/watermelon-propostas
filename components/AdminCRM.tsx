@@ -8,7 +8,7 @@ import WhatsAppConversation from "@/components/WhatsAppConversation";
 import EmailConversation from "@/components/EmailConversation";
 import CRMAnalytics from "@/components/CRMAnalytics";
 import CRMMarketingPerformance from "@/components/CRMMarketingPerformance";
-import { countCRMRequests, IN_PROGRESS_STATUSES, type CRMStatus } from "@/lib/crm-dashboard";
+import { countCRMRequests, hasBusinessWhatsAppMessages, IN_PROGRESS_STATUSES, type CRMStatus } from "@/lib/crm-dashboard";
 import { allowedOperationalStatuses, hasPersistedOperationalStatus, type OperationalStatus } from "@/lib/crm-operations";
 import { requireWhatsAppDeliveryMode, wasWhatsAppMessageSubmitted } from "@/lib/whatsapp-delivery";
 
@@ -66,6 +66,8 @@ type CRMMessage = {
   message_type: string;
   status: "received" | "sent" | "delivered" | "read" | "failed" | "deleted";
   source: string;
+  phone_number_id?: string | null;
+  channel?: string;
   whatsapp_timestamp: string | null;
 };
 
@@ -149,7 +151,7 @@ type CRMRequest = {
   messages: CRMMessage[];
 };
 
-type Filter = "all" | "in_progress" | "contacts" | "today" | "upcoming" | CRMStatus;
+type Filter = "all" | "in_progress" | "contacts" | "whatsapp" | "today" | "upcoming" | CRMStatus;
 
 const OWNER_EMAIL = "c.vasconcelos1969@gmail.com";
 
@@ -350,6 +352,7 @@ export default function AdminCRM() {
   const [pendingReviewRequestId, setPendingReviewRequestId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("in_progress");
   const [workspaceView, setWorkspaceView] = useState<"operations" | "marketing">("operations");
+  const [advancedMode, setAdvancedMode] = useState(false);
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -907,7 +910,7 @@ export default function AdminCRM() {
         : await supabase.rpc("watermelon_bulk_delete_requests", {
             p_request_ids: selectedIds,
             p_expected_status: filter === "all" || filter === "in_progress" ||
-              filter === "today" || filter === "upcoming" ? null : filter,
+              filter === "today" || filter === "upcoming" || filter === "whatsapp" ? null : filter,
             p_confirm_count: count,
             p_allow_paid: includesPaid,
           });
@@ -2089,7 +2092,7 @@ export default function AdminCRM() {
     const matches = requests.filter((request) => {
       const filterMatch =
         filter === "all" ||
-        (filter === "today"
+        (filter === "whatsapp" ? hasBusinessWhatsAppMessages(request.messages) : filter === "today"
           ? bookedDates(request).includes(localIsoDate()) &&
             ["confirmed", "in_service", "completed", "no_show"].includes(request.status)
           : filter === "upcoming"
@@ -2159,6 +2162,8 @@ export default function AdminCRM() {
   const viewTitle =
     filter === "contacts"
       ? "Contacts"
+      : filter === "whatsapp"
+        ? "Conversas WhatsApp"
       : filter === "all"
         ? "All requests"
         : filter === "today"
@@ -2275,13 +2280,13 @@ export default function AdminCRM() {
   }
 
   return (
-    <section className="admin-shell crm-shell">
+    <section className={"admin-shell crm-shell " + (advancedMode ? "crm-advanced-mode" : "crm-simple-mode")}>
       <div className="admin-topbar">
         <div>
           <p className="eyebrow dark">WATERMELON PRIVATE AREA</p>
-          <h1>CRM</h1>
+          <h1>Watermelon CRM</h1>
           <p className="crm-topbar-copy">
-            Contacts, requests and commercial follow-up in one place.
+            Pedidos, conversas e reservas, sem complicações.
           </p>
         </div>
         <div className="admin-topbar-actions crm-utility-actions">
@@ -2309,33 +2314,50 @@ export default function AdminCRM() {
         </div>
       </div>
 
+      <div className="crm-mode-switch">
+        <strong>{advancedMode ? "Gestão avançada" : "Vista simples"}</strong>
+        <button type="button" className="button button-outline" aria-expanded={advancedMode}
+          onClick={() => {
+            if (advancedMode) {
+              setWorkspaceView("operations");
+              setFilter("in_progress");
+              setQuery("");
+            }
+            setAdvancedMode(value => !value);
+          }}>
+          {advancedMode ? "Voltar à vista simples" : "Mais opções"}
+        </button>
+      </div>
       <nav className="crm-workspace-nav" aria-label="CRM main navigation">
         <button
           type="button"
           className={workspaceView === "operations" && filter === "in_progress" ? "crm-nav-active" : ""}
           onClick={() => openView("in_progress")}
           aria-current={workspaceView === "operations" && filter === "in_progress" ? "page" : undefined}
-        >Dashboard</button>
+        >Em curso</button>
         <button
           type="button"
-          className={workspaceView === "operations" && filter !== "contacts" && filter !== "in_progress" ? "crm-nav-active" : ""}
+          className={workspaceView === "operations" && !["contacts", "in_progress", "whatsapp"].includes(filter) ? "crm-nav-active" : ""}
           onClick={() => openView("all")}
-        >Requests</button>
+        >Pedidos</button>
         <button
           type="button"
           className={workspaceView === "operations" && filter === "contacts" ? "crm-nav-active" : ""}
           onClick={() => openView("contacts")}
-        >Contacts</button>
-        <a href="/admin/whatsapp">WhatsApp</a>
-        <a href="/admin/bookings">Bookings & payments</a>
-        <a href="https://watermelon-product-studio.vercel.app/">Product Studio</a>
+        >Contactos</button>
+        <button type="button" className={workspaceView === "operations" && filter === "whatsapp" ? "crm-nav-active" : ""}
+          aria-current={workspaceView === "operations" && filter === "whatsapp" ? "page" : undefined}
+          onClick={() => openView("whatsapp")}>Conversas WhatsApp</button>
+        <a href="/admin/bookings">Reservas</a>
+        <a className="crm-advanced-nav" href="/admin/whatsapp">Configurar WhatsApp</a>
+        <a className="crm-advanced-nav" href="https://watermelon-product-studio.vercel.app/">Product Studio</a>
         <button
           type="button"
-          className={workspaceView === "marketing" ? "crm-nav-active" : ""}
+          className={"crm-advanced-nav " + (workspaceView === "marketing" ? "crm-nav-active" : "")}
           aria-pressed={workspaceView === "marketing"}
           onClick={() => setWorkspaceView("marketing")}
         >Marketing & analytics</button>
-        <a href="/admin/promotions">Promotions</a>
+        <a className="crm-advanced-nav" href="/admin/promotions">Promotions</a>
       </nav>
 
       {!pushEnabled && pushSupported && (
@@ -2971,7 +2993,7 @@ export default function AdminCRM() {
                 <section className="crm-customer-panel">
                   <div><span>Phone / WhatsApp</span><strong>{request.contact?.phone || "—"}</strong></div>
                   <div><span>Email</span><strong>{request.contact?.email || "—"}</strong></div>
-                  <div><span>Source</span><strong>{request.source}</strong></div>
+                  <div className="crm-customer-source"><span>Source</span><strong>{request.source}</strong></div>
                   <div><span>Estimated total</span><strong>{money(request.estimated_total, request.currency)}</strong></div>
                 </section>
 
