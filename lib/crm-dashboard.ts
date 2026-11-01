@@ -34,6 +34,14 @@ export type DashboardRow = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+export function hasBusinessWhatsAppMessages(messages: readonly {
+  is_private?: boolean; phone_number_id?: string | null; source: string; channel?: string;
+}[]) {
+  return messages.some(message => message.is_private === false && message.channel === "whatsapp" &&
+    message.phone_number_id === "1423415737522090" &&
+    ["cloud_api", "crm_cloud_api_manual", "crm_cloud_api_controlled_test", "crm_whatsapp_manual_template"].includes(message.source));
+}
+
 function dateOffset(date: string, today: string): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{4}-\d{2}-\d{2}$/.test(today)) {
     return null;

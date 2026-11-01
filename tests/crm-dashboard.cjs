@@ -6,9 +6,20 @@ require.extensions['.ts'] = (module, filename) => module._compile(
   ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
   }).outputText, filename);
-const {countCRMRequests} = require('../lib/crm-dashboard.ts');
+const {countCRMRequests, hasBusinessWhatsAppMessages} = require('../lib/crm-dashboard.ts');
 const row = (status, ...dates) => ({status, dates});
 const TODAY = '2026-10-08';
+
+test('conversation navigation includes business replies/templates but excludes personal messages and internal guards', () => {
+  const business = {is_private:false,channel:'whatsapp',phone_number_id:'1423415737522090',source:'cloud_api'};
+  assert.equal(hasBusinessWhatsAppMessages([]),false);
+  assert.equal(hasBusinessWhatsAppMessages([business]),true);
+  assert.equal(hasBusinessWhatsAppMessages([{...business,source:'crm_whatsapp_manual_template'}]),true);
+  for (const patch of [{is_private:true},{is_private:undefined},{channel:'email'},
+    {phone_number_id:'874910289048462'},{phone_number_id:null},{source:'crm_cloud_api_manual_guard'}]) {
+    assert.equal(hasBusinessWhatsAppMessages([{...business,...patch}]),false);
+  }
+});
 
 test('in-progress includes awaiting customer, but excludes sent proposals and completed requests', () => {
   const counts = countCRMRequests([
