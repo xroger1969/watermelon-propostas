@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { conciergeModel, matchesRequestedModel, REQUIRED_CONCIERGE_MODEL } from "@/lib/ai-model";
 import { inferProductRules, priceTotal, type PricingMode } from "@/lib/product-rules";
 import { loadStudioCatalog, resolveCatalogPricing } from "@/lib/studio-pricing";
 import { experiences } from "@/data/products";
@@ -16,6 +17,20 @@ import {
 } from "@/lib/supabase/config";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+// Read-only configuration evidence. This does not claim a successful inference
+// and never calls OpenAI, exposes credentials or changes CRM records.
+export async function GET() {
+  const configuredModel = conciergeModel();
+  return NextResponse.json({
+    configuredModel,
+    requiredModel: REQUIRED_CONCIERGE_MODEL,
+    configurationCurrent: configuredModel === REQUIRED_CONCIERGE_MODEL,
+    apiKeyConfigured: Boolean(process.env.OPENAI_API_KEY),
+    inferenceVerified: false,
+  }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+}
 
 type HistoryMessage = {
   role: "user" | "assistant";
@@ -502,6 +517,7 @@ export async function POST(request: NextRequest) {
       "\n\nEXISTING CRM REFERENCE: " +
       (existingCRMReference || "none");
 
+    const requestedModel = conciergeModel();
     const openAIResponse = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -509,10 +525,10 @@ export async function POST(request: NextRequest) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_CONCIERGE_MODEL || "gpt-5.6-terra",
+        model: requestedModel,
         store: false,
         reasoning: { effort: "low" },
-        max_output_tokens: 1000,
+        max_output_tokens: 4000,
         prompt_cache_key: "watermelon-ai-concierge-v1",
         safety_identifier: key.slice(0, 64),
         text: {
@@ -534,7 +550,7 @@ export async function POST(request: NextRequest) {
         ],
       }),
       cache: "no-store",
-      signal: AbortSignal.timeout(25_000),
+      signal: AbortSignal.timeout(45_000),
     });
 
     if (!openAIResponse.ok) {
@@ -547,6 +563,16 @@ export async function POST(request: NextRequest) {
     }
 
     const raw = await openAIResponse.json();
+    if (!matchesRequestedModel(requestedModel, raw.model) || raw.status !== "completed") {
+      console.error("Watermelon AI response verification failed", {
+        requestedModel, actualModel: raw.model, status: raw.status,
+        reason: raw.incomplete_details?.reason,
+      });
+      return NextResponse.json({
+        error: "The AI concierge could not complete a verified response. Please try again.",
+        code: "AI_RESPONSE_NOT_VERIFIED",
+      }, { status: 502 });
+    }
     const text = outputText(raw);
 
     if (!text) {
@@ -557,6 +583,9 @@ export async function POST(request: NextRequest) {
     }
 
     const plan = JSON.parse(text) as AIPlan;
+    console.info("Watermelon AI model verified", {
+      requestedModel, actualModel: raw.model, responseId: raw.id,
+    });
     const catalogueByCode = new Map(catalogue.map((item) => [item.code, item]));
     const validRecommendations = (plan.recommendations || [])
       .filter((item) => catalogueByCode.has(item.code))
@@ -790,6 +819,7 @@ export async function POST(request: NextRequest) {
       {
         headers: {
           "Cache-Control": "no-store, max-age=0",
+          "X-OpenAI-Model": raw.model,
         },
       }
     );
