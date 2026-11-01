@@ -178,16 +178,9 @@ export async function callStructured({model, input, schema, schemaName, instruct
   return { object:JSON.parse(text), raw:data, model:data.model || model, usage:data.usage || null };
 }
 
-export async function withModelFallback(fn) {
-  const primary = process.env.OPENAI_PRODUCT_MODEL || 'gpt-6.1-sol';
-  try {
-    return await fn(primary);
-  } catch (error) {
-    const fallbackable = [400,403,404].includes(error?.status) &&
-      /model|access|permission|not found|does not exist/i.test(error?.message || '');
-    if (!fallbackable || primary === 'gpt-5.6-terra') throw error;
-    return await fn('gpt-5.6-terra');
-  }
+export async function withConfiguredModel(fn) {
+  const model = process.env.OPENAI_PRODUCT_MODEL || 'gpt-6-astra';
+  return await fn(model);
 }
 
 function domainFromUrl(url) {
@@ -267,7 +260,7 @@ export async function draftProduct(source) {
   }
 
   if((mode==='url'||mode==='viator')&&source?.brief) input+='\n\nOPERATOR NOTE: '+String(source.brief);
-  return await withModelFallback(async model => {
+  return await withConfiguredModel(async model => {
     const r = await callStructured({
       model,
       input,
@@ -377,7 +370,7 @@ export async function draftProductBundle(bundle) {
 
   const tools = urlRefs.length ? [{type:'web_search',search_context_size:'high'}] : undefined;
 
-  return await withModelFallback(async model => {
+  return await withConfiguredModel(async model => {
     const r = await callStructured({
       model,
       input:[{role:'user',content}],
@@ -439,7 +432,7 @@ Research rules:
 - Never claim that a source was checked unless it appears in comparables.
 `;
 
-  return await withModelFallback(async model => {
+  return await withConfiguredModel(async model => {
     const r = await callStructured({
       model,
       input:`Research a market price for this draft product:\n${JSON.stringify(snapshot)}`,
