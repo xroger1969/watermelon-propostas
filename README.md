@@ -74,10 +74,23 @@ OPENAI_API_KEY=...
 Optional model override:
 
 ```
-OPENAI_CONCIERGE_MODEL=gpt-5.6-terra
+OPENAI_CONCIERGE_MODEL=gpt-6-astra
 ```
 
 The OpenAI API key must remain server-side and must never be exposed through a
 `NEXT_PUBLIC_*` variable.
 
 > Deployment note: environment changes require a fresh Vercel deployment.
+
+The default is GPT-6 Astra, reviewed against the official OpenAI model catalogue
+on 2026-11-01. Requests use Responses with low reasoning and strict JSON output.
+There is no automatic fallback to a smaller model. A completed response must
+identify the requested model (or a dated snapshot of it) before CRM processing.
+Successful replies expose the provider-confirmed model in `X-OpenAI-Model` and
+log model metadata without conversation text.
+
+`GET /api/ai-concierge` reports configuration only, without calling OpenAI or
+creating CRM records. `inferenceVerified: false` deliberately distinguishes that
+check from a live POST. Routine audits should compare this configuration with
+current official documentation and the deployed commit, then inspect verified
+model logs. Test future upgrades before changing the required model.

@@ -62,15 +62,41 @@ test('AI handoff keeps Studio group pricing and the direct-site offer', async ()
   };
   process.env.OPENAI_API_KEY='qa-test-only'; process.env.PRODUCT_STUDIO_PUBLIC_FEED_URL='https://catalogue.example.test';
   const plan={reply:'QA',question:'',intent_summary:'QA',recommendations:[{code:'9963P3',reason:'QA'}],tailor_made_ideas:[],quote_request:{requested:true,ready_to_create:true,customer_name:'QA',customer_phone:'QA',customer_email:'',requested_date:'2026-10-28',guests:12,selected_codes:['9963P3'],tailor_made_titles:[],notes:'',success_message:'QA'}};
-  global.fetch=async url=>new Response(JSON.stringify(url==='https://catalogue.example.test'?{products}:{output_text:JSON.stringify(plan)}),{headers:{'content-type':'application/json'}});
+  global.fetch=async (url,options)=>{
+    if(url==='https://catalogue.example.test')return new Response(JSON.stringify({products}),{headers:{'content-type':'application/json'}});
+    const request=JSON.parse(options.body);
+    assert.equal(request.model,'gpt-6-astra');
+    assert.equal(request.reasoning.effort,'low');
+    assert.equal(request.text.format.strict,true);
+    assert.equal(request.store,false);
+    assert.equal('temperature' in request,false);
+    return new Response(JSON.stringify({model:request.model,status:'completed',output_text:JSON.stringify(plan)}),{headers:{'content-type':'application/json'}});
+  };
   try {
-    const {POST}=require('../app/api/ai-concierge/route.ts');
+    const {POST,GET}=require('../app/api/ai-concierge/route.ts');
+    const status=await (await GET()).json();
+    assert.equal(status.configuredModel,'gpt-6-astra');
+    assert.equal(status.configurationCurrent,true);
+    assert.equal(status.inferenceVerified,false);
+    assert.equal(JSON.stringify(status).includes('qa-test-only'),false);
     const response=await POST(new Request('https://example.test/api/ai-concierge',{method:'POST',body:JSON.stringify({message:'QA request',conversationId:'pricing-qa'})}));
     assert.equal(response.status,200);
+    assert.equal(response.headers.get('x-openai-model'),'gpt-6-astra');
     assert.equal(stored.p_items[0].pricing_mode,'group');
     assert.equal(stored.p_items[0].subtotal,882);
     const body=await response.json();
     assert.equal(body.recommendations[0].price,882);
     assert.equal(body.recommendations[0].pricingMode,'group');
+    for(const provider of [
+      {model:'gpt-4.1-mini',status:'completed'},
+      {model:'gpt-6-astra',status:'incomplete',incomplete_details:{reason:'max_output_tokens'}},
+    ]) {
+      stored=undefined;
+      global.fetch=async url=>new Response(JSON.stringify(url==='https://catalogue.example.test'?{products}:{...provider,output_text:JSON.stringify(plan)}),{headers:{'content-type':'application/json'}});
+      const failed=await POST(new Request('https://example.test/api/ai-concierge',{method:'POST',body:JSON.stringify({message:'QA request'})}));
+      assert.equal(failed.status,502);
+      assert.equal((await failed.json()).code,'AI_RESPONSE_NOT_VERIFIED');
+      assert.equal(stored,undefined);
+    }
   }finally{Module._load=originalLoad;global.fetch=originalFetch;delete process.env.OPENAI_API_KEY;delete process.env.PRODUCT_STUDIO_PUBLIC_FEED_URL;}
 });
