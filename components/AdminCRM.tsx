@@ -350,6 +350,7 @@ export default function AdminCRM() {
   const [pendingReviewRequestId, setPendingReviewRequestId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("in_progress");
   const [workspaceView, setWorkspaceView] = useState<"operations" | "marketing">("operations");
+  const [advancedMode, setAdvancedMode] = useState(false);
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -2275,13 +2276,13 @@ export default function AdminCRM() {
   }
 
   return (
-    <section className="admin-shell crm-shell">
+    <section className={"admin-shell crm-shell " + (advancedMode ? "crm-advanced-mode" : "crm-simple-mode")}>
       <div className="admin-topbar">
         <div>
           <p className="eyebrow dark">WATERMELON PRIVATE AREA</p>
-          <h1>CRM</h1>
+          <h1>Watermelon CRM</h1>
           <p className="crm-topbar-copy">
-            Contacts, requests and commercial follow-up in one place.
+            Pedidos, conversas e reservas, sem complicações.
           </p>
         </div>
         <div className="admin-topbar-actions crm-utility-actions">
@@ -2309,25 +2310,31 @@ export default function AdminCRM() {
         </div>
       </div>
 
+      <div className="crm-mode-switch">
+        <strong>{advancedMode ? "Gestão avançada" : "Vista simples"}</strong>
+        <button type="button" className="button button-outline" onClick={() => setAdvancedMode(value => !value)}>
+          {advancedMode ? "Voltar à vista simples" : "Mais opções"}
+        </button>
+      </div>
       <nav className="crm-workspace-nav" aria-label="CRM main navigation">
         <button
           type="button"
           className={workspaceView === "operations" && filter === "in_progress" ? "crm-nav-active" : ""}
           onClick={() => openView("in_progress")}
           aria-current={workspaceView === "operations" && filter === "in_progress" ? "page" : undefined}
-        >Dashboard</button>
+        >Em curso</button>
         <button
           type="button"
           className={workspaceView === "operations" && filter !== "contacts" && filter !== "in_progress" ? "crm-nav-active" : ""}
           onClick={() => openView("all")}
-        >Requests</button>
+        >Pedidos</button>
         <button
           type="button"
           className={workspaceView === "operations" && filter === "contacts" ? "crm-nav-active" : ""}
           onClick={() => openView("contacts")}
-        >Contacts</button>
-        <a href="/admin/whatsapp">WhatsApp</a>
-        <a href="/admin/bookings">Bookings & payments</a>
+        >Contactos</button>
+        <a href="/admin/whatsapp">Conversas WhatsApp</a>
+        <a href="/admin/bookings">Reservas</a>
         <a href="https://watermelon-product-studio.vercel.app/">Product Studio</a>
         <button
           type="button"
