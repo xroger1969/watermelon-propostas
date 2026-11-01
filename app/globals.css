@@ -5903,17 +5903,14 @@ button { cursor: pointer; }
 /* Simplified Watermelon CRM: preserve advanced tools behind an explicit switch. */
 .crm-mode-switch {display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;margin:12px 0;background:#eef7f2;border:1px solid #c7e2d3;border-radius:18px}
 .crm-mode-switch .button {min-height:44px}
-.crm-simple-mode .crm-workspace-nav > a[href="/admin/promotions"],
-.crm-simple-mode .crm-workspace-nav > a[href="https://watermelon-product-studio.vercel.app/"],
-.crm-simple-mode .crm-workspace-nav > button:last-of-type,
+.crm-simple-mode .crm-advanced-nav,
 .crm-simple-mode .crm-dashboard-context,
 .crm-simple-mode .crm-stats,
 .crm-simple-mode .crm-filter-set,
 .crm-simple-mode .crm-bulk-delete-button,
 .crm-simple-mode .crm-flow-steps,
-.crm-simple-mode .crm-ai-brief,
 .crm-simple-mode .crm-activity,
-.crm-simple-mode .crm-customer-panel > div:nth-child(3),
+.crm-simple-mode .crm-customer-source,
 .crm-simple-mode .crm-extra-actions {display:none!important}
 .crm-simple-mode .crm-workspace-nav {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .crm-simple-mode .crm-workspace-nav > * {min-width:0;padding:12px 7px;text-align:center;font-size:13px}

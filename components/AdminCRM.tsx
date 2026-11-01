@@ -2312,7 +2312,11 @@ export default function AdminCRM() {
 
       <div className="crm-mode-switch">
         <strong>{advancedMode ? "Gestão avançada" : "Vista simples"}</strong>
-        <button type="button" className="button button-outline" onClick={() => setAdvancedMode(value => !value)}>
+        <button type="button" className="button button-outline" aria-expanded={advancedMode}
+          onClick={() => {
+            if (advancedMode) setWorkspaceView("operations");
+            setAdvancedMode(value => !value);
+          }}>
           {advancedMode ? "Voltar à vista simples" : "Mais opções"}
         </button>
       </div>
@@ -2333,16 +2337,16 @@ export default function AdminCRM() {
           className={workspaceView === "operations" && filter === "contacts" ? "crm-nav-active" : ""}
           onClick={() => openView("contacts")}
         >Contactos</button>
-        <a href="/admin/whatsapp">Conversas WhatsApp</a>
+        <a href="/admin/whatsapp">WhatsApp</a>
         <a href="/admin/bookings">Reservas</a>
-        <a href="https://watermelon-product-studio.vercel.app/">Product Studio</a>
+        <a className="crm-advanced-nav" href="https://watermelon-product-studio.vercel.app/">Product Studio</a>
         <button
           type="button"
-          className={workspaceView === "marketing" ? "crm-nav-active" : ""}
+          className={"crm-advanced-nav " + (workspaceView === "marketing" ? "crm-nav-active" : "")}
           aria-pressed={workspaceView === "marketing"}
           onClick={() => setWorkspaceView("marketing")}
         >Marketing & analytics</button>
-        <a href="/admin/promotions">Promotions</a>
+        <a className="crm-advanced-nav" href="/admin/promotions">Promotions</a>
       </nav>
 
       {!pushEnabled && pushSupported && (
@@ -2978,7 +2982,7 @@ export default function AdminCRM() {
                 <section className="crm-customer-panel">
                   <div><span>Phone / WhatsApp</span><strong>{request.contact?.phone || "—"}</strong></div>
                   <div><span>Email</span><strong>{request.contact?.email || "—"}</strong></div>
-                  <div><span>Source</span><strong>{request.source}</strong></div>
+                  <div className="crm-customer-source"><span>Source</span><strong>{request.source}</strong></div>
                   <div><span>Estimated total</span><strong>{money(request.estimated_total, request.currency)}</strong></div>
                 </section>
 
