@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { SUPABASE_BOOKING_URL } from "@/lib/supabase/config";
+import SimpleCRMRequest from "@/components/SimpleCRMRequest";
 import ProposalEditor from "@/components/ProposalEditor";
 import WhatsAppConversation from "@/components/WhatsAppConversation";
 import EmailConversation from "@/components/EmailConversation";
@@ -122,7 +123,7 @@ type CRMBooking = {
   site_promotion_label: string | null;
 };
 
-type CRMRequest = {
+export type CRMRequest = {
   id: string;
   reference: string;
   created_at: string;
@@ -350,7 +351,7 @@ export default function AdminCRM() {
   const [message, setMessage] = useState("");
   const [manualWhatsAppText, setManualWhatsAppText] = useState("");
   const [pendingReviewRequestId, setPendingReviewRequestId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<Filter>("in_progress");
+  const [filter, setFilter] = useState<Filter>("all");
   const [workspaceView, setWorkspaceView] = useState<"operations" | "marketing">("operations");
   const [advancedMode, setAdvancedMode] = useState(false);
   const [query, setQuery] = useState("");
@@ -1108,7 +1109,7 @@ export default function AdminCRM() {
     const confirmed = window.confirm(
       withPayment
         ? "Accept this request and prepare the secure payment link now?"
-        : "Accept this request without requesting payment now?"
+        : "Aceitar este pedido? Podes enviar os dados de pagamento a seguir."
     );
     if (!confirmed) return;
 
@@ -1140,7 +1141,7 @@ export default function AdminCRM() {
 
     let feedback = withPayment
       ? "Request accepted and payment prepared."
-      : "Request accepted. Payment was not requested.";
+      : "Pedido aceite.";
 
     if (withPayment && payload.payment_token) {
       const paymentUrl =
@@ -1318,9 +1319,9 @@ export default function AdminCRM() {
 
 
   function showSchedulingAfterPayment(request: CRMRequest) {
-    setFilter("confirmed");
+    if (advancedMode) setFilter("confirmed");
     setManualWhatsAppText("");
-    setMessage("Pagamento confirmado. Próxima ação: agendar o serviço.");
+    setMessage(advancedMode ? "Pagamento confirmado. Próxima ação: agendar o serviço." : "Pagamento confirmado.");
     window.setTimeout(() => {
       document.getElementById("crm-request-" + request.id)?.scrollIntoView({
         behavior: "smooth", block: "start",
@@ -1400,12 +1401,12 @@ export default function AdminCRM() {
     });
   }
 
-  async function changeStatus(request: CRMRequest, status: CRMStatus) {
+  async function changeStatus(request: CRMRequest, status: CRMStatus, notifyCustomer = true) {
     if (!supabase || request.status === status) return;
 
     if (status === "declined") {
       const confirmed = window.confirm(
-        "Decline this request and automatically notify the customer by WhatsApp?"
+        notifyCustomer ? "Decline this request and notify the customer by WhatsApp?" : "Recusar este pedido?"
       );
       if (!confirmed) return;
     }
@@ -1449,7 +1450,7 @@ export default function AdminCRM() {
     });
 
     let statusFeedback = "";
-    if (status === "declined") {
+    if (status === "declined" && notifyCustomer) {
       statusFeedback = await sendDeclineWhatsApp(request);
     }
 
@@ -1467,7 +1468,7 @@ export default function AdminCRM() {
     if (!supabase || request.kind !== "direct_booking") return;
 
     const confirmed = window.confirm(
-      "Accept this booking request after your review? No payment will be requested until you choose to send the payment options."
+      "Aceitar este pedido? Podes enviar os dados de pagamento a seguir."
     );
     if (!confirmed) return;
 
@@ -1486,6 +1487,30 @@ export default function AdminCRM() {
 
     await loadCRM();
     setEditing(null);
+  }
+
+  async function prepareSimplePayment(request: CRMRequest): Promise<string> {
+    if (!supabase || !["accepted", "awaiting_payment"].includes(request.status)) throw new Error("Aceita o pedido primeiro.");
+    const direct = request.kind === "direct_booking";
+    if (!direct && !request.proposals.length) throw new Error("Guarda primeiro uma proposta com o valor a cobrar.");
+    const { data, error } = await supabase.rpc(
+      direct ? "watermelon_prepare_direct_booking_payment" : "watermelon_admin_accept_request",
+      direct ? { p_request_id: request.id } : { p_request_id: request.id, p_with_payment: true }
+    );
+    if (error || !data?.payment_token) throw new Error(error?.message || "Não foi possível preparar os dados de pagamento.");
+    const paymentUrl = window.location.origin + "/payment/" + encodeURIComponent(data.reference || request.reference) + "?token=" + encodeURIComponent(data.payment_token);
+    const amount = direct ? data.amount : data.proposal_total;
+    const pt = /^(pt|portug)/i.test(request.contact?.preferred_language || "");
+    const text = [
+      (pt ? "Olá " : "Hello ") + (request.contact?.name || "") + ",", "",
+      pt ? "O seu pedido foi aceite pela Watermelon Experiences." : "Your request has been accepted by Watermelon Experiences.",
+      (pt ? "Referência: " : "Reference: ") + request.reference,
+      amount !== null && amount !== undefined ? (pt ? "Valor: " : "Amount: ") + money(Number(amount), request.currency) : "",
+      "", pt ? "Pode escolher o método de pagamento aqui:" : "Choose your payment method here:",
+      paymentUrl, "", "Watermelon Experiences",
+    ].filter(line => line !== undefined).join("\n");
+    await loadCRM();
+    return text;
   }
 
   async function prepareDirectBookingPayment(request: CRMRequest) {
@@ -1594,7 +1619,7 @@ export default function AdminCRM() {
     if (!supabase || request.kind !== "direct_booking") return;
 
     const methodInput = window.prompt(
-      "Payment method: paypal, revolut or bank_transfer",
+      "Método recebido: paypal, revolut ou bank_transfer",
       ""
     );
     if (methodInput === null) return;
@@ -1605,8 +1630,8 @@ export default function AdminCRM() {
       return;
     }
 
-    const paymentReference = window.prompt("Payment reference (optional)", "");
-    if (paymentReference === null) return;
+    const paymentReference = window.prompt("Referência do pagamento (opcional)", "");
+    if (paymentReference === null || !window.confirm("Confirmas que o pagamento foi efetivamente recebido?")) return;
 
     setEditing(request.id);
     setMessage("");
@@ -2046,11 +2071,11 @@ export default function AdminCRM() {
     }, 40);
   }
 
-  async function declineDirectBooking(request: CRMRequest) {
+  async function declineDirectBooking(request: CRMRequest, notifyCustomer = true) {
     if (!supabase || request.kind !== "direct_booking") return;
 
     const confirmed = window.confirm(
-      "Decline this booking request and automatically notify the customer by WhatsApp?"
+      notifyCustomer ? "Decline this booking request and notify the customer by WhatsApp?" : "Recusar este pedido?"
     );
     if (!confirmed) return;
 
@@ -2067,7 +2092,7 @@ export default function AdminCRM() {
       return;
     }
 
-    const declineFeedback = await sendDeclineWhatsApp(request);
+    const declineFeedback = notifyCustomer ? await sendDeclineWhatsApp(request) : "Pedido recusado.";
 
     await loadCRM();
     setMessage(declineFeedback);
@@ -2281,6 +2306,18 @@ export default function AdminCRM() {
 
   return (
     <section className={"admin-shell crm-shell " + (advancedMode ? "crm-advanced-mode" : "crm-simple-mode")}>
+      {!advancedMode && <header className="crm-essential-topbar">
+        <div><small>WATERMELON</small><h1>Pedidos</h1></div>
+        <details className="crm-essential-menu"><summary>Mais</summary><div>
+          <button type="button" onClick={() => void loadCRM()}>Atualizar</button>
+          <button type="button" onClick={() => setAdvancedMode(true)}>Gestão avançada</button>
+          <a href="/admin/bookings">Reservas</a>
+          {pushSupported && <button type="button" disabled={pushBusy} onClick={() => pushEnabled ? void disablePushNotifications() : void enablePushNotifications()}>{pushEnabled ? "Desativar alertas" : "Ativar alertas"}</button>}
+          <button type="button" onClick={() => window.dispatchEvent(new Event("watermelon-open-consent"))}>Privacidade</button>
+          <a href="/">Website</a><button type="button" onClick={() => void signOut()}>Sair</button>
+        </div></details>
+      </header>}
+      {advancedMode && <>
       <div className="admin-topbar">
         <div>
           <p className="eyebrow dark">WATERMELON PRIVATE AREA</p>
@@ -2320,7 +2357,7 @@ export default function AdminCRM() {
           onClick={() => {
             if (advancedMode) {
               setWorkspaceView("operations");
-              setFilter("in_progress");
+              setFilter("all");
               setQuery("");
             }
             setAdvancedMode(value => !value);
@@ -2388,7 +2425,8 @@ export default function AdminCRM() {
         </div>
       )}
 
-      {workspaceView === "operations" && (
+      </>}
+      {advancedMode && workspaceView === "operations" && (
         <>
       <div className="crm-dashboard-context" aria-live="polite">
         <strong>Daily follow-up</strong>
@@ -2537,14 +2575,14 @@ export default function AdminCRM() {
           </details>
         </div>
         <label className="crm-search">
-          <span>Search</span>
+          <span>{advancedMode ? "Search" : "Pesquisar pedidos"}</span>
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={
               filter === "contacts"
                 ? "Name, phone, email or source"
-                : "Name, phone, email, reference or experience"
+                : "Nome, contacto ou referência"
             }
           />
         </label>
@@ -2576,9 +2614,9 @@ export default function AdminCRM() {
           )}
         </div>
       )}
-      {loading && <p className="admin-loading">Loading CRM…</p>}
+      {loading && <p className="admin-loading">A carregar…</p>}
 
-      <div className="crm-results-heading" id="crm-results">
+      {advancedMode && <div className="crm-results-heading" id="crm-results">
         <div>
           <span>Showing</span>
           <h2>{viewTitle}</h2>
@@ -2603,7 +2641,7 @@ export default function AdminCRM() {
             </button>
           )}
         </div>
-      </div>
+      </div>}
 
       {filter === "contacts" && !loading && (
         <div className="crm-contact-list">
@@ -2715,8 +2753,8 @@ export default function AdminCRM() {
         <div className="crm-request-list">
         {!loading && filtered.length === 0 && (
           <div className="admin-empty">
-            <h2>No requests in {viewTitle.toLowerCase()}.</h2>
-            <p>Choose another area above or wait for a new customer interaction.</p>
+            <h2>Não há pedidos para mostrar.</h2>
+            <p>{query ? "Experimenta outro nome ou referência." : "Os novos pedidos do formulário aparecem aqui."}</p>
           </div>
         )}
 
@@ -2764,6 +2802,12 @@ export default function AdminCRM() {
             latestProposal?.payment_status === "not_requested" &&
             request.status === "accepted";
 
+          if (!advancedMode) return <SimpleCRMRequest key={request.id} request={request} busy={busy}
+            onAccept={() => void (request.kind === "direct_booking" ? acceptDirectBooking(request) : acceptProposalRequest(request, false))}
+            onDecline={() => void (request.kind === "direct_booking" ? declineDirectBooking(request, false) : changeStatus(request, "declined", false))}
+            onPayment={() => prepareSimplePayment(request)}
+            onPaid={() => void (request.kind === "direct_booking" ? markDirectBookingPaid(request) : confirmProposalPayment(request))}
+            onChanged={loadCRM} />;
           return (
             <article className="crm-request-card" id={"crm-request-" + request.id} key={request.id}>
               <header className="crm-request-header">

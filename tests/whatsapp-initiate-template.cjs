@@ -63,7 +63,7 @@ function runtime(options = {}) {
   const operations = [], graphReads = [], graphPosts = [], rpcs = [];
   let handler;
   function query(table) {
-    assert.ok(['watermelon_requests', 'watermelon_contacts', 'watermelon_messages', 'watermelon_activities'].includes(table));
+    assert.ok(['watermelon_requests', 'watermelon_contacts', 'watermelon_messages', 'watermelon_activities', 'watermelon_booking_requests'].includes(table));
     const filters = [], orders = [];
     let operation = 'select', input, limit, single = false, columns = '*', wantsRows = false;
     const matches = row => filters.every(([type, column, expected]) => {
@@ -267,7 +267,7 @@ test('only explicitly public AI website requests and contacts are eligible', asy
   }
 });
 test('paid, booking and closed requests cannot be reset to awaiting_customer by initiation', async () => {
-  for (const status of ['paid', 'confirmed', 'completed', 'declined', 'cancelled', 'no_show', 'awaiting_payment']) {
+  for (const status of ['paid', 'completed', 'declined', 'cancelled', 'no_show']) {
     const tables = fixture(); tables.watermelon_requests[0].status = status; await rejected(runtime({ tables }));
     assert.equal(tables.watermelon_requests[0].status, status);
   }
@@ -407,5 +407,45 @@ test('privacy, recipient or request eligibility changes during the claim cancel 
     tables => { tables.watermelon_messages.push(inbound()); },
     (tables, config) => { config.phone_number_id = '874910289048462'; }]) {
     const r = runtime({ claimHook: change }); assert.ok((await r.post()).status >= 400); assert.equal(r.graphPosts.length, 0);
+  }
+});
+
+function directFixture() {
+  const tables = fixture();
+  Object.assign(tables.watermelon_requests[0], { source: 'website', kind: 'direct_booking', reference: 'SYNTHETIC-WEB', linked_booking_id: THIRD_KEY, status: 'in_review' });
+  tables.watermelon_booking_requests = [{ id: THIRD_KEY, reference: 'SYNTHETIC-WEB', customer_phone: '+' + TO }];
+  return tables;
+}
+test('direct website bookings can start a consented conversation using the verified form contact', async () => {
+  const r = runtime({ tables: directFixture() });
+  assert.equal((await (await r.get()).json()).eligible, true);
+  assert.equal(r.graphPosts.length, 0);
+  assert.equal((await r.post()).status, 200);
+  assert.equal(r.graphPosts.length, 1);
+  assert.equal(r.graphPosts[0].body.to, TO);
+});
+test('website eligibility requires a matching booking, reference and phone, not just a website source', async () => {
+  for (const mutate of [
+    t => { t.watermelon_requests[0].kind = 'manual'; },
+    t => { t.watermelon_requests[0].linked_booking_id = null; },
+    t => { t.watermelon_booking_requests = []; },
+    t => { t.watermelon_booking_requests[0].reference = 'OTHER'; },
+    t => { t.watermelon_booking_requests[0].customer_phone = '+351900000002'; },
+  ]) {
+    const tables = directFixture(); mutate(tables); const r = runtime({ tables });
+    assert.equal((await (await r.get()).json()).eligible, false);
+    await rejected(r);
+  }
+});
+test('website booking association is checked again immediately before sending', async () => {
+  const r = runtime({ tables: directFixture(), claimHook(tables) { tables.watermelon_booking_requests[0].customer_phone = '+351900000002'; } });
+  assert.equal((await r.post()).status, 409);
+  assert.equal(r.graphPosts.length, 0);
+});
+test('contacting an accepted or payment-stage booking preserves its business status', async () => {
+  for (const status of ['accepted', 'awaiting_payment', 'confirmed']) {
+    const tables = directFixture(); tables.watermelon_requests[0].status = status;
+    const r = runtime({ tables }); assert.equal((await r.post()).status, 200);
+    assert.equal(tables.watermelon_requests[0].status, status);
   }
 });
