@@ -5984,3 +5984,99 @@ button { cursor: pointer; }
   .crm-essential-topbar h1 {font-size:25px}
   .crm-essential-channel > summary {grid-template-columns:75px minmax(0,1fr);font-size:13px}
 }
+
+
+/* Simple CRM 2026-11-02: one clear choice — WhatsApp, email or proposal. */
+.crm-essential-primary-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin: 0 0 14px;
+}
+.crm-essential-primary-actions .button {
+  min-height: 52px;
+  padding: 12px 10px;
+  border-radius: 13px;
+  font-size: 15px;
+  font-weight: 800;
+}
+.crm-essential-active-panel {
+  margin: 0 0 15px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: #f8fbf9;
+  min-width: 0;
+}
+.crm-essential-active-panel > .crm-whatsapp-thread {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.crm-essential-active-panel .crm-whatsapp-compose {
+  margin-top: 0;
+}
+.crm-essential-active-panel .crm-whatsapp-compose textarea {
+  min-height: 112px;
+}
+.crm-essential-active-panel .crm-whatsapp-compose-actions {
+  margin-top: 10px;
+}
+.crm-essential-active-panel .crm-whatsapp-compose-actions .button {
+  width: 100%;
+  min-height: 50px;
+}
+.crm-essential-active-panel .crm-proposal-editor {
+  margin: 0;
+}
+.crm-essential-no-contact {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+@media(max-width:600px) {
+  .crm-essential-primary-actions {
+    grid-template-columns: 1fr;
+  }
+  .crm-essential-primary-actions .button {
+    width: 100%;
+  }
+  .crm-essential-active-panel {
+    padding: 12px;
+  }
+}
+
+
+.crm-essential-active-panel .crm-whatsapp-compact-first-contact {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 12px;
+  border: 1px solid #cfe3d9;
+  border-radius: 13px;
+  background: #f2f8f5;
+}
+.crm-essential-active-panel .crm-whatsapp-compact-first-contact p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.crm-essential-active-panel .crm-whatsapp-compact-template {
+  margin: 0;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.crm-essential-active-panel .crm-whatsapp-compact-first-contact .button {
+  width: 100%;
+  min-height: 48px;
+}
