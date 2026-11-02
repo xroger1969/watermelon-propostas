@@ -1,5 +1,26 @@
 import SwiftUI
 
+struct InformationRequestView: View {
+    @EnvironmentObject private var store: TravelStore
+    @Environment(\.dismiss) private var dismiss
+    let product: Experience
+    @State private var requestID = UUID().uuidString
+    @State private var receipt: RequestReceipt?
+    var body: some View {
+        if let receipt {
+            ReceiptView(receipt: receipt).toolbar { Button("Done") { dismiss() } }
+        } else {
+            AITailorRequestForm(history: [], ideas: [], conversationId: requestID, onSaved: { reference in
+                let received = RequestReceipt(reference: reference, kind: "information", createdAt: Date(),
+                                              items: [], subject: product.displayTitle)
+                store.saved.receipts.insert(received, at: 0)
+                store.persist()
+                receipt = received
+            }, informationAbout: product)
+        }
+    }
+}
+
 struct ProposalsView: View {
     @EnvironmentObject private var store: TravelStore
     @State private var importLink = false

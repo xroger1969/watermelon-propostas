@@ -2,6 +2,33 @@ import XCTest
 
 final class WatermelonUITests: XCTestCase {
     @MainActor
+    func testCardActionsOpenReservationInformationAndPartnersWithoutOpeningDetails() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Watermelon"].waitForExistence(timeout: 15))
+        let reserve = app.buttons["reserve-9963P14"]
+        for _ in 0..<6 where !reserve.isHittable { app.swipeUp() }
+        XCTAssertTrue(reserve.waitForExistence(timeout: 5))
+        reserve.tap()
+        XCTAssertTrue(app.navigationBars["Reservation request"].waitForExistence(timeout: 5))
+        app.buttons["Close"].tap()
+        let information = app.buttons["information-9963P14"]
+        for _ in 0..<3 where !information.isHittable { app.swipeUp() }
+        information.tap()
+        XCTAssertTrue(app.navigationBars["Request information"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["tailorCustomerName"].exists)
+        XCTAssertFalse(app.buttons["tailorSubmit"].isEnabled)
+        XCTAssertFalse(app.buttons["aiPrivacyAllow"].exists)
+        app.buttons["Close"].tap()
+        let partner = app.buttons["partners-9963P14"]
+        for _ in 0..<3 where !partner.isHittable { app.swipeUp() }
+        partner.tap()
+        XCTAssertTrue(app.navigationBars["Book with a partner"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.links["Viator"].exists || app.buttons["Viator"].exists)
+    }
+
+    @MainActor
     func testAIRequiresPermissionAndDecliningKeepsCatalogueUsable() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-testing", "-AppleLanguages", "(en)", "-AppleLocale", "en_GB"]

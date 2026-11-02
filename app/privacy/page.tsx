@@ -115,7 +115,7 @@ export default function PrivacyPolicyPage() {
           </p>
           <p>
             You can change your choice at any time by using the Cookie settings
-            control shown on the website.
+            control in the website footer.
           </p>
         </section>
 

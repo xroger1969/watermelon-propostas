@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import AdminAccessButton from "@/components/AdminAccessButton";
+import consentStyles from "./ConsentBanner.module.css";
 
 export default function SiteChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -48,6 +49,10 @@ export default function SiteChrome({ children }: { children: ReactNode }) {
         <div className="footer-note">
           <span>Prices and availability subject to confirmation.</span>
           <span><a href="/support">App Support</a> · <a href="/privacy">Privacy Policy</a> · <a href="/salesfriend">SalesFriend demo</a></span>
+          <button type="button" className={consentStyles.settingsButton}
+            onClick={() => window.dispatchEvent(new Event("watermelon-open-cookie-settings"))}>
+            Cookie settings
+          </button>
           <AdminAccessButton />
         </div>
       </footer>

@@ -2,6 +2,41 @@ import XCTest
 @testable import Watermelon
 
 final class WatermelonTests: XCTestCase {
+    func testPartnerLinksOnlyUsePublishedHTTPSChannels() throws {
+        var p = try product(#"{"code":"TEST","title":"Tour","url":"https://www.viator.com/tours/test?pid=old","getYourGuide":{"available":true,"publicUrl":"https://www.getyourguide.com/test-t123"}}"#)
+        XCTAssertNotNil(p.viatorURL)
+        XCTAssertNotNil(p.getYourGuideURL)
+        let tracking = URLComponents(url: p.viatorURL!, resolvingAgainstBaseURL: false)!.queryItems!
+        XCTAssertEqual(tracking.filter { $0.name == "pid" }.map(\.value), ["P00321532"])
+        for bad in ["http://viator.com/tour", "https://viator.com.attacker.example/tour", "https://user@viator.com/tour", "javascript:alert(1)"] {
+            p.url = bad
+            XCTAssertNil(p.viatorURL)
+        }
+        p.getYourGuide?.available = false
+        XCTAssertNil(p.getYourGuideURL)
+    }
+
+    func testInformationRequestSendsExperienceAndContactsWithoutCreatingBooking() async throws {
+        let p = try product(#"{"code":"9963P14","title":"South of Lisbon"}"#)
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.path, "/api/ai-tailor-request")
+            let json = try JSONSerialization.jsonObject(with: self.body(request)) as! [String: Any]
+            XCTAssertEqual(json["requestKind"] as? String, "information")
+            XCTAssertEqual(json["productCode"] as? String, "9963P14")
+            XCTAssertEqual(json["experienceTitle"] as? String, "South of Lisbon")
+            XCTAssertEqual(json["customerPhone"] as? String, "000000000")
+            XCTAssertEqual(json["customerEmail"] as? String, "qa@example.test")
+            XCTAssertEqual(json["notes"] as? String, "Is pickup included?")
+            XCTAssertEqual(json["requestedDate"] as? String, "")
+            return (200, #"{"reference":"WM-INFO-TEST","status":"new"}"#)
+        }
+        defer { MockURLProtocol.handler = nil }
+        let reference = try await client().submitTailorMade(name: "QA", phone: "000000000", email: "qa@example.test",
+            requestedDate: nil, guests: 2, notes: "Is pickup included?", history: [], ideas: [],
+            conversationId: UUID().uuidString, consent: true, informationAbout: p)
+        XCTAssertEqual(reference, "WM-INFO-TEST")
+    }
+
     @MainActor
     func testAIConsentDefaultsToDeniedAndCanBeRevoked() async {
         let name = "watermelon.consent-unit.\(UUID().uuidString)"
@@ -111,7 +146,7 @@ final class WatermelonTests: XCTestCase {
         MockURLProtocol.handler = { request in
             switch request.url?.path {
             case "/api/watermelon-catalog": return (200, #"{"source":"watermelon-product-studio","products":[{"code":"9963P3","title":"Studio boat","price":980,"priceType":"Per group","options":[{"optionCode":"TG1","optionName":"Boat","price":980,"priceType":"Per group"},{"optionCode":"TG2","optionName":"Transfer","price":null,"priceType":"Per group"}]}]}"#)
-            case "/api/viator-catalog": return (200, #"{"source":"viator-partner-api","products":[{"code":"9963P3","title":"Duplicate boat"},{"code":"FOOD","title":"Food"}]}"#)
+            case "/api/viator-catalog": return (200, #"{"source":"viator-partner-api","products":[{"code":"9963P3","title":"Duplicate boat","url":"https://www.viator.com/tours/boat"},{"code":"FOOD","title":"Food"}]}"#)
             case "/api/viator-prices": return (200, #"{"prices":[{"code":"FOOD","price":60,"currency":"EUR"}]}"#)
             case "/api/site-promotions": return (200, #"{"promotions":[{"product_code":"9963P3","before_price":980,"now_price":900,"currency":"EUR"}]}"#)
             default: throw URLError(.badURL)
@@ -122,6 +157,7 @@ final class WatermelonTests: XCTestCase {
         XCTAssertEqual(result.products.count, 2)
         let boat = result.products.first { $0.code == "9963P3" }!
         XCTAssertEqual(boat.title, "Studio boat")
+        XCTAssertNotNil(boat.viatorURL)
         XCTAssertEqual(boat.unitPrice(for: boat.availableOptions[0]), 900)
         XCTAssertNil(boat.unitPrice(for: boat.availableOptions[1]))
         XCTAssertEqual(result.liveCodes, Set(["9963P3", "FOOD"]))

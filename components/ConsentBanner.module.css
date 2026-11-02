@@ -123,16 +123,12 @@
 }
 
 .settingsButton {
-  position: fixed;
-  z-index: 9000;
-  left: 14px;
-  bottom: 14px;
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.94);
+  min-height: 44px;
+  padding: 8px 0;
+  background: transparent;
   color: #31574d;
-  border: 1px solid #d7e4df;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  font-size: 0.78rem;
+  text-decoration: underline;
+  font-size: inherit;
 }
 
 @media (max-width: 760px) {
@@ -156,8 +152,4 @@
     flex: 1 1 100%;
   }
 
-  .settingsButton {
-    bottom: 10px;
-    left: 10px;
-  }
 }

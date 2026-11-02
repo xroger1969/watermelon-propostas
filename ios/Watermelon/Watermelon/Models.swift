@@ -17,6 +17,10 @@ struct ExperienceOption: Codable, Identifiable, Hashable {
 }
 
 struct Experience: Codable, Identifiable, Hashable {
+    struct PartnerChannel: Codable, Hashable {
+        var available: Bool?
+        var publicUrl: String?
+    }
     var code: String
     var title: String
     var shortTitle: String?
@@ -43,11 +47,32 @@ struct Experience: Codable, Identifiable, Hashable {
     var options: [ExperienceOption]?
     var isStudio: Bool?
     var promotionApplied: Bool?
+    var url: String?
+    var getYourGuide: PartnerChannel?
     var id: String { code }
     var displayTitle: String { shortTitle ?? title }
     var place: String { destination ?? location ?? "Portugal" }
     var overview: String { description ?? summary ?? "" }
     var imageURL: URL? { URL(string: image ?? gallery?.first ?? "") }
+    private func partnerURL(_ value: String?, domain: String) -> URL? {
+        guard let value, let parts = URLComponents(string: value),
+              parts.scheme == "https", parts.user == nil, parts.password == nil,
+              parts.port == nil, let host = parts.host?.lowercased(),
+              host == domain || host.hasSuffix("." + domain) else { return nil }
+        return parts.url
+    }
+    var viatorURL: URL? {
+        guard let url = partnerURL(self.url, domain: "viator.com"),
+              var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
+        let tracking = ["pid": "P00321532", "mcid": "42383", "medium": "link", "campaign": "watermelon-app"]
+        parts.queryItems = (parts.queryItems ?? []).filter { tracking[$0.name] == nil }
+            + tracking.sorted { $0.key < $1.key }.map { URLQueryItem(name: $0.key, value: $0.value) }
+        return parts.url
+    }
+    var getYourGuideURL: URL? {
+        guard getYourGuide?.available == true else { return nil }
+        return partnerURL(getYourGuide?.publicUrl, domain: "getyourguide.com")
+    }
     var availableOptions: [ExperienceOption] {
         if let options, !options.isEmpty { return options }
         return [ExperienceOption(optionCode: "DEFAULT", optionName: "Standard option")]
@@ -129,6 +154,7 @@ struct RequestReceipt: Codable, Identifiable {
     var items: [TripItem]
     // Optional so older saved receipts still decode without loss of favourites or proposals.
     var trackingToken: String? = nil
+    var subject: String? = nil
     var id: String { reference }
 }
 

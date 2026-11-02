@@ -15,7 +15,7 @@ struct TripsView: View {
                     ForEach(store.saved.receipts) { receipt in
                         NavigationLink { ReceiptView(receipt: receipt) } label: {
                             VStack(alignment: .leading, spacing: 5) {
-                                Text(receipt.items.first?.title ?? receipt.reference).font(.headline)
+                                Text(receipt.subject ?? receipt.items.first?.title ?? receipt.reference).font(.headline)
                                 Text(receipt.reference).font(.caption)
                                 Label("View request status", systemImage: "clock.arrow.circlepath").font(.caption).foregroundStyle(.secondary)
                             }
@@ -63,10 +63,14 @@ struct ReceiptView: View {
                 Label("Request received", systemImage: "checkmark.circle.fill").font(.title2.bold()).foregroundStyle(Brand.green)
                 Text(receipt.reference).font(.headline).textSelection(.enabled).accessibilityIdentifier("requestReference")
                 if loading { ProgressView("Updating booking…") }
-                Text(progress?.statusText ?? String(localized: "Awaiting Watermelon confirmation"))
+                if let subject = receipt.subject { Text(subject).font(.headline) }
+                Text(progress?.statusText ?? (receipt.kind == "information"
+                     ? String(localized: "Awaiting Watermelon response") : String(localized: "Awaiting Watermelon confirmation")))
                     .font(.headline).accessibilityIdentifier("bookingStatus")
                 if let total = progress?.estimated_total { LabeledContent("Total", value: money(total, progress?.currency ?? "EUR")) }
-                Text("Your request has been sent to Watermelon. We will contact you to confirm availability and final arrangements.")
+                Text(receipt.kind == "information"
+                     ? "Your question has been sent to Watermelon. We will contact you with more information. This is not a reservation."
+                     : "Your request has been sent to Watermelon. We will contact you to confirm availability and final arrangements.")
                 if !statusError.isEmpty { Text(statusError).font(.footnote).foregroundStyle(Brand.red) }
             }
             if statusError.isEmpty, !loading, let url = progress?.paymentURL(for: receipt.reference) {
