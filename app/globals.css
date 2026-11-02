@@ -5926,3 +5926,61 @@ button { cursor: pointer; }
  .crm-simple-mode .crm-results-heading {margin:14px 0}
  .crm-simple-mode .crm-topbar-copy {font-size:14px}
 }
+
+/* Essential inbox: the customer's request, decisions and two contact drawers. */
+.crm-simple-mode {max-width:900px;margin-inline:auto;padding-top:24px}
+.crm-essential-topbar {display:flex;justify-content:space-between;align-items:center;gap:16px;margin:0 0 18px}
+.crm-essential-topbar small {font-size:11px;letter-spacing:.16em;font-weight:800;color:var(--green)}
+.crm-essential-topbar h1 {font-size:28px;line-height:1.2;margin:4px 0 0}
+.crm-essential-menu {position:relative}
+.crm-essential-menu > summary {cursor:pointer;border:1px solid var(--line);border-radius:12px;padding:12px 16px;list-style:none;font-weight:700;background:white}
+.crm-essential-menu > div {position:absolute;right:0;top:52px;z-index:20;min-width:210px;display:grid;background:white;box-shadow:0 8px 28px #153c2f24;border:1px solid var(--line);border-radius:14px;padding:8px}
+.crm-essential-menu a,.crm-essential-menu button {display:block;text-align:left;padding:12px;border:0;background:none;font:inherit;color:var(--ink);text-decoration:none;cursor:pointer}
+.crm-essential-menu :is(a,button):hover {background:#eef7f2}
+.crm-simple-mode .crm-toolbar {display:block;margin:0 0 16px;padding:0;border:0;background:none}
+.crm-simple-mode .crm-search {width:100%}
+.crm-simple-mode .crm-search > span {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.crm-simple-mode .crm-search input {width:100%;min-height:44px;font-size:16px;border-radius:12px}
+.crm-essential-card {background:white;border:1px solid var(--line);border-radius:18px;padding:20px;margin-bottom:16px;min-width:0}
+.crm-essential-heading {display:flex;align-items:start;justify-content:space-between;gap:12px}
+.crm-essential-heading h2 {font-size:22px;line-height:1.2;margin:0 0 6px}
+.crm-essential-heading small {font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+.crm-essential-heading .status-pill {font-size:11px;flex-shrink:0;padding:7px 9px}
+.crm-essential-items {margin:18px 0}
+.crm-essential-items section + section {margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.crm-essential-items h3 {font-size:17px;line-height:1.4;margin:0 0 4px}
+.crm-essential-items p {font-size:14px;line-height:1.5;margin:4px 0;color:var(--muted)}
+.crm-essential-items .crm-essential-note {color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
+.crm-essential-total {display:block;font-size:19px;margin-top:12px;color:var(--green)}
+.crm-essential-actions {display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.crm-essential-actions:empty {display:none}
+.crm-essential-actions .button {flex:1;min-height:44px;padding:11px 14px;font-size:15px;border-radius:12px}
+.crm-essential-channel {border-top:1px solid var(--line)}
+.crm-essential-channel > summary {cursor:pointer;min-height:54px;padding:14px 20px 14px 0;position:relative;display:grid;grid-template-columns:85px minmax(0,1fr);gap:8px;align-items:center;font-size:14px;list-style:none}
+.crm-essential-channel > summary::-webkit-details-marker,.crm-essential-menu > summary::-webkit-details-marker {display:none}
+.crm-essential-channel > summary::after {content:'+';position:absolute;right:0;font-size:20px}
+.crm-essential-channel[open] > summary::after {content:'−'}
+.crm-essential-channel > summary span {overflow-wrap:anywhere;color:var(--muted)}
+.crm-essential-channel > .crm-whatsapp-thread {padding:14px;border-radius:12px;margin:0 0 14px;min-width:0}
+.crm-essential-card .crm-whatsapp-thread-heading span {font-size:12px}
+.crm-essential-card .crm-whatsapp-messages {max-height:280px;overflow:auto}
+.crm-essential-card .crm-whatsapp-compose .button {min-height:44px;font-size:14px;padding:11px 12px}
+.crm-essential-card .crm-whatsapp-template-card {padding:12px;gap:10px}
+.crm-essential-card .crm-whatsapp-template-card p {font-size:13px;line-height:1.45;margin:5px 0}
+.crm-essential-card .crm-whatsapp-template-card strong {font-size:15px}
+.crm-essential-card .crm-whatsapp-template-preview {font-size:13px;padding:10px}
+.crm-essential-card .crm-whatsapp-template-consent {font-size:13px}
+.crm-essential-card textarea,.crm-essential-card input,.crm-essential-card select {max-width:100%;min-width:0;font-size:16px}
+.crm-essential-card .crm-whatsapp-window-note {font-size:11px;overflow-wrap:anywhere}
+.crm-essential-payment,.crm-essential-proposal {border-top:1px solid var(--line);padding:12px 0 0;font-size:13px}
+.crm-essential-payment summary,.crm-essential-proposal summary {cursor:pointer;font-weight:700}
+.crm-essential-payment pre {white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;user-select:all}
+.crm-essential-card :is(button,a,summary,input,textarea,select):focus-visible,.crm-essential-topbar :is(button,a,summary):focus-visible {outline:3px solid #159b76;outline-offset:3px}
+@media(max-width:600px) {
+  .admin-page:has(.crm-simple-mode) {padding:0 10px 30px}
+  .crm-shell.crm-simple-mode {width:100%;padding-top:20px;overflow:visible}
+  .crm-essential-card {padding:16px}
+  .crm-essential-heading {flex-wrap:wrap;gap:8px}
+  .crm-essential-topbar h1 {font-size:25px}
+  .crm-essential-channel > summary {grid-template-columns:75px minmax(0,1fr);font-size:13px}
+}
