@@ -141,9 +141,11 @@ function fromProposal(item: ProposalItemRecord): EditorItem {
 export default function ProposalEditor({
   request,
   onChanged,
+  embedded = false,
 }: {
   request: CRMRequestForProposal;
   onChanged: () => void | Promise<void>;
+  embedded?: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const latest = useMemo(
@@ -151,7 +153,7 @@ export default function ProposalEditor({
     [request.proposals]
   );
 
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(embedded);
   const [validUntil, setValidUntil] = useState(isoInDays(7));
   const [introText, setIntroText] = useState(
     "Thank you for your request. We are pleased to present the following personalized proposal."
@@ -682,7 +684,7 @@ export default function ProposalEditor({
 
   return (
     <section className="crm-proposal-editor">
-      <button
+      {!embedded && <button
         className="crm-proposal-toggle"
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -692,9 +694,9 @@ export default function ProposalEditor({
           <small>{latestStatus}</small>
         </span>
         <b>{open ? "Close" : "Open"}</b>
-      </button>
+      </button>}
 
-      {open && (
+      {(embedded || open) && (
         <div className="crm-proposal-body" onChangeCapture={markChanged}>
           {latest && latest.status !== "draft" && (
             <div className="crm-proposal-current-actions">
