@@ -6047,3 +6047,36 @@ button { cursor: pointer; }
     padding: 12px;
   }
 }
+
+
+.crm-essential-active-panel .crm-whatsapp-compact-first-contact {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 12px;
+  border: 1px solid #cfe3d9;
+  border-radius: 13px;
+  background: #f2f8f5;
+}
+.crm-essential-active-panel .crm-whatsapp-compact-first-contact p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.crm-essential-active-panel .crm-whatsapp-compact-template {
+  margin: 0;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.crm-essential-active-panel .crm-whatsapp-compact-first-contact .button {
+  width: 100%;
+  min-height: 48px;
+}
