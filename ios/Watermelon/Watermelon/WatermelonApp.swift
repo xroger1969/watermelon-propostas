@@ -278,9 +278,7 @@ struct ExploreView: View {
                 }
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 20)], spacing: 20) {
                     ForEach(filtered) { product in
-                        NavigationLink { ExperienceDetail(product: product) } label: { ExperienceCard(product: product) }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("experienceCard-\(product.code)")
+                        ExperienceCard(product: product)
                     }
                 }
             }.padding(20).frame(maxWidth: 1100).frame(maxWidth: .infinity)
@@ -303,28 +301,108 @@ struct ExperienceCard: View {
     let product: Experience
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ExperienceImage(url: product.imageURL).frame(height: 190).clipped()
-                .overlay(alignment: .topTrailing) {
-                    Button { store.toggleFavorite(product) } label: {
-                        Image(systemName: store.saved.favorites.contains(product.code) ? "heart.fill" : "heart")
-                            .foregroundStyle(Brand.red).padding(12).background(.regularMaterial, in: Circle())
-                    }.padding(12).accessibilityLabel("Save to favorites")
+            NavigationLink { ExperienceDetail(product: product) } label: {
+                VStack(alignment: .leading, spacing: 0) {
+                    ExperienceImage(url: product.imageURL).frame(height: 190).clipped()
+                    VStack(alignment: .leading, spacing: 9) {
+                        Text(product.place.uppercased()).font(.caption.weight(.bold)).foregroundStyle(Brand.green)
+                        Text(product.displayTitle).font(.title3.bold()).foregroundStyle(.primary).lineLimit(3)
+                        Label(product.duration ?? String(localized: "Duration on request"), systemImage: "clock")
+                            .font(.caption).foregroundStyle(.secondary)
+                        if let option = product.availableOptions.first, let price = product.unitPrice(for: option) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(money(price, product.currency ?? "EUR")).font(.headline).foregroundStyle(Brand.navy)
+                                Text(product.basis(for: option) == .group ? "per group" : "per person").font(.caption).foregroundStyle(.secondary)
+                            }
+                        } else { Text("Price on request").font(.subheadline.weight(.semibold)).foregroundStyle(Brand.green) }
+                        Label("View details", systemImage: "arrow.right").font(.subheadline.weight(.semibold)).foregroundStyle(Brand.green)
+                    }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
                 }
-            VStack(alignment: .leading, spacing: 9) {
-                Text(product.place.uppercased()).font(.caption.weight(.bold)).foregroundStyle(Brand.green)
-                Text(product.displayTitle).font(.title3.bold()).foregroundStyle(.primary).lineLimit(3)
-                Label(product.duration ?? String(localized: "Duration on request"), systemImage: "clock")
-                    .font(.caption).foregroundStyle(.secondary)
-                if let option = product.availableOptions.first, let price = product.unitPrice(for: option) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(money(price, product.currency ?? "EUR")).font(.headline).foregroundStyle(Brand.navy)
-                        Text(product.basis(for: option) == .group ? "per group" : "per person").font(.caption).foregroundStyle(.secondary)
-                    }
-                } else { Text("Price on request").font(.subheadline.weight(.semibold)).foregroundStyle(Brand.green) }
-            }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("experienceCard-\(product.code)")
+            .overlay(alignment: .topTrailing) {
+                Button { store.toggleFavorite(product) } label: {
+                    Image(systemName: store.saved.favorites.contains(product.code) ? "heart.fill" : "heart")
+                        .foregroundStyle(Brand.red).padding(12).background(.regularMaterial, in: Circle())
+                }.padding(12).accessibilityLabel("Save to favorites")
+            }
+            ExperienceActions(product: product).padding([.horizontal, .bottom], 16)
         }
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
         .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+}
+
+// Shared by the card and details so both entry points offer the same actions.
+struct ExperienceActions: View {
+    @EnvironmentObject private var store: TravelStore
+    let product: Experience
+    @State private var destination: Destination?
+    private enum Destination: String, Identifiable {
+        case booking, information, partners
+        var id: String { rawValue }
+    }
+    var body: some View {
+        VStack(spacing: 10) {
+            Button { destination = .booking } label: {
+                Label("Request a reservation", systemImage: "calendar.badge.plus")
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.borderedProminent).tint(Brand.green)
+            .disabled(!store.liveCodes.contains(product.code))
+            .accessibilityIdentifier("reserve-\(product.code)")
+            Button { destination = .information } label: {
+                Label("Request information", systemImage: "questionmark.circle")
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }.buttonStyle(.bordered).tint(Brand.green)
+                .accessibilityIdentifier("information-\(product.code)")
+            if product.viatorURL != nil || product.getYourGuideURL != nil {
+                Button { destination = .partners } label: {
+                    Label("Book with a partner", systemImage: "arrow.up.right.square")
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }.buttonStyle(.bordered).tint(Brand.green)
+                    .accessibilityIdentifier("partners-\(product.code)")
+            }
+            Button { store.addToCart(product) } label: {
+                Label("Add to my proposal", systemImage: "plus.circle")
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }.buttonStyle(.plain).foregroundStyle(Brand.green)
+                .accessibilityIdentifier("addToProposal")
+            if !store.liveCodes.contains(product.code) {
+                Text("Refresh to request this experience.").font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .sheet(item: $destination) { selected in
+            NavigationStack {
+                switch selected {
+                case .booking: RequestForm(products: [product], proposal: false)
+                case .information: InformationRequestView(product: product)
+                case .partners: BookingPartnersView(product: product)
+                }
+            }
+        }
+    }
+}
+
+struct BookingPartnersView: View {
+    @Environment(\.dismiss) private var dismiss
+    let product: Experience
+    var body: some View {
+        List {
+            Section {
+                Text(product.displayTitle).font(.headline)
+                Text("You will continue on the partner's website to check availability and book.")
+            }
+            if let url = product.viatorURL {
+                Link(destination: url) { Label("Viator", systemImage: "arrow.up.right.square") }
+            }
+            if let url = product.getYourGuideURL {
+                Link(destination: url) { Label("GetYourGuide", systemImage: "arrow.up.right.square") }
+            }
+        }
+        .navigationTitle("Book with a partner")
+        .toolbar { Button("Close") { dismiss() } }
     }
 }
 
@@ -340,7 +418,6 @@ struct ExperienceImage: View {
 struct ExperienceDetail: View {
     @EnvironmentObject private var store: TravelStore
     let product: Experience
-    @State private var request = false
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -362,18 +439,11 @@ struct ExperienceDetail: View {
                     DisclosureGroup("Cancellation conditions") { Text(cancellation).font(.footnote).padding(.top, 8) }
                 }
                 Text("Availability and final arrangements are confirmed by Watermelon.").font(.footnote).foregroundStyle(.secondary)
-                Button { store.addToCart(product) } label: {
-                    Label("Add to my proposal", systemImage: "plus.circle").frame(maxWidth: .infinity).padding(6)
-                }.buttonStyle(.bordered).accessibilityIdentifier("addToProposal")
-                Button { request = true } label: {
-                    Text("Request a reservation").frame(maxWidth: .infinity).padding(6)
-                }.buttonStyle(.borderedProminent).disabled(!store.liveCodes.contains(product.code))
-                if !store.liveCodes.contains(product.code) { Text("Refresh to request this experience.").font(.caption).foregroundStyle(.secondary) }
+                ExperienceActions(product: product)
             }.padding(20).frame(maxWidth: 760).frame(maxWidth: .infinity)
         }
         .navigationTitle("Experience").navigationBarTitleDisplayMode(.inline)
         .toolbar { Button { store.toggleFavorite(product) } label: { Image(systemName: store.saved.favorites.contains(product.code) ? "heart.fill" : "heart") }.tint(Brand.red) }
-        .sheet(isPresented: $request) { NavigationStack { RequestForm(products: [product], proposal: false) } }
         .safeAreaInset(edge: .bottom) { AIQuickAskBar(context: product.displayTitle) }
     }
     @ViewBuilder private func facts(_ title: LocalizedStringKey, lines: [String]?) -> some View {
@@ -871,6 +941,7 @@ struct AITailorRequestForm: View {
     let ideas: [AITailorMadeIdea]
     let conversationId: String
     let onSaved: (String) -> Void
+    var informationAbout: Experience? = nil
 
     @State private var customerName = ""
     @State private var customerPhone = ""
@@ -895,20 +966,23 @@ struct AITailorRequestForm: View {
             Section {
                 Label("Watermelon will receive your request for personal review.",
                       systemImage: "person.crop.circle.badge.checkmark")
-                Text("Your existing Watermelon AI conversation and tailor-made ideas will be attached automatically. This is not a reservation or a confirmed price.")
+                Text(informationAbout == nil
+                     ? "Your existing Watermelon AI conversation and tailor-made ideas will be attached automatically. This is not a reservation or a confirmed price."
+                     : "Ask about this experience. Watermelon will reply using your contact details. This is not a reservation.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 if let idea = ideas.first {
                     Text(idea.title).font(.subheadline.weight(.semibold))
                 }
+                if let product = informationAbout { Text(product.displayTitle).font(.headline) }
                 if let last = history.last(where: { $0.role == "user" }) {
                     Text(last.content).font(.footnote).foregroundStyle(.secondary)
                         .lineLimit(5)
                 }
             } header: {
-                Text("Your tailor-made programme")
+                Text(informationAbout == nil ? "Your tailor-made programme" : "Experience")
             }
-            Section("Contact for your proposal") {
+            Section(informationAbout == nil ? "Contact for your proposal" : "Your details") {
                 TextField("Name *", text: $customerName)
                     .textContentType(.name)
                     .accessibilityIdentifier("tailorCustomerName")
@@ -929,7 +1003,7 @@ struct AITailorRequestForm: View {
                     DatePicker("Preferred date", selection: $preferredDate,
                                in: Date()..., displayedComponents: .date)
                 }
-                TextField("Additional requests (hours, meals, transport or other extras)",
+                TextField(informationAbout == nil ? "Additional requests (hours, meals, transport or other extras)" : "What would you like to know?",
                           text: $extraNotes, axis: .vertical)
                     .lineLimit(3...6)
                     .accessibilityIdentifier("tailorExtraNotes")
@@ -948,7 +1022,7 @@ struct AITailorRequestForm: View {
                 }
             }
         }
-        .navigationTitle("Tailor-made proposal")
+        .navigationTitle(informationAbout == nil ? "Tailor-made proposal" : "Request information")
         .safeAreaInset(edge: .bottom) {
             // Keep the action visible while the long tailor-made form scrolls.
             // SwiftUI Forms virtualize off-screen rows, which previously hid the
@@ -958,7 +1032,7 @@ struct AITailorRequestForm: View {
             } label: {
                 HStack(spacing: 10) {
                     if saving { ProgressView().tint(.white) }
-                    Label(saving ? "Sending request…" : "Send to Watermelon CRM",
+                    Label(saving ? "Sending request…" : (informationAbout == nil ? "Send to Watermelon CRM" : "Send request"),
                           systemImage: "paperplane.fill")
                         .frame(maxWidth: .infinity)
                 }
@@ -989,10 +1063,10 @@ struct AITailorRequestForm: View {
                 name: customerName, phone: customerPhone, email: customerEmail,
                 requestedDate: hasPreferredDate ? PortugalDate.selectedDay(preferredDate) : nil,
                 guests: guests, notes: extraNotes, history: history,
-                ideas: ideas, conversationId: conversationId, consent: consent
+                ideas: ideas, conversationId: conversationId, consent: consent, informationAbout: informationAbout
             )
             onSaved(reference)
-            dismiss()
+            if informationAbout == nil { dismiss() }
         } catch {
             errorMessage = error.localizedDescription
         }

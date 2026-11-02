@@ -81,6 +81,15 @@ export default function ConsentBanner() {
       setOpen(true);
     }
     setReady(true);
+    const reopen = () => {
+      const choice = readChoice();
+      setAdvertising(choice?.advertising ?? false);
+      setAnalytics(choice?.analytics ?? false);
+      setCustomize(true);
+      setOpen(true);
+    };
+    window.addEventListener("watermelon-open-cookie-settings", reopen);
+    return () => window.removeEventListener("watermelon-open-cookie-settings", reopen);
   }, []);
 
   if (!ready) return null;
@@ -98,18 +107,7 @@ export default function ConsentBanner() {
     setOpen(false);
   };
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        className={styles.settingsButton}
-        onClick={() => setOpen(true)}
-        aria-label="Open cookie settings"
-      >
-        Cookie settings
-      </button>
-    );
-  }
+  if (!open) return null;
 
   return (
     <div className={styles.backdrop} role="presentation">

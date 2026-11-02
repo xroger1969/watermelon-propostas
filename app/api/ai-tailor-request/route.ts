@@ -12,6 +12,9 @@ export const dynamic = "force-dynamic";
 type ChatMessage = { role: "user" | "assistant"; content: string };
 type TailorIdea = { title?: string; concept?: string; reason?: string };
 type TailorInput = {
+  requestKind?: "information";
+  productCode?: string;
+  experienceTitle?: string;
   conversationId?: string;
   customerName?: string;
   customerPhone?: string;
@@ -91,6 +94,12 @@ export async function POST(request: NextRequest) {
   const notes = clean(input.notes, 1500);
   const guests = Number(input.guests);
   const conversationId = clean(input.conversationId, 100);
+  const information = input.requestKind === "information";
+  const productCode = clean(input.productCode, 80);
+  const experienceTitle = clean(input.experienceTitle, 200);
+  if (information && (!/^[A-Za-z0-9_-]{1,80}$/.test(productCode) || !experienceTitle || !notes)) {
+    return NextResponse.json({ error: "Please select an experience and describe your question." }, { status: 400 });
+  }
   if (input.consent !== true || !name || (phone.match(/\d/g)?.length || 0) < 7 ||
       (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) ||
       !validDate(requestedDate) || !Number.isInteger(guests) || guests < 1 || guests > 50 ||
@@ -115,21 +124,22 @@ export async function POST(request: NextRequest) {
   }
 
   const reference = referenceForConversation(conversationId);
-  const subject = ideas[0]?.title || "Personalized itinerary / tailor-made enquiry";
+  const subject = information ? experienceTitle : ideas[0]?.title || "Personalized itinerary / tailor-made enquiry";
   const brief = [
-    "Explicit tailor-made enquiry from the Watermelon iOS app.",
+    information ? "Information request from the Watermelon iOS app. This is not a reservation."
+      : "Explicit tailor-made enquiry from the Watermelon iOS app.",
     "For human review: do not assume price, availability or booking confirmation.",
-    notes && "Extra requirements: " + notes,
+    notes && (information ? "Customer question: " : "Extra requirements: ") + notes,
     ...ideas.map((idea) => "Concept: " + idea.title + ". " + idea.concept + " " + idea.reason),
   ].filter(Boolean).join("\n");
-  const customerNotes = [brief, "Conversation context:", ...history].join("\n").slice(0, 4000);
+  const customerNotes = [brief, ...(history.length ? ["Conversation context:", ...history] : [])].join("\n").slice(0, 4000);
 
   const item = {
     position: 0,
-    product_code: null,
+    product_code: information ? productCode : null,
     experience_title: subject,
     option_code: null,
-    option_name: "Tailor-made concept — subject to Watermelon review",
+    option_name: information ? "Information request — no reservation" : "Tailor-made concept — subject to Watermelon review",
     requested_date: requestedDate || null,
     preferred_time: "To be agreed",
     date_flexibility: requestedDate ? "Preferred date" : "Flexible / to be agreed",

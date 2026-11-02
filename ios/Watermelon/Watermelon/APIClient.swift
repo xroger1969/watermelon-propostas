@@ -83,6 +83,8 @@ struct APIClient {
         }
         for var product in validStudio ? studio?.products ?? [] : [] {
             product.isStudio = true
+            // Studio owns the content; retain the matching live distribution link.
+            if product.url?.isEmpty != false { product.url = byCode[product.code]?.url }
             byCode[product.code] = product
         }
         for (code, var product) in byCode {
@@ -208,11 +210,11 @@ struct APIClient {
     func submitTailorMade(name: String, phone: String, email: String,
                           requestedDate: String?, guests: Int, notes: String,
                           history: [AIChatEntry], ideas: [AITailorMadeIdea],
-                          conversationId: String, consent: Bool) async throws -> String {
+                          conversationId: String, consent: Bool, informationAbout: Experience? = nil) async throws -> String {
         #if DEBUG
         if isTesting { return "WM-TEST-TAILOR" }
         #endif
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "conversationId": conversationId,
             "customerName": name.trimmingCharacters(in: .whitespacesAndNewlines),
             "customerPhone": phone.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -228,6 +230,11 @@ struct APIClient {
                 ["title": $0.title, "concept": $0.concept, "reason": $0.reason]
             },
         ]
+        if let product = informationAbout {
+            payload["requestKind"] = "information"
+            payload["productCode"] = product.code
+            payload["experienceTitle"] = product.title
+        }
         let receipt: ReceiptResponse = try await request(
             "/api/ai-tailor-request", method: "POST",
             body: JSONSerialization.data(withJSONObject: payload)
