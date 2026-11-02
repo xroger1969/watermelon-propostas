@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import styles from "./ConsentBanner.module.css";
 
 const STORAGE_KEY = "watermelon-consent-v1";
@@ -65,6 +66,8 @@ function applyChoice(choice: ConsentChoice) {
 }
 
 export default function ConsentBanner() {
+  const pathname = usePathname();
+  const privateArea = pathname?.startsWith("/admin") || pathname?.startsWith("/crm");
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState(false);
   const [customize, setCustomize] = useState(false);
@@ -83,6 +86,12 @@ export default function ConsentBanner() {
     setReady(true);
   }, []);
 
+  useEffect(() => {
+    const show = () => setOpen(true);
+    window.addEventListener("watermelon-open-consent", show);
+    return () => window.removeEventListener("watermelon-open-consent", show);
+  }, []);
+
   if (!ready) return null;
 
   const save = (nextAdvertising: boolean, nextAnalytics: boolean) => {
@@ -99,6 +108,7 @@ export default function ConsentBanner() {
   };
 
   if (!open) {
+    if (privateArea) return null;
     return (
       <button
         type="button"

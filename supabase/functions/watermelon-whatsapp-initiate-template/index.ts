@@ -8,7 +8,7 @@ const SOURCE = "crm_whatsapp_manual_template";
 const GUARD_SOURCE = "crm_cloud_api_manual_guard";
 const GRAPH = "https://graph.facebook.com/v25.0";
 const ORIGINS = new Set(["https://watermelonexperiences.pt", "https://www.watermelonexperiences.pt"]);
-const ACTIVE = new Set(["new", "in_review", "in_progress", "proposal_sent", "awaiting_customer", "customer_replied"]);
+const ACTIVE = new Set(["new", "in_review", "in_progress", "proposal_sent", "awaiting_customer", "customer_replied", "proposal_drafting", "accepted", "awaiting_payment", "confirmed"]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ATTEMPT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const WAMID = /^wamid\.[A-Za-z0-9._~+/=-]+$/;
@@ -125,7 +125,7 @@ Deno.serve(async (req: Request) => {
       return data;
     }
     async function context() {
-      const { data: request, error: rError } = await admin.from("watermelon_requests").select("id,contact_id,reference,source,status,is_private,updated_at").eq("id", requestId).maybeSingle();
+      const { data: request, error: rError } = await admin.from("watermelon_requests").select("id,contact_id,reference,source,kind,linked_booking_id,status,is_private,updated_at").eq("id", requestId).maybeSingle();
       if (rError) throw new Problem("CRM_LOOKUP_FAILED", 503);
       if (!request || request.is_private !== false || !request.contact_id) throw new Problem("PUBLIC_BUSINESS_REQUEST_REQUIRED", 403);
       const { data: contact, error: cError } = await admin.from("watermelon_contacts").select("id,name,phone,phone_digits,is_private").eq("id", request.contact_id).maybeSingle();
@@ -133,7 +133,14 @@ Deno.serve(async (req: Request) => {
       if (!contact || contact.id !== request.contact_id || contact.is_private !== false) throw new Problem("PUBLIC_BUSINESS_CONTACT_REQUIRED", 403);
       const to = internationalPhone(contact.phone, contact.phone_digits);
       if (!to || to === BUSINESS) throw new Problem("INVALID_INTERNATIONAL_CUSTOMER_PHONE");
-      return { request, contact, to };
+      let websiteRequest = request.source === "ai_concierge";
+      if (request.source === "website" && request.kind === "direct_booking" && UUID.test(request.linked_booking_id || "")) {
+        const { data: booking, error: bError } = await admin.from("watermelon_booking_requests")
+          .select("id,reference,customer_phone").eq("id", request.linked_booking_id).maybeSingle();
+        if (bError) throw new Problem("CRM_LOOKUP_FAILED", 503);
+        websiteRequest = Boolean(booking && booking.reference === request.reference && internationalPhone(booking.customer_phone) === to);
+      }
+      return { request, contact, to, websiteRequest };
     }
     async function inbound(ctx: any) {
       const { data, error } = await admin.from("watermelon_messages").select("id,whatsapp_message_id")
@@ -145,7 +152,7 @@ Deno.serve(async (req: Request) => {
     }
     const current = await config();
     const ctx = await context();
-    const eligibility = ctx.request.source !== "ai_concierge" ? "AI_WEB_REQUEST_REQUIRED" : !ACTIVE.has(ctx.request.status) ? "REQUEST_NOT_ACTIVE" : await inbound(ctx) ? "USE_REPLY_ENDPOINT" : "ELIGIBLE";
+    const eligibility = !ctx.websiteRequest ? "WEB_REQUEST_REQUIRED" : !ACTIVE.has(ctx.request.status) ? "REQUEST_NOT_ACTIVE" : await inbound(ctx) ? "USE_REPLY_ENDPOINT" : "ELIGIBLE";
     if (req.method === "GET") return respond(req, 200, { eligible: eligibility === "ELIGIBLE", eligibility_code: eligibility,
       requires_consent_confirmation: true, request_id: requestId, recipient: { name: String(ctx.contact.name || ""), phone: "+" + ctx.to }, templates: await catalogue(String(current.access_token)) });
     const key = input.client_attempt_id.toLowerCase();
@@ -240,7 +247,7 @@ Deno.serve(async (req: Request) => {
     const freshConfig = await config();
     const fresh = await context();
     const refreshed = (await catalogue(String(freshConfig.access_token))).find(item => item.id === selected.id && item.name === selected.name && item.language === selected.language && item.body === selected.body);
-    if (fresh.to !== ctx.to || fresh.contact.id !== ctx.contact.id || fresh.request.source !== "ai_concierge" || !ACTIVE.has(fresh.request.status) || !refreshed || await inbound(fresh)) {
+    if (fresh.to !== ctx.to || fresh.contact.id !== ctx.contact.id || !fresh.websiteRequest || !ACTIVE.has(fresh.request.status) || !refreshed || await inbound(fresh)) {
       const saved = await finish("rejected");
       if (!saved) return await uncertainResult();
       await setGuard("released", "rejected");
@@ -267,7 +274,7 @@ Deno.serve(async (req: Request) => {
     let associationPending = true;
     try {
       if (typeof fresh.request.updated_at === "string") {
-        const { data, error } = await admin.from("watermelon_requests").update({ status: "awaiting_customer", last_contact_at: new Date().toISOString() })
+        const { data, error } = await admin.from("watermelon_requests").update({ status: ["accepted", "awaiting_payment", "confirmed"].includes(fresh.request.status) ? fresh.request.status : "awaiting_customer", last_contact_at: new Date().toISOString() })
           .eq("id", requestId).eq("contact_id", ctx.contact.id).eq("is_private", false).eq("status", fresh.request.status)
           .eq("updated_at", fresh.request.updated_at).select("id").maybeSingle();
         associationPending = Boolean(error || !data);

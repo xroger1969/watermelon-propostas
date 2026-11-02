@@ -19,6 +19,7 @@ type EmailRequest = {
     id: string;
     name: string;
     email: string | null;
+    preferred_language?: string | null;
   } | null;
   activities: Activity[];
 };
@@ -41,12 +42,13 @@ function timeLabel(value: string) {
 
 function defaultReply(request: EmailRequest) {
   const name = request.contact?.name?.trim();
+  const pt = /^(pt|portug)/i.test(request.contact?.preferred_language || "");
   return [
-    name ? "Hello " + name + "," : "Hello,",
+    pt ? (name ? "Olá " + name + "," : "Olá,") : name ? "Hello " + name + "," : "Hello,",
     "",
-    "Thank you for your request. We are reviewing the details and will get back to you shortly.",
+    pt ? "Obrigado pelo seu pedido. Estamos a analisar os detalhes e entraremos em contacto consigo em breve." : "Thank you for your request. We are reviewing the details and will get back to you shortly.",
     "",
-    "Reference: " + request.reference,
+    (pt ? "Referência: " : "Reference: ") + request.reference,
     "",
     "Kind regards,",
     "Watermelon Experiences",
@@ -56,7 +58,11 @@ function defaultReply(request: EmailRequest) {
 export default function EmailConversation({
   request,
   onChanged,
+  compact = false,
+  preparedMessage,
 }: {
+  compact?: boolean;
+  preparedMessage?: { text: string; version: number };
   request: EmailRequest;
   onChanged: () => void | Promise<void>;
 }) {
@@ -84,6 +90,10 @@ export default function EmailConversation({
     setDraft(defaultReply(request));
     setFeedback("");
   }, [request.id, request.reference]);
+
+  useEffect(() => {
+    if (preparedMessage) setDraft(preparedMessage.text);
+  }, [preparedMessage]);
 
   async function sendEmail() {
     if (!customerEmail || !subject.trim() || !draft.trim() || sending) return;
@@ -172,7 +182,7 @@ export default function EmailConversation({
 
       setStatuses((current) => ({ ...current, [data.id as string]: data.status || "sent" }));
       setDraft("");
-      setFeedback("Email sent from Watermelon Experiences and saved in the CRM history.");
+      setFeedback("Email enviado e guardado no histórico.");
       await onChanged();
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Email could not be sent.");
@@ -187,10 +197,8 @@ export default function EmailConversation({
     <section className="crm-whatsapp-thread">
       <div className="crm-whatsapp-thread-heading">
         <div>
-          <strong>Email conversation</strong>
-          <span>
-            Send a direct reply from Watermelon Experiences. Sent messages stay linked to this request.
-          </span>
+          <strong>{compact ? "Mensagem por email" : "Email conversation"}</strong>
+          {!compact && <span>Send a direct reply from Watermelon Experiences. Sent messages stay linked to this request.</span>}
         </div>
         {emailActivities.length > 0 && (
           <b>{emailActivities.length} email{emailActivities.length === 1 ? "" : "s"}</b>
@@ -220,7 +228,8 @@ export default function EmailConversation({
         <input
           value={subject}
           onChange={(event) => setSubject(event.target.value)}
-          placeholder="Email subject"
+          aria-label="Assunto do email"
+          placeholder="Assunto"
           style={{
             width: "100%",
             border: "1px solid var(--line)",
@@ -235,13 +244,14 @@ export default function EmailConversation({
           rows={5}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder="Write your email reply to the customer…"
+          aria-label="Mensagem de email"
+          placeholder="Escreve a mensagem para o cliente…"
         />
 
         {feedback && (
           <p
             className={
-              feedback.toLowerCase().includes("sent")
+              feedback.startsWith("Email enviado")
                 ? "crm-proposal-feedback"
                 : "admin-error"
             }
@@ -257,15 +267,15 @@ export default function EmailConversation({
             disabled={!subject.trim() || !draft.trim() || sending}
             onClick={() => void sendEmail()}
           >
-            {sending ? "Sending email…" : "Send by email"}
+            {sending ? "A enviar…" : "Enviar email"}
           </button>
-          <a className="button button-outline" href={"mailto:" + customerEmail}>
-            Open in Mail
+          <a className="button button-outline" href={"mailto:" + customerEmail + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(draft)}>
+            Abrir na aplicação de email
           </a>
         </div>
 
         <p className="crm-whatsapp-window-note">
-          From: Watermelon Experiences &lt;info@watermelonexperiences.pt&gt; · To: {customerEmail}
+          De: info@watermelonexperiences.pt · Para: {customerEmail}
         </p>
       </div>
     </section>
