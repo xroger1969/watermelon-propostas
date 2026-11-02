@@ -125,6 +125,7 @@ export default function WhatsAppConversation({
   const manualAttemptRef = useRef<{ requestId: string; text: string; key: string; outcome: string } | null>(null);
   const templateAttemptRef = useRef<{ requestId: string; name: string; language: string; key: string; outcome: string } | null>(null);
   const messagesViewportRef = useRef<HTMLDivElement | null>(null);
+  const compactTemplateLoadRef = useRef("");
 
   const messages = useMemo(
     () =>
@@ -226,22 +227,6 @@ export default function WhatsAppConversation({
     }
   }
 
-  function openWhatsAppBusiness() {
-    const phone = (request.contact?.phone || "").replace(/[^0-9]/g, "");
-    const text = preparedText();
-    if (!phone) {
-      setFeedback("Este pedido não tem um número de WhatsApp utilizável.");
-      return;
-    }
-    if (!text) {
-      setFeedback("Escreve primeiro a mensagem que queres enviar.");
-      return;
-    }
-    const url = "https://wa.me/" + phone + "?text=" + encodeURIComponent(text);
-    window.open(url, "_blank", "noopener,noreferrer");
-    setFeedback("WhatsApp aberto com a mensagem pronta. Confirma o envio no WhatsApp Business.");
-  }
-
   async function sendFromCRM() {
     const text = draft;
     if (!text.trim() || text.length > 4000 || sending || manualReplyUncertain) return;
@@ -328,6 +313,13 @@ export default function WhatsAppConversation({
       setFeedback("Não foi possível carregar os modelos. Nenhuma mensagem foi enviada.");
     } finally { setTemplateLoading(false); }
   }
+
+  useEffect(() => {
+    if (!compact || serviceWindowOpen || templateAlreadySubmitted || currentCatalogue || templateLoading || sending) return;
+    if (compactTemplateLoadRef.current === request.id) return;
+    compactTemplateLoadRef.current = request.id;
+    void loadTemplateCatalogue();
+  }, [compact, request.id, serviceWindowOpen, templateAlreadySubmitted, currentCatalogue, templateLoading, sending]);
 
   async function sendInitiationTemplate() {
     if (sending || templateLoading || manualReplyUncertain || templateAlreadySubmitted || !templateConsent ||
@@ -476,7 +468,7 @@ export default function WhatsAppConversation({
           <section className="crm-whatsapp-template-card" aria-label="Iniciar contacto por modelo aprovado">
             <div>
               <strong>Primeiro contacto por WhatsApp</strong>
-              <p>{compact ? "Envia a mensagem inicial abaixo. Quando o cliente responder, podes escrever livremente." : "Escolhe um modelo aprovado e confirma a autorização do cliente. O texto livre só pode ser enviado depois de uma mensagem recente do cliente."}</p>
+              <p>Escolhe um modelo aprovado e confirma a autorização do cliente. O texto livre só pode ser enviado depois de uma mensagem recente do cliente.</p>
             </div>
             <button type="button" className="button button-outline" disabled={templateLoading || sending} onClick={() => void loadTemplateCatalogue()}>
               {templateLoading ? "A preparar…" : currentCatalogue ? "Atualizar mensagem inicial" : "Preparar primeira mensagem"}
@@ -500,12 +492,44 @@ export default function WhatsAppConversation({
                     </label>
                     <button type="button" className="button button-primary" onClick={() => void sendInitiationTemplate()}
                       disabled={!currentCatalogue.eligible || !selectedTemplate || !templateConsent || sending || templateLoading || manualReplyUncertain || templateAlreadySubmitted}>
-                      {templateAlreadySubmitted ? "Modelo enviado · aguarda a resposta do cliente" : sending ? "A enviar modelo…" : (compact ? "Enviar primeira mensagem" : "Enviar modelo aprovado")}
+                      {templateAlreadySubmitted ? "Modelo enviado · aguarda a resposta do cliente" : sending ? "A enviar modelo…" : "Enviar modelo aprovado"}
                     </button>
                   </>
                 ) : <p role="status">Ainda não há modelos estáticos de serviço aprovados disponíveis. O modelo poderá estar pendente de aprovação na Meta.</p>}
 
               </>
+            )}
+          </section>
+        )}
+        {compact && !serviceWindowOpen && (
+          <section className="crm-whatsapp-compact-first-contact" aria-label="WhatsApp empresarial">
+            {templateAlreadySubmitted ? (
+              <p role="status"><strong>Mensagem inicial enviada.</strong> Quando o cliente responder, podes responder aqui.</p>
+            ) : templateLoading || !currentCatalogue ? (
+              <p role="status">A preparar WhatsApp…</p>
+            ) : currentCatalogue.templates.length > 0 && selectedTemplate ? (
+              <>
+                <pre className="crm-whatsapp-compact-template">{selectedTemplate.body}</pre>
+                <label className="crm-whatsapp-template-consent">
+                  <input
+                    type="checkbox"
+                    checked={templateConsent}
+                    disabled={sending || manualReplyUncertain}
+                    onChange={(event) => setTemplateConsent(event.target.checked)}
+                  />
+                  <span>Cliente autorizou contacto por WhatsApp.</span>
+                </label>
+                <button
+                  type="button"
+                  className="button button-primary"
+                  onClick={() => void sendInitiationTemplate()}
+                  disabled={!currentCatalogue.eligible || !templateConsent || sending || templateLoading || manualReplyUncertain}
+                >
+                  {sending ? "A enviar…" : "Enviar WhatsApp"}
+                </button>
+              </>
+            ) : (
+              <p role="status">WhatsApp empresarial indisponível para este primeiro contacto.</p>
             )}
           </section>
         )}
@@ -548,28 +572,17 @@ export default function WhatsAppConversation({
         )}
 
         <div className="crm-whatsapp-compose-actions">
-          {compact ? (
-            <button
-              className="button button-primary"
-              type="button"
-              disabled={!draft.trim() || sending || manualReplyUncertain}
-              onClick={() => serviceWindowOpen ? void sendFromCRM() : openWhatsAppBusiness()}
-            >
-              {sending ? "A enviar…" : serviceWindowOpen ? "Enviar WhatsApp" : "Abrir WhatsApp"}
-            </button>
-          ) : <>
-            <button
-              className="button button-primary"
-              type="button"
-              disabled={!WHATSAPP_CRM_ENABLED || !serviceWindowOpen || !draft.trim() || sending || manualReplyUncertain}
-              onClick={() => void sendFromCRM()}
-            >
-              {sending ? "A enviar…" : WHATSAPP_CRM_ENABLED ? "Enviar WhatsApp" : "CRM WhatsApp pausado"}
-            </button>
-            <button className="button button-outline" type="button" onClick={() => void copyForBusiness()}>
-              Copiar para WhatsApp Business
-            </button>
-          </>}
+          {(serviceWindowOpen || !compact) && <button
+            className="button button-primary"
+            type="button"
+            disabled={!WHATSAPP_CRM_ENABLED || !serviceWindowOpen || !draft.trim() || sending || manualReplyUncertain}
+            onClick={() => void sendFromCRM()}
+          >
+            {sending ? "A enviar…" : WHATSAPP_CRM_ENABLED ? "Enviar WhatsApp" : "CRM WhatsApp pausado"}
+          </button>}
+          {!compact && <button className="button button-outline" type="button" onClick={() => void copyForBusiness()}>
+            Copiar para WhatsApp Business
+          </button>}
         </div>
 
         {!compact && <p className="crm-whatsapp-window-note">
