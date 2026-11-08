@@ -5533,7 +5533,8 @@ button { cursor: pointer; }
 .partner-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 120;
+  /* The chooser opens above the experience details (z-index: 1000). */
+  z-index: 1100;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -5543,6 +5544,9 @@ button { cursor: pointer; }
 .partner-modal {
   position: relative;
   width: min(620px, 100%);
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 28px;
   border: 1px solid var(--line);
   border-radius: 24px;
