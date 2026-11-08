@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { experiences } from "@/data/products";
 import { viatorListings } from "@/data/viator";
 import { guestLimitLabel, inferProductRules, pricingModeFor, type PricingMode } from "@/lib/product-rules";
@@ -224,6 +224,29 @@ function money(value: number, currency = "EUR") {
   }).format(value);
 }
 
+function bookingUrl(url?: string) {
+  try {
+    const target = new URL(url || "");
+    return ["https:", "http:"].includes(target.protocol) ? target.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
+function partnerLinks(product: UnifiedCatalogProduct) {
+  return {
+    viator: bookingUrl(product.viator.url),
+    getYourGuide: product.studio?.getYourGuide?.available
+      ? bookingUrl(product.studio.getYourGuide.publicUrl)
+      : "",
+  };
+}
+
+function hasBookingPartner(product: UnifiedCatalogProduct) {
+  const links = partnerLinks(product);
+  return Boolean(links.viator || links.getYourGuide);
+}
+
 function affiliateUrl(url: string) {
   try {
     const target = new URL(url);
@@ -367,7 +390,7 @@ export default function Catalog() {
           price: 0,
           currency: "EUR" as const,
           image: product.image || "/logo-full.jpg",
-          url: product.url || "#",
+          url: product.url || "",
           duration: product.duration || "Duration on request",
           rating: product.rating,
           reviews: product.reviews,
@@ -403,6 +426,8 @@ export default function Catalog() {
   const [addedCode, setAddedCode] = useState<string | null>(null);
   const [detailCode, setDetailCode] = useState<string | null>(null);
   const [partnerCode, setPartnerCode] = useState<string | null>(null);
+  const detailDialogRef = useRef<HTMLElement>(null);
+  const partnerDialogRef = useRef<HTMLElement>(null);
   const [galleryImages, setGalleryImages] = useState<Record<string, string[]>>({});
   const [productDetails, setProductDetails] = useState<Record<string, LiveProductDetails>>({});
   const [galleryIndex, setGalleryIndex] = useState(0);
@@ -500,19 +525,45 @@ export default function Catalog() {
         .catch(() => {});
     }
 
+  }, [detailCode, galleryImages, productDetails, products]);
+
+  useEffect(() => {
+    if (!detailCode && !partnerCode) return;
+    const dialog = partnerCode ? partnerDialogRef.current : detailDialogRef.current;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    dialog?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setDetailCode(null);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (partnerCode) setPartnerCode(null);
+        else setDetailCode(null);
+      }
+      if (event.key === "Tab" && dialog) {
+        const controls = Array.from(dialog.querySelectorAll<HTMLElement>(
+          'a[href], button:not(:disabled), [tabindex="0"]'
+        )).filter((element) => element.getClientRects().length > 0);
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
     };
-  }, [detailCode, galleryImages, productDetails, products]);
+  }, [detailCode, partnerCode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -841,7 +892,7 @@ export default function Catalog() {
                   Request booking directly
                 </button>
 
-                {(product.viator.url || product.studio) && (
+                {hasBookingPartner(product) && (
                   <button
                     className="button button-card viator-button"
                     type="button"
@@ -882,11 +933,10 @@ export default function Catalog() {
       {partnerCode && (() => {
         const product = products.find((item) => item.code === partnerCode);
         if (!product) return null;
-        const gyg = product.studio?.getYourGuide;
-        const gygAvailable = Boolean(gyg?.available && gyg.publicUrl);
+        const links = partnerLinks(product);
         return (
           <div className="partner-modal-backdrop" role="presentation" onClick={() => setPartnerCode(null)}>
-            <section className="partner-modal" role="dialog" aria-modal="true" aria-label="Choose booking partner" onClick={(event) => event.stopPropagation()}>
+            <section ref={partnerDialogRef} className="partner-modal" role="dialog" aria-modal="true" aria-label="Choose booking partner" onClick={(event) => event.stopPropagation()}>
               <button className="experience-modal-close" type="button" aria-label="Close" onClick={() => setPartnerCode(null)}>×</button>
               <p className="eyebrow dark">BOOKING PARTNERS</p>
               <h2>Choose where to book</h2>
@@ -896,10 +946,10 @@ export default function Catalog() {
                 <div className="partner-channel-card">
                   <div>
                     <strong>Viator</strong>
-                    <span>{product.viator.url ? "Available now" : "Not available for this experience"}</span>
+                    <span>{links.viator ? "Available now" : "Not available for this experience"}</span>
                   </div>
-                  {product.viator.url ? (
-                    <a className="button button-outline" href={affiliateUrl(product.viator.url)} target="_blank" rel="sponsored noreferrer">
+                  {links.viator ? (
+                    <a className="button button-outline" href={affiliateUrl(links.viator)} target="_blank" rel="sponsored noreferrer">
                       Continue to Viator
                     </a>
                   ) : (
@@ -910,10 +960,10 @@ export default function Catalog() {
                 <div className="partner-channel-card">
                   <div>
                     <strong>GetYourGuide</strong>
-                    <span>{gygAvailable ? "Available now" : "Channel prepared · bookings opening soon"}</span>
+                    <span>{links.getYourGuide ? "Available now" : "Not available for this experience"}</span>
                   </div>
-                  {gygAvailable ? (
-                    <a className="button button-outline" href={gyg!.publicUrl} target="_blank" rel="sponsored noreferrer">
+                  {links.getYourGuide ? (
+                    <a className="button button-outline" href={links.getYourGuide} target="_blank" rel="sponsored noreferrer">
                       Continue to GetYourGuide
                     </a>
                   ) : (
@@ -934,11 +984,12 @@ export default function Catalog() {
         const currentPrice = priceFor(product.code);
         const rules = rulesFor(product);
         return (
-          <div className="experience-modal-backdrop" role="presentation" onClick={() => setDetailCode(null)}>
+          <div className="experience-modal-backdrop" role="presentation" inert={Boolean(partnerCode)} aria-hidden={Boolean(partnerCode)} onClick={() => setDetailCode(null)}>
             <section
+              ref={detailDialogRef}
               className="experience-modal"
               role="dialog"
-              aria-modal="true"
+              aria-modal={!partnerCode}
               aria-label={product.viator.title}
               onClick={(event) => event.stopPropagation()}
             >
@@ -1054,7 +1105,7 @@ export default function Catalog() {
                 <button className="button button-card direct-booking-button" type="button" onClick={() => startBooking(product)}>
                   Request booking directly
                 </button>
-                {(product.viator.url || product.studio) && (
+                {hasBookingPartner(product) && (
                   <button className="button button-card viator-button" type="button" onClick={() => setPartnerCode(product.code)}>
                     Book with a partner
                   </button>
