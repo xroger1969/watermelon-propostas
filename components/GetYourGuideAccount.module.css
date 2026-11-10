@@ -1,0 +1,24 @@
+.card {
+  margin: 0 0 20px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: white;
+}
+.header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.header h2 { margin: 0; font-size: 24px; }
+.badge { display: inline-block; padding: 8px 12px; border-radius: 10px; background: #eef7f2; color: #17543f; font-weight: 700; }
+.facts { margin: 12px 0 20px; }
+.facts > div { display: grid; grid-template-columns: minmax(140px, 1fr) 2fr; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.facts dt { color: #55645e; }
+.facts dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.pending { padding: 14px; background: #fff6df; border-radius: 12px; line-height: 1.6; }
+.links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.links a { min-height: 48px; }
+.note { color: #55645e; font-size: 13px; line-height: 1.5; margin-bottom: 0; }
+.card :is(button,a):focus-visible { outline: 3px solid #159b76; outline-offset: 3px; }
+@media (max-width: 600px) {
+  .card { padding: 18px; }
+  .facts > div { grid-template-columns: 1fr; gap: 5px; }
+  .links { display: grid; }
+}
