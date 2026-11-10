@@ -40,6 +40,13 @@ Endpoints de preparação:
 - `/api/getyourguide-product?tourId=...`
 - `/api/integrations/status`
 
+No CRM privado, **Mais → GetYourGuide** mostra a conta de fornecedor definida
+no servidor por `GETYOURGUIDE_SUPPLIER_ID` e, opcionalmente,
+`GETYOURGUIDE_SUPPLIER_NAME` (por defeito, Watermelon Experiences). O identificador
+da conta não é uma credencial nem um ID de atividade. Registar a conta não ativa
+a API de catálogo nem a sincronização de reservas. O painel distingue estes
+estados e mantém a sincronização automática assinalada como inativa.
+
 ## Segurança
 
 Chaves de marketplace e outras credenciais **não devem ser guardadas no código**. Devem ficar exclusivamente em variáveis de ambiente da Vercel.

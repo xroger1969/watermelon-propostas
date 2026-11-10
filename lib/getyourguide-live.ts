@@ -1,4 +1,4 @@
-import type { MarketplaceCatalogProduct } from "@/types/marketplace";
+import type { GetYourGuideAccountStatus, MarketplaceCatalogProduct } from "@/types/marketplace";
 
 const GETYOURGUIDE_BASE_URL = "https://api.getyourguide.com/1";
 const REQUEST_TIMEOUT_MS = 8000;
@@ -143,13 +143,33 @@ async function request(path: string) {
 
 export function getGetYourGuideIntegrationStatus() {
   const ids = configuredTourIds();
+  const rawSupplierId = process.env.GETYOURGUIDE_SUPPLIER_ID?.trim() || "";
+  const supplierId = /^[1-9]\d{0,19}$/.test(rawSupplierId) ? rawSupplierId : null;
+  const catalogApiConfigured = Boolean(token());
+  const catalogEnabled = catalogApiConfigured && ids.length > 0;
+  const accountStatus: GetYourGuideAccountStatus = {
+    supplierAccount: {
+      configured: Boolean(supplierId),
+      id: supplierId,
+      name: process.env.GETYOURGUIDE_SUPPLIER_NAME?.trim() || "Watermelon Experiences",
+      profileUrl: supplierId ? "https://supplier.getyourguide.com/company-profile/company-details" : null,
+      portalUrl: "https://supplier.getyourguide.com/home",
+    },
+    catalogApiConfigured,
+    catalogEnabled,
+    productCount: ids.length,
+    // Recording a supplier account never enables catalog access or booking sync.
+    bookingSyncEnabled: false,
+    externalConnectionValidated: false,
+  };
 
   return {
     provider: "getyourguide" as const,
-    configured: Boolean(token()),
-    enabled: Boolean(token()) && ids.length > 0,
+    ...accountStatus,
+    accountStatus: supplierId ? "supplier-account-configured" : "awaiting-supplier-account",
+    configured: catalogApiConfigured,
+    enabled: catalogEnabled,
     mode: ids.length > 0 ? "configured-tour-ids" : "awaiting-tour-ids",
-    productCount: ids.length,
     contactEmail: partnerContactEmail(),
   };
 }

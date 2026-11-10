@@ -9,6 +9,7 @@ import WhatsAppConversation from "@/components/WhatsAppConversation";
 import EmailConversation from "@/components/EmailConversation";
 import CRMAnalytics from "@/components/CRMAnalytics";
 import CRMMarketingPerformance from "@/components/CRMMarketingPerformance";
+import GetYourGuideAccount from "@/components/GetYourGuideAccount";
 import { countCRMRequests, hasBusinessWhatsAppMessages, IN_PROGRESS_STATUSES, type CRMStatus } from "@/lib/crm-dashboard";
 import { allowedOperationalStatuses, hasPersistedOperationalStatus, type OperationalStatus } from "@/lib/crm-operations";
 import { requireWhatsAppDeliveryMode, wasWhatsAppMessageSubmitted } from "@/lib/whatsapp-delivery";
@@ -354,6 +355,7 @@ export default function AdminCRM() {
   const [filter, setFilter] = useState<Filter>("all");
   const [workspaceView, setWorkspaceView] = useState<"operations" | "marketing">("operations");
   const [advancedMode, setAdvancedMode] = useState(false);
+  const [showGetYourGuide, setShowGetYourGuide] = useState(false);
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -2311,12 +2313,17 @@ export default function AdminCRM() {
         <details className="crm-essential-menu"><summary>Mais</summary><div>
           <button type="button" onClick={() => void loadCRM()}>Atualizar</button>
           <button type="button" onClick={() => setAdvancedMode(true)}>Gestão avançada</button>
+          <button type="button" aria-expanded={showGetYourGuide} aria-controls="crm-getyourguide-account" onClick={(event) => {
+            setShowGetYourGuide(value => !value);
+            event.currentTarget.closest("details")?.removeAttribute("open");
+          }}>GetYourGuide</button>
           <a href="/admin/bookings">Reservas</a>
           {pushSupported && <button type="button" disabled={pushBusy} onClick={() => pushEnabled ? void disablePushNotifications() : void enablePushNotifications()}>{pushEnabled ? "Desativar alertas" : "Ativar alertas"}</button>}
           <button type="button" onClick={() => window.dispatchEvent(new Event("watermelon-open-consent"))}>Privacidade</button>
           <a href="/">Website</a><button type="button" onClick={() => void signOut()}>Sair</button>
         </div></details>
       </header>}
+      {showGetYourGuide && <GetYourGuideAccount onClose={() => setShowGetYourGuide(false)} />}
       {advancedMode && <>
       <div className="admin-topbar">
         <div>
@@ -2327,6 +2334,9 @@ export default function AdminCRM() {
           </p>
         </div>
         <div className="admin-topbar-actions crm-utility-actions">
+          <button className="button button-ghost" type="button" aria-expanded={showGetYourGuide} aria-controls="crm-getyourguide-account" onClick={() => setShowGetYourGuide(value => !value)}>
+            GetYourGuide
+          </button>
           <a className="button button-ghost" href="/">Website</a>
           {pushSupported && (
             <button

@@ -23,3 +23,18 @@ export type MarketplaceIntegrationStatus = {
   mode: string;
   productCount?: number;
 };
+
+export type GetYourGuideAccountStatus = {
+  supplierAccount: {
+    configured: boolean;
+    id: string | null;
+    name: string;
+    profileUrl: string | null;
+    portalUrl: string;
+  };
+  catalogApiConfigured: boolean;
+  catalogEnabled: boolean;
+  productCount: number;
+  bookingSyncEnabled: false;
+  externalConnectionValidated: false;
+};
