@@ -6,6 +6,8 @@ function enabled(value) { return value === "true"; }
 function configured(value) { return typeof value === "string" && value.trim().length > 0; }
 
 export function getGetYourGuideReadiness(env = process.env) {
+  const rawSupplierId = typeof env.GETYOURGUIDE_SUPPLIER_ID === "string" ? env.GETYOURGUIDE_SUPPLIER_ID.trim() : "";
+  const supplierId = /^[1-9]\d{0,19}$/.test(rawSupplierId) ? rawSupplierId : null;
   const supplierApproved = enabled(env.GYG_SUPPLIER_APPROVED);
   const supplierCredentialsConfigured = configured(env.GYG_SUPPLIER_BASIC_USER) &&
     configured(env.GYG_SUPPLIER_BASIC_PASSWORD);
@@ -23,6 +25,14 @@ export function getGetYourGuideReadiness(env = process.env) {
   const partnerRequested = enabled(env.GYG_PARTNER_ENABLED);
   const partnerConfigurationComplete = partnerApproved && partnerCredentialsConfigured;
   return {
+    // Account registration is independent of API authorization and certification.
+    supplierAccount: {
+      configured: Boolean(supplierId),
+      id: supplierId,
+      name: env.GETYOURGUIDE_SUPPLIER_NAME?.trim() || "Watermelon Experiences",
+      profileUrl: supplierId ? "https://supplier.getyourguide.com/company-profile/company-details" : null,
+      portalUrl: "https://supplier.getyourguide.com/home"
+    },
     supplier: {
       supplierSandboxGatewayImplemented: true,
       sandboxEnabled: sandboxActive,

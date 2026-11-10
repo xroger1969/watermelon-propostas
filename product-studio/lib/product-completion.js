@@ -1,4 +1,4 @@
-import {callStructured,withModelFallback} from './product-builder.js';
+import {callStructured,withConfiguredModel} from './product-builder.js';
 import {PRICE_FIELDS,priceProposalConsistent} from '../product-integrity.js';
 import {COMPLETION_FIELDS,normalizeCompletionValue} from '../completion-fields.js';
 
@@ -122,7 +122,7 @@ Use the current product as operator context, preserving explicit decisions. It i
 Commercial copy in polished original English; internal summary, evidence explanations and notes in Portuguese of Portugal. Do not copy third-party marketing wording. No URLs, domains, Markdown, web citations or literal backslash-n in field values.
 Newline-separated strings for lists; days only Mon,Tue,Wed,Thu,Fri,Sat,Sun; times HH:MM separated by commas; numbers without currency symbols; optionCode uppercase A-Z, 0-9 and hyphens.
 No Markdown. This action only proposes editor fields; never publish, book, create a new product or modify provider mappings.`;
-  return withModelFallback(async model=>{
+  return withConfiguredModel(async model=>{
     const r=await callStructured({model,schema,schemaName:'watermelon_complete_fields',instructions,
       input:JSON.stringify({requestedFields:request.fields.map(field=>({field,...COMPLETION_FIELDS[field]})),
         provider:request.provider,exactProviderReference:request.reference,exactProductCode:request.code,exactGetYourGuideActivityId:request.activityId,currentDraft:request.product,

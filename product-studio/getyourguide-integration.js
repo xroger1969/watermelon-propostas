@@ -14,6 +14,22 @@ function gygSummary(products){
     published:products.filter(p=>gygPublication(p).status==="Published").length
   };
 }
+function gygSupplierAccountCard(account){
+  const configured=!!account?.configured&&!!account?.id;
+  return '<section class="card gyg-account-card" aria-labelledby="gygAccountTitle">'+
+    '<div class="gyg-conn-eyebrow">CONTA DE FORNECEDOR</div><h3 id="gygAccountTitle">Conta GetYourGuide</h3>'+
+    gygConnBadge(configured,configured?"Conta de fornecedor configurada no Studio":"Conta por configurar")+
+    '<dl class="gyg-account-facts"><div><dt>Conta</dt><dd>'+esc(account?.name||"Watermelon Experiences")+'</dd></div>'+
+    '<div><dt>ID do fornecedor</dt><dd>'+esc(configured?account.id:"Por configurar")+'</dd></div>'+
+    '<div><dt>Sincronização automática de reservas</dt><dd>Inativa</dd></div></dl>'+
+    '<p>Falta concluir a ligação autorizada pela GetYourGuide e associar as atividades desta conta. '+
+    'As reservas ainda não são importadas automaticamente.</p>'+
+    '<div class="gyg-account-links">'+
+    (configured&&account.profileUrl?'<a class="btn" href="'+esc(account.profileUrl)+'" target="_blank" rel="noopener noreferrer">Ver perfil da empresa</a>':'')+
+    '<a class="btn" href="https://supplier.getyourguide.com/home" target="_blank" rel="noopener noreferrer">Abrir portal GetYourGuide</a></div>'+
+    '<p class="gyg-account-note">No portal, confirma que a sessão corresponde ao ID de fornecedor indicado acima. '+
+    'Registar a conta não ativa a integração técnica.</p></section>';
+}
 function gygRenderIntegrationHub(data,error){
   const el=document.querySelector("#gygIntegrationHub"); if(!el)return;
   const s=data?.supplier||{},p=data?.partner||{};
@@ -25,6 +41,7 @@ function gygRenderIntegrationHub(data,error){
   '<p>Dois percursos independentes: distribuição dos nossos tours e recomendações de parceiros.</p></div>'+
   '<button type="button" class="btn" onclick="renderGygIntegrationHub()">↻ Atualizar</button></div>'+
   (error?'<div class="notice">Não foi possível consultar a configuração. As ligações mantêm-se inativas.</div>':'')+
+  (error?'':gygSupplierAccountCard(data?.supplierAccount))+
   '<div class="gyg-conn-grid">'+
     '<section class="card gyg-conn-card"><div class="gyg-conn-eyebrow">01 · WATERMELON COMO FORNECEDOR</div>'+
       '<h3>Supplier / Connectivity</h3>'+gygConnBadge(false,"Sem ligação externa validada")+
@@ -40,7 +57,7 @@ function gygRenderIntegrationHub(data,error){
       '</ul><p class="gyg-conn-muted">'+(supplierReady
       ?'Configuração declarada: ainda falta validar a ligação real e os fluxos de reserva.'
       :'Ambiente técnico de testes preparado. Falta mapear opções reais, ativar credenciais sandbox, concluir Notify Availability e testes oficiais.')+
-      '</p><a href="https://supplier.getyourguide.com/home" target="_blank" rel="noopener">Abrir Supplier Portal</a></section>'+
+      '</p></section>'+
     '<section class="card gyg-conn-card"><div class="gyg-conn-eyebrow">02 · WATERMELON COMO PARCEIRO</div>'+
       '<h3>Partner API / Afiliados</h3>'+gygConnBadge(false,"Recomendações externas inativas")+
       '<p>A IA do site poderá recomendar experiências de terceiros apenas através de catálogo, imagens e links autorizados.</p>'+
