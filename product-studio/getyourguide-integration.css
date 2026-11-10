@@ -14,4 +14,16 @@
 .gyg-conn-checks span{font-weight:900}
 .gyg-conn-card a{margin-top:auto;padding-top:5px;font-size:13px;font-weight:750;color:#1b7835;text-decoration:none}
 .gyg-conn-footer{margin:14px 0 20px;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:#fff;font-size:12px;color:var(--muted);line-height:1.6}
+.gyg-account-card{margin:0 0 14px;display:flex;flex-direction:column;gap:12px}
+.gyg-account-card h3{margin:0;font-size:21px}
+.gyg-account-card p{margin:0;font-size:13px;line-height:1.6;color:var(--muted)}
+.gyg-account-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:4px 0}
+.gyg-account-facts div{min-width:0}
+.gyg-account-facts dt{font-size:12px;color:var(--muted);margin-bottom:5px}
+.gyg-account-facts dd{margin:0;font-size:15px;font-weight:750;overflow-wrap:anywhere}
+.gyg-account-links{display:flex;flex-wrap:wrap;gap:10px}
+.gyg-account-links a{min-height:44px;display:inline-flex;align-items:center;text-decoration:none}
+.gyg-account-card .gyg-account-note{font-size:12px}
+.gyg-account-links a:focus-visible{outline:3px solid #1b7835;outline-offset:3px}
+@media(max-width:600px){.gyg-account-facts{grid-template-columns:1fr}.gyg-account-links{display:grid}}
 @media(max-width:800px){.gyg-conn-grid{grid-template-columns:1fr}.gyg-conn-top{flex-direction:column;align-items:flex-start}}
