@@ -160,8 +160,13 @@ struct RequestForm: View {
                         }
                         if let total = draft.product.total(for: draft.option, guests: draft.guests) {
                             LabeledContent("Estimated total", value: money(total, draft.option.currency ?? draft.product.currency ?? "EUR"))
-                            Text(draft.product.basis(for: draft.option) == .group ? "Group price; not multiplied by guests." : "Price per person, multiplied by guests.")
-                                .font(.caption).foregroundStyle(.secondary)
+                            if draft.product.usesSoloPricing {
+                                Text("One traveller pays the same total as two travellers.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            } else {
+                                Text(draft.product.basis(for: draft.option) == .group ? "Group price; not multiplied by guests." : "Price per person, multiplied by guests.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
                         } else { Text("Price to be confirmed in your proposal.").font(.footnote).foregroundStyle(.secondary) }
                     }
                 }

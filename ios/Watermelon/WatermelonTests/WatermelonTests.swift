@@ -83,6 +83,89 @@ final class WatermelonTests: XCTestCase {
         let p = try product(#"{"code":"FOOD","title":"Food","isStudio":true,"options":[{"optionCode":"FOOD","optionName":"Tasting","price":60.125,"priceType":"Per person"}]}"#)
         XCTAssertEqual(p.total(for: p.availableOptions[0], guests: 3), 180.38)
     }
+    func testSoloTierAppliesOnlyToTheThreeExactNormalizedCodes() throws {
+        for code in ["9963P14", "9963P15", "9963P16", " wm-9963p14 "] {
+            let p = try product("{\"code\":\"\(code)\",\"title\":\"Tour\",\"price\":81,\"priceType\":\"Per group\"}")
+            let option = p.availableOptions[0]
+            XCTAssertTrue(p.usesSoloPricing)
+            XCTAssertEqual(p.basis(for: option), .per_person)
+            XCTAssertEqual(p.unitPrice(for: option), 81)
+            XCTAssertEqual(p.unitPrice(for: option, guests: 1), 162)
+            XCTAssertEqual(p.unitPrice(for: option, guests: 2), 81)
+            XCTAssertEqual(p.total(for: option, guests: 1), 162)
+            XCTAssertEqual(p.total(for: option, guests: 2), 162)
+            XCTAssertEqual(p.total(for: option, guests: 3), 243)
+            XCTAssertNil(p.unitPrice(for: option, guests: 0))
+        }
+        for code in ["9963P140", "9963P25"] {
+            let p = try product("{\"code\":\"\(code)\",\"title\":\"Tour\",\"price\":81,\"priceType\":\"Per person\"}")
+            XCTAssertFalse(p.usesSoloPricing)
+            XCTAssertEqual(p.total(for: p.availableOptions[0], guests: 1), 81)
+            XCTAssertEqual(p.total(for: p.availableOptions[0], guests: 2), 162)
+        }
+    }
+    func testSoloTariffPreservesUnknownStudioOptionPrice() throws {
+        let p = try product(#"{"code":"9963P14","title":"Tour","price":81,"isStudio":true,"promotionApplied":true,"options":[{"optionCode":"A","optionName":"Main","price":90,"priceType":"Per person"},{"optionCode":"B","optionName":"Tailored","price":null,"priceType":"Per person"}]}"#)
+        XCTAssertEqual(p.total(for: p.availableOptions[0], guests: 1), 162)
+        XCTAssertNil(p.unitPrice(for: p.availableOptions[1], guests: 1))
+        XCTAssertNil(p.total(for: p.availableOptions[1], guests: 2))
+    }
+    func testSoloBookingAndProposalPayloadsKeepOneRealTraveller() async throws {
+        let p = try product(#"{"code":"9963P14","title":"Tour","price":81,"priceType":"Per person","promotionApplied":true}"#)
+        defer { MockURLProtocol.handler = nil }
+        for proposal in [false, true] {
+            for guests in [1, 2, 3] {
+                MockURLProtocol.handler = { request in
+                    XCTAssertEqual(request.url?.path, proposal ? "/api/proposal-request" : "/api/booking-request")
+                    let json = try JSONSerialization.jsonObject(with: self.body(request)) as! [String: Any]
+                    let item = proposal ? (json["items"] as! [[String: Any]])[0] : json
+                    XCTAssertEqual(item["unitPrice"] as? Double, guests == 1 ? 162 : 81)
+                    XCTAssertEqual(item["guests"] as? Int, guests)
+                    return (200, #"{"reference":"WM-SOLO-TEST","status":"pending"}"#)
+                }
+                let selection = RequestSelection(experience: p, option: p.availableOptions[0], date: "2026-12-12", time: "Flexible", guests: guests)
+                let receipt = try await client().submit([selection], contact: ContactDetails(name: "QA", phone: "000000000"), proposal: proposal)
+                XCTAssertEqual(receipt.items[0].guests, guests)
+                XCTAssertEqual(receipt.items[0].total, guests <= 2 ? 162 : 243)
+            }
+        }
+    }
+    func testSelectedDirectTariffIgnoresChangedViatorPrice() async throws {
+        MockURLProtocol.handler = { request in
+            switch request.url?.path {
+            case "/api/watermelon-catalog": return (200, #"{"source":"watermelon-product-studio","products":[]}"#)
+            case "/api/viator-catalog": return (200, #"{"source":"viator-partner-api","products":[{"code":"9963P14","title":"Tour","price":95,"options":[{"optionCode":"DEFAULT","optionName":"Tour","price":95,"currency":"USD"}]},{"code":"FOOD","title":"Food"}]}"#)
+            case "/api/viator-prices": return (200, #"{"prices":[{"code":"9963P14","price":95,"currency":"USD"},{"code":"FOOD","price":60,"currency":"EUR"}]}"#)
+            case "/api/site-promotions": return (200, #"{"promotions":[]}"#)
+            default: throw URLError(.badURL)
+            }
+        }
+        defer { MockURLProtocol.handler = nil }
+        let result = try await client().catalog()
+        let tour = result.products.first { $0.code == "9963P14" }!
+        XCTAssertEqual(tour.unitPrice(for: tour.availableOptions[0]), 90)
+        XCTAssertEqual(tour.total(for: tour.availableOptions[0], guests: 1), 180)
+        XCTAssertEqual(tour.currency, "EUR")
+        XCTAssertEqual(tour.availableOptions[0].currency, "EUR")
+        XCTAssertEqual(result.products.first { $0.code == "FOOD" }?.price, 60)
+    }
+    @MainActor
+    func testStaleSoloPriceIsRejectedBeforeSubmission() async throws {
+        let old = try product(#"{"code":"9963P14","title":"Tour","price":81,"priceType":"Per person"}"#)
+        var current = old
+        current.price = 90
+        let store = TravelStore()
+        store.saved.catalog = [current]
+        store.liveCodes = [current.code]
+        store.lastRefresh = Date()
+        let selection = RequestSelection(experience: old, option: old.availableOptions[0], date: "2026-12-12", time: "Flexible", guests: 1)
+        do { _ = try await store.currentSelections([selection]); XCTFail("A changed solo tariff must be reviewed first") }
+        catch { XCTAssertTrue(error is WatermelonError) }
+        store.saved.catalog = [old]
+        let accepted = try await store.currentSelections([selection])
+        XCTAssertEqual(accepted[0].tripItem.total, 162)
+        XCTAssertEqual(accepted[0].guests, 1)
+    }
     func testNullOptionPriceDoesNotInheritBasePrice() throws {
         let p = try product(#"{"code":"9963P3","title":"Boat","price":980,"isStudio":true,"options":[{"optionCode":"TG1","optionName":"No transfer","price":980,"priceType":"Per group"},{"optionCode":"TG2","optionName":"With transfer","price":null,"priceType":"Per group"}]}"#)
         XCTAssertNil(p.unitPrice(for: p.availableOptions[1]))

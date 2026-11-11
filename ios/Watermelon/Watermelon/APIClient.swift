@@ -73,9 +73,15 @@ struct APIClient {
             throw WatermelonError.message(String(localized: "Catalogue unavailable. Saved details are still accessible."))
         }
         var byCode: [String: Experience] = [:]
+        let directFallbacks = Self.bundledCatalog()
         for var product in validViator ? viator?.products ?? [] : [] {
             product.isStudio = false
-            if let price = prices?.prices.first(where: { $0.code == product.code }) {
+            if product.usesSoloPricing {
+                // These direct tariffs match the website; partner prices do not override them.
+                let direct = directFallbacks.first { $0.normalizedCode == product.normalizedCode }
+                product.price = direct?.price
+                product.currency = direct?.currency ?? "EUR"
+            } else if let price = prices?.prices.first(where: { $0.code == product.code }) {
                 product.price = price.price
                 product.currency = price.currency
             }
@@ -88,11 +94,19 @@ struct APIClient {
             byCode[product.code] = product
         }
         for (code, var product) in byCode {
-            if let offer = promotions?.promotions.first(where: { $0.product_code == code }),
+            let promotionCode = product.usesSoloPricing ? product.normalizedCode : code
+            if let offer = promotions?.promotions.first(where: { $0.product_code == promotionCode }),
                offer.now_price > 0, offer.before_price > offer.now_price {
                 product.price = offer.now_price
                 product.currency = offer.currency
                 product.promotionApplied = true
+            }
+            if product.usesSoloPricing && product.isStudio != true {
+                product.options = product.options?.map { option in
+                    var directOption = option
+                    directOption.currency = product.currency
+                    return directOption
+                }
             }
             byCode[code] = product
         }
@@ -132,7 +146,7 @@ struct APIClient {
                 ["code": selection.experience.code, "title": selection.experience.title,
                  "optionCode": selection.option.optionCode, "optionName": selection.option.optionName,
                  "date": selection.date, "preferredTime": selection.time, "guests": selection.guests,
-                 "unitPrice": selection.experience.unitPrice(for: selection.option).map { $0 as Any } ?? NSNull(),
+                 "unitPrice": selection.experience.unitPrice(for: selection.option, guests: selection.guests).map { $0 as Any } ?? NSNull(),
                  "pickupLocation": contact.pickup, "language": contact.language, "notes": contact.notes]
             }
         } else {
@@ -143,7 +157,7 @@ struct APIClient {
             payload.merge(["productCode": selection.experience.code, "experienceTitle": selection.experience.title,
                            "optionCode": selection.option.optionCode, "optionName": selection.option.optionName,
                            "requestedDate": selection.date, "preferredTime": selection.time, "guests": selection.guests,
-                           "unitPrice": selection.experience.unitPrice(for: selection.option).map { $0 as Any } ?? NSNull(),
+                           "unitPrice": selection.experience.unitPrice(for: selection.option, guests: selection.guests).map { $0 as Any } ?? NSNull(),
                            "pricingMode": mode.rawValue, "currency": selection.option.currency ?? selection.experience.currency ?? "EUR",
                            "websitePromotion": selection.experience.promotionApplied == true && selection.option.id == selection.experience.availableOptions.first?.id,
                            "pickupLocation": contact.pickup, "language": contact.language]) { _, new in new }
