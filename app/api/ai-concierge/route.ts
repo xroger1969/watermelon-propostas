@@ -2,8 +2,9 @@ import { createHash, randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { conciergeModel, matchesRequestedModel, REQUIRED_CONCIERGE_MODEL } from "@/lib/ai-model";
-import { inferProductRules, priceTotal, type PricingMode } from "@/lib/product-rules";
+import { inferProductRules, isSoloPricingProduct, priceTotal, unitPriceForGuests, type PricingMode } from "@/lib/product-rules";
 import { loadStudioCatalog, resolveCatalogPricing } from "@/lib/studio-pricing";
+import { directCatalogTariff } from "@/lib/catalog-tariff";
 import { experiences } from "@/data/products";
 import { viatorListings } from "@/data/viator";
 import {
@@ -187,6 +188,7 @@ function compactCatalogue(items: CatalogueItem[]) {
     pricingMode: item.pricingMode,
     maxGuests: item.maxGuests,
     priceFrom: item.priceFrom,
+    soloPrice: item.priceFrom === null || !isSoloPricingProduct(item.code) ? null : unitPriceForGuests(item.priceFrom, 1, item.pricingMode || "per_person", item.code),
     currency: item.currency,
     description: item.description.slice(0, 360),
   }));
@@ -250,6 +252,7 @@ The supplied WATERMELON CATALOGUE is the complete universe of experiences that y
 - Never describe anything outside that catalogue as currently available from Watermelon.
 - Never invent availability, exact prices, inclusions, pickup, accessibility, child suitability, opening hours or booking confirmation.
 - A pricingMode of group means the entire group price. Never multiply it by guests. Respect maxGuests when recommending or preparing a quote.
+- When a product has soloPrice, one traveller pays that amount; priceFrom is the per-person price for bookings of two or more. One traveller and two travellers pay the same total. Keep the real number of participants; never add a second fictional ticket.
 - Do not infer inclusions from category or location. For example, do not infer a tasting from a winery visit, lunch from a food category, transfer from a tour, or a beach stop from a coastal location unless the supplied product data explicitly says so.
 - Explain why a catalogue product fits using only the traveller's stated preferences and facts supplied for that product.
 - If there is no good catalogue match, return zero catalogue recommendations rather than forcing a weak match.
@@ -606,6 +609,7 @@ export async function POST(request: NextRequest) {
     const recommendations = validRecommendations.map((recommendation) => {
       const product = catalogueByCode.get(recommendation.code)!;
       const live = product.studio ? undefined : livePrices.get(product.code);
+      const tariff = directCatalogTariff(product.code, product.studio ? {price: product.priceFrom, currency: product.currency} : undefined, live);
 
       return {
         code: product.code,
@@ -618,9 +622,10 @@ export async function POST(request: NextRequest) {
         url: product.url,
         optionCode: product.optionCode,
         optionName: product.optionName,
-        price: live?.price ?? product.priceFrom,
-        currency: live?.currency ?? product.currency,
-        livePrice: Boolean(live),
+        price: tariff.price,
+        soloPrice: tariff.price === null || !isSoloPricingProduct(product.code) ? null : unitPriceForGuests(tariff.price, 1, product.pricingMode || "per_person", product.code),
+        currency: tariff.currency,
+        livePrice: Boolean(live) && !isSoloPricingProduct(product.code),
         pricingMode: product.pricingMode,
         maxGuests: product.maxGuests,
       };
@@ -657,7 +662,7 @@ export async function POST(request: NextRequest) {
       const availableItems = selectedCodes.map((code, index) => {
         const product = catalogueByCode.get(code)!;
         const live = product.studio ? undefined : livePrices.get(code);
-        const price = live?.price ?? product.priceFrom;
+        const price = directCatalogTariff(product.code, product.studio ? {price: product.priceFrom, currency: product.currency} : undefined, live).price;
         const guests = Math.max(1, Math.min(50, Number(quote.guests) || 1));
         if (product.maxGuests && guests > product.maxGuests) throw new Error("This experience exceeds its group capacity.");
         const reason =
@@ -675,9 +680,9 @@ export async function POST(request: NextRequest) {
           preferred_time: "Flexible",
           date_flexibility: "Exact date",
           guests: Math.max(1, Math.min(50, Number(quote.guests) || 1)),
-          unit_price: price,
+          unit_price: price === null ? null : unitPriceForGuests(price, guests, product.pricingMode || "per_person", product.code),
           pricing_mode: product.pricingMode || "per_person",
-          subtotal: price === null ? null : priceTotal(price, guests, product.pricingMode || "per_person"),
+          subtotal: price === null ? null : priceTotal(price, guests, product.pricingMode || "per_person", product.code),
           pickup_location: null,
           guide_language: null,
           special_request: cleanText("AI Concierge: " + reason, 2000),

@@ -1,7 +1,7 @@
 "use client";
 
 import { trackLeadConversion } from "@/lib/marketing";
-import { guestLimitLabel, inferProductRules, pricingModeFor, priceTotal, type PricingMode } from "@/lib/product-rules";
+import { guestLimitLabel, inferProductRules, isSoloPricingProduct, pricingModeFor, priceTotal, unitPriceForGuests, type PricingMode } from "@/lib/product-rules";
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -126,7 +126,7 @@ export default function BookingRequest() {
       });
       const normalized: BookingSelection = {
         ...parsed,
-        pricingMode: parsed.pricingMode || inferredRules.pricingMode,
+        pricingMode: isSoloPricingProduct(parsed.code) ? "per_person" : parsed.pricingMode || inferredRules.pricingMode,
         maxGuests: parsed.maxGuests ?? inferredRules.maxGuests,
       };
       setSelection(normalized);
@@ -182,16 +182,21 @@ export default function BookingRequest() {
         : { pricingMode: "per_person" as PricingMode, maxGuests: null },
     [selection, selectedOption]
   );
-  const pricingMode = selectedOption?.priceType ? pricingModeFor(selectedOption.priceType) : selection?.pricingMode || inferredRules.pricingMode;
+  const pricingMode = isSoloPricingProduct(selection?.code)
+    ? "per_person"
+    : selectedOption?.priceType ? pricingModeFor(selectedOption.priceType, selection?.code) : selection?.pricingMode || inferredRules.pricingMode;
   const limits = [selection?.maxGuests, selectedOption?.capacity, inferredRules.maxGuests].filter((n): n is number => typeof n === "number" && n > 0);
   const maxGuests = limits.length ? Math.min(...limits) : null;
   const isPrimaryOption = !selectedOption || selectedOption.optionCode === selection?.optionCode;
-  const unitPrice = !isPrimaryOption && selectedOption && "price" in selectedOption ? selectedOption.price ?? 0 : Number.parseFloat(selection?.price || "") || 0;
-  const originalUnitPrice = Number.parseFloat(selection?.originalPrice || "") || 0;
+  const baseUnitPrice = !isPrimaryOption && selectedOption && "price" in selectedOption ? selectedOption.price ?? 0 : Number.parseFloat(selection?.price || "") || 0;
+  const originalBaseUnitPrice = Number.parseFloat(selection?.originalPrice || "") || 0;
   const websitePromotion = Boolean(
-    isPrimaryOption && selection?.websitePromotion && originalUnitPrice > unitPrice && unitPrice > 0
+    isPrimaryOption && selection?.websitePromotion && originalBaseUnitPrice > baseUnitPrice && baseUnitPrice > 0
   );
   const guests = Math.max(1, Number.parseInt(form.guests, 10) || 1);
+  const unitPrice = unitPriceForGuests(baseUnitPrice, guests, pricingMode, selection?.code);
+  const originalUnitPrice = unitPriceForGuests(originalBaseUnitPrice, guests, pricingMode, selection?.code);
+  const soloPricing = isSoloPricingProduct(selection?.code);
   const guestsWithinLimit = maxGuests === null || guests <= maxGuests;
   const estimatedTotal = priceTotal(unitPrice, guests, pricingMode);
   const originalEstimatedTotal =
@@ -306,6 +311,7 @@ export default function BookingRequest() {
                 money(estimatedTotal, selection.currency)
             : "Price: to be confirmed",
         "",
+        soloPricing && guests === 1 ? "Solo booking: the total is the same as for two guests." : "",
         "Please confirm availability before I consider this booking confirmed.",
       ].filter(Boolean);
 
@@ -539,6 +545,12 @@ export default function BookingRequest() {
                   <span>{guestLimitNotice}</span>
                 </div>
               )}
+              {soloPricing && baseUnitPrice > 0 && (
+                <small>
+                  {money(baseUnitPrice, selection.currency)} per person for 2 or more guests.
+                  A solo booking costs {money(unitPriceForGuests(baseUnitPrice, 1, pricingMode, selection.code), selection.currency)} in total, the same as two guests.
+                </small>
+              )}
               {maxGuests && !guestLimitNotice && (
                 <small>
                   Maximum {maxGuests} guests for this experience.
@@ -691,6 +703,9 @@ export default function BookingRequest() {
             <strong>{unitPrice ? money(estimatedTotal, selection.currency) : "On request"}</strong>
             {websitePromotion && (
               <em>Direct Watermelon booking only · Viator is not changed</em>
+            )}
+            {soloPricing && unitPrice > 0 && (
+              <em>{guests === 1 ? "Solo booking · same total as two guests" : `${money(unitPrice, selection.currency)} per person · ${guests} guests`}</em>
             )}
             {pricingMode === "group" && (
               <em>{maxGuests ? `Price for the whole group · ${guestLimitLabel(maxGuests)}` : "Price for the whole group"}</em>

@@ -5,15 +5,35 @@ export type ProductRules = {
   maxGuests: number | null;
 };
 
-export function pricingModeFor(priceType: string | undefined): PricingMode {
+export function normalizeProductCode(code: string | undefined) {
+  return (code || "").trim().toUpperCase().replace(/^WM-/, "");
+}
+
+const SOLO_PRICING_PRODUCTS = new Set(["9963P14", "9963P15", "9963P16"]);
+
+export function isSoloPricingProduct(code: string | undefined) {
+  return SOLO_PRICING_PRODUCTS.has(normalizeProductCode(code));
+}
+
+export function pricingModeFor(priceType: string | undefined, code?: string): PricingMode {
+  // These three approved tours have individual price tiers, even when a legacy
+  // catalogue import still labels their base price as a group price.
+  if (isSoloPricingProduct(code)) return "per_person";
   if (priceType === "Per person" || priceType === "per_person") return "per_person";
   if (["Per group", "per_group", "Per vehicle", "per_vehicle", "Fixed", "fixed"].includes(priceType || "")) return "group";
   throw new Error("The pricing basis must be configured before taking reservations.");
 }
 
-export function priceTotal(price: number, guests: number, mode: PricingMode) {
+export function unitPriceForGuests(price: number, guests: number, mode: PricingMode, code?: string) {
   if (!Number.isFinite(price) || price < 0 || !Number.isInteger(guests) || guests < 1) throw new Error("Invalid price or guest count.");
-  return Math.round((mode === "group" ? price : price * guests) * 100) / 100;
+  return mode === "per_person" && guests === 1 && isSoloPricingProduct(code)
+    ? Math.round(price * 2 * 100) / 100
+    : price;
+}
+
+export function priceTotal(price: number, guests: number, mode: PricingMode, code?: string) {
+  const unitPrice = unitPriceForGuests(price, guests, mode, code);
+  return Math.round((mode === "group" ? unitPrice : unitPrice * guests) * 100) / 100;
 }
 
 type ProductRuleInput = {
@@ -74,6 +94,8 @@ function inferMaxGuestsFromText(text: string) {
 export function inferProductRules(input: ProductRuleInput): ProductRules {
   const code = (input.code || "").trim().toUpperCase();
   const text = combinedText(input);
+
+  if (isSoloPricingProduct(code)) return { pricingMode: "per_person", maxGuests: inferMaxGuestsFromText(text) };
 
   const overrideMax = CURRENT_GROUP_OVERRIDES[code];
   if (overrideMax) {

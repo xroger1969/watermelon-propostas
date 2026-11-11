@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { experiences } from "@/data/products";
 import { viatorListings } from "@/data/viator";
-import { guestLimitLabel, inferProductRules, pricingModeFor, type PricingMode } from "@/lib/product-rules";
+import { directCatalogTariff } from "@/lib/catalog-tariff";
+import { guestLimitLabel, inferProductRules, isSoloPricingProduct, pricingModeFor, unitPriceForGuests, type PricingMode } from "@/lib/product-rules";
 
 type ProposalItem = {
   code: string;
@@ -639,7 +640,7 @@ export default function Catalog() {
   function rulesFor(product: UnifiedCatalogProduct) {
     if (product.studio) {
       return {
-        pricingMode: pricingModeFor(product.studio.priceType),
+        pricingMode: pricingModeFor(product.studio.priceType, product.code),
         maxGuests: product.studio.maxGuests,
       };
     }
@@ -656,10 +657,10 @@ export default function Catalog() {
   function priceFor(code: string) {
     const studio = studioCatalogProducts.find((product) => product.code === code);
     const live = livePrices[code];
-    const fallback = viatorListings[code];
     const promotion = sitePromotions[code];
-    const basePrice = studio ? (studio.price ?? null) : (live?.price ?? fallback?.price ?? null);
-    const baseCurrency = studio?.currency || live?.currency || fallback?.currency || "EUR";
+    const tariff = directCatalogTariff(code, studio, live);
+    const basePrice = tariff.price;
+    const baseCurrency = tariff.currency;
 
     if (promotion) {
       return {
@@ -868,11 +869,18 @@ export default function Catalog() {
                             ? "price confirmed on request"
                             : rules.pricingMode === "group"
                               ? `Private group price${rules.maxGuests ? ` · ${guestLimitLabel(rules.maxGuests)}` : ""}`
-                              : currentPrice.isLive
+                              : isSoloPricingProduct(product.code)
+                                ? "Watermelon direct price"
+                                : currentPrice.isLive
                                 ? "price updated automatically"
                                 : "Viator price"}
                         </small>
                       </>
+                    )}
+                    {isSoloPricingProduct(product.code) && currentPrice.price !== null && (
+                      <small>
+                        Per person for 2+ guests · Solo total {money(unitPriceForGuests(currentPrice.price, 1, rules.pricingMode, product.code), currentPrice.currency)}
+                      </small>
                     )}
                   </div>
 
@@ -1088,11 +1096,18 @@ export default function Catalog() {
                             ? "price confirmed on request"
                             : rules.pricingMode === "group"
                               ? `Private group price${rules.maxGuests ? ` · ${guestLimitLabel(rules.maxGuests)}` : ""}`
-                              : currentPrice.isLive
+                              : isSoloPricingProduct(product.code)
+                                ? "Watermelon direct price"
+                                : currentPrice.isLive
                                 ? "price updated automatically"
                                 : "Viator price"}
                         </small>
                       </>
+                    )}
+                    {isSoloPricingProduct(product.code) && currentPrice.price !== null && (
+                      <small>
+                        Per person for 2+ guests · Solo total {money(unitPriceForGuests(currentPrice.price, 1, rules.pricingMode, product.code), currentPrice.currency)}
+                      </small>
                     )}
                   </div>
                   {product.viator.rating && (
