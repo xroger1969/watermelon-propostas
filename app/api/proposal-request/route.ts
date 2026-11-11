@@ -109,7 +109,13 @@ export async function POST(request: Request) {
     const promotional = (!rules.studio || rules.primaryOption) && promotedPrice > 0 && Number(promotion?.before_price) > promotedPrice;
     const baseUnitPrice = promotional ? promotedPrice : rules.studio || isSoloPricingProduct(productCode) ? rules.price ?? null : unitPrice;
     const verifiedUnitPrice = baseUnitPrice === null ? null : unitPriceForGuests(baseUnitPrice, guests, rules.pricingMode, productCode);
-    if (isSoloPricingProduct(productCode) && unitPrice !== verifiedUnitPrice) throw new Error("The price has changed. Please refresh the experience page before requesting a proposal.");
+    if (isSoloPricingProduct(productCode) && unitPrice !== verifiedUnitPrice) {
+      if (guests === 1 && verifiedUnitPrice !== null) {
+        const currency = promotional ? clean(promotion?.currency, 3).toUpperCase() || "EUR" : rules.currency || "EUR";
+        throw new Error(`The current total for one traveller is ${verifiedUnitPrice.toFixed(2)} ${currency}, the same as for two travellers. Review the updated price and send your request at https://www.watermelonexperiences.pt/#experiencias. Older app versions need an update to request this solo tour.`);
+      }
+      throw new Error("The price has changed. Please refresh the experience page before requesting a proposal.");
+    }
     return {
       item,
       index,

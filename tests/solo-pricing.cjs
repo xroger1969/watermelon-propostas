@@ -89,7 +89,12 @@ test('booking API verifies current promotions, stores actual participants and re
       assert.equal(saved.site_before_price,guests===1?180:90);
     }
     saved=undefined;
-    assert.equal((await postBooking({unitPrice:81})).status,409);
+    const outdated = await postBooking({unitPrice:81});
+    assert.equal(outdated.status,409);
+    const guidance = (await outdated.json()).error;
+    assert.match(guidance,/162\.00 EUR/);
+    assert.match(guidance,/https:\/\/www\.watermelonexperiences\.pt\/#experiencias/);
+    assert.match(guidance,/Older app versions need an update/);
     assert.equal((await postBooking({unitPrice:1})).status,409);
     assert.equal((await postBooking({pricingMode:'group'})).status,409);
     assert.equal((await postBooking({guests:1.5})).status,400);
@@ -117,7 +122,12 @@ test('proposal API stores the solo unit tier and rejects a client attempting to 
       assert.equal(rpc.values.p_items[0].subtotal,total);
     }
     rpc=undefined;
-    assert.equal((await send(1,81)).status,409);
+    const outdated = await send(1,81);
+    assert.equal(outdated.status,409);
+    const guidance = (await outdated.json()).error;
+    assert.match(guidance,/162\.00 EUR/);
+    assert.match(guidance,/https:\/\/www\.watermelonexperiences\.pt\/#experiencias/);
+    assert.match(guidance,/Older app versions need an update/);
     assert.equal((await send(1,1)).status,409);
     assert.equal(rpc,undefined);
   }finally{global.fetch=oldFetch;delete process.env.PRODUCT_STUDIO_PUBLIC_FEED_URL;}
