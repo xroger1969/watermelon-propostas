@@ -83,12 +83,24 @@ export function importedPhotoReferences(items,product){
   }
   return result;
 }
+function galleryIdentity(item){
+  if(item?.path)return 'storage:'+item.path;
+  try{const url=new URL(item?.url);return 'import:'+url.hostname+url.pathname;}catch{return '';}
+}
+function galleryLayout(product,imported){
+  const allowed=new Set(imported.map(galleryIdentity));
+  const items=(Array.isArray(product.gallery)?product.gallery:[]).filter(item=>item?.path||allowed.has(galleryIdentity(item)));
+  const main=items.find(item=>item.url&&item.url===product.mainImage)||items.find(item=>item.isMain)||items[0];
+  // Paths and validated remote identities survive refreshed signed URLs. The
+  // layout can only reorder photos already present in the returned gallery.
+  return {version:1,order:[...new Set(items.map(galleryIdentity))],main:galleryIdentity(main)};
+}
 export function packCompletionMetadata(product){
   if(!product||typeof product!=='object')return product;
   const inputSource=product.inputSource&&typeof product.inputSource==='object'?product.inputSource:{};
   const fieldValues=Object.fromEntries(Object.keys(COMPLETION_FIELDS).filter(f=>product[f]!==undefined).map(f=>[f,product[f]]));
   const importedMedia=importedPhotoReferences(product.gallery,product);
-  const packed={...product,inputSource:{...inputSource,studioImportedMedia:importedMedia,studioFieldValues:fieldValues,studioCompletion:{
+  const packed={...product,inputSource:{...inputSource,studioImportedMedia:importedMedia,studioGalleryLayout:galleryLayout(product,importedMedia),studioFieldValues:fieldValues,studioCompletion:{
     version:1,aiCompletion:product.aiCompletion?{...product.aiCompletion,unsaved:false}:null,
     aiSourceUrl:String(product.aiSourceUrl||''),aiAutoComplete:!!product.aiAutoComplete
   }}};
@@ -106,9 +118,14 @@ export function unpackCompletionMetadata(product){
   const values=state?.version===1?Object.fromEntries(Object.entries(product.inputSource.studioFieldValues||{}).filter(([f])=>Object.hasOwn(COMPLETION_FIELDS,f))):{};
   const stored=Array.isArray(product.gallery)?product.gallery:[];
   const imported=importedPhotoReferences(product.inputSource?.studioImportedMedia,product);
-  const paths=new Set(stored.map(p=>p.url));
-  const gallery=[...stored,...imported.filter(p=>!paths.has(p.url))];
+  const items=new Map([...stored,...imported].map(item=>[galleryIdentity(item),item]));
+  const layout=product.inputSource?.studioGalleryLayout;
+  const order=layout?.version===1&&Array.isArray(layout.order)?layout.order:[];
+  const identities=[...new Set([...order.filter(key=>items.has(key)),...items.keys()])];
+  let gallery=identities.map(key=>items.get(key));
+  const main=items.get(layout?.version===1?layout.main:'')||gallery.find(item=>item.url&&item.url===product.mainImage)||gallery.find(item=>item.isMain)||gallery[0];
+  if(layout?.version===1)gallery=gallery.map(item=>({...item,isMain:galleryIdentity(item)===galleryIdentity(main)}));
   const restored=state?.version===1?{...product,...values,aiCompletion:state.aiCompletion||null,
     aiSourceUrl:String(state.aiSourceUrl||''),aiAutoComplete:!!state.aiAutoComplete}:product;
-  return imported.length?{...restored,gallery,mainImage:gallery[0]?.url||restored.mainImage||''}:restored;
+  return imported.length||layout?.version===1?{...restored,gallery,mainImage:main?.url||''}:restored;
 }
