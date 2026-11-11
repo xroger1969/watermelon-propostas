@@ -96,7 +96,7 @@ function field(name,label,value,cls='',hint=''){return `<div class="field ${cls}
 function textarea(name,label,value,cls=''){return `<div class="field ${cls}"><label>${label}</label><textarea name="${name}">${esc(value)}</textarea></div>`}
 function select(name,label,value,opts){return `<div class="field"><label>${label}</label><select name="${name}">${opts.includes(value)?'':`<option value="${esc(value||'')}" selected>${esc(value||'Por confirmar')}</option>`}${opts.map(x=>`<option value="${esc(x)}" ${x===value?'selected':''}>${esc(x)}</option>`).join('')}</select></div>`}
 function footer(back=true,next=true){return `<div class="wizard-footer">${back?'<button class="btn" onclick="prevStep()">← Anterior</button>':'<span></span>'}${next?'<button class="btn primary" onclick="nextStep()">Continuar →</button>':''}</div>`}
-function syncForm(){document.querySelectorAll('#stepPanel [name]').forEach(e=>current[e.name]=e.value);current.updatedAt=new Date().toISOString()}
+function syncForm(){document.querySelectorAll('#stepPanel [name]').forEach(e=>current[e.name]=e.value);window.syncStudioPrimaryOption?.(current);current.updatedAt=new Date().toISOString()}
 function nextStep(){syncForm();currentStep=Math.min(6,currentStep+1);renderWizard()}
 function prevStep(){syncForm();currentStep=Math.max(0,currentStep-1);renderWizard()}
 function chooseStart(mode){
@@ -556,7 +556,7 @@ load();renderDashboard();renderProducts();loadCloud();
 <script src="/getyourguide-publisher.js"></script>
 <script src="/getyourguide-integration.js"></script>
 <script src="/getyourguide-eligibility.js"></script>
-<script type="module" src="/gyg-preparation-browser.js?v=20261111-selection1"></script>
+<script type="module" src="/gyg-preparation-browser.js?v=20261111-selection2"></script>
 <script type="module" src="/ai-completion.js?v=20261029-integrity1"></script>
 </body>
 </html>

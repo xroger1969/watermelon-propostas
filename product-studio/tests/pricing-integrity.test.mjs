@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import {buildProductFromSource} from '../lib/product-builder.js';
 import {completionRequest,normalizeCompletion} from '../lib/product-completion.js';
 import {normalizeSourcePrice,sourceIdentity,productSource,publicationIssues,approveSellingPrice,approveProductReview,priceFingerprint,reviewFingerprint,evidencePrice} from '../product-integrity.js';
-import {packCompletionMetadata,unpackCompletionMetadata} from '../completion-fields.js';
+import {packCompletionMetadata,unpackCompletionMetadata,syncPrimaryOption} from '../completion-fields.js';
 import productsHandler from '../api/products.js';
 const url='https://www.getyourguide.com/pt-pt/lisboa-l42/costa-da-caparica-t836010/';
 const quote='50 EUR per person';
@@ -71,6 +71,33 @@ test('cloud roundtrip preserves empty unknown fields, commas and approval metada
 test('blank manual lists also survive the legacy cloud conversion without AI metadata',()=>{
   const packed=packCompletionMetadata({title:'Manual',itinerary:'Meet, then start\nEnjoy'});
   assert.deepEqual(packed.itinerary,['Meet, then start','Enjoy']);
+});
+test('saving edited availability updates only the primary option and retains zero or unknown cutoff',()=>{
+  const primary={optionCode:'COAST',cutoffHours:12,activeDays:['Tue'],startTimes:['09:00']};
+  const secondary={optionCode:'SUNSET',cutoffHours:24,activeDays:['Sat'],startTimes:['18:00'],adultPrice:'80'};
+  for(const cutoffHours of ['10',0,'0','']){
+    const p={...product(),cutoffHours,days:'Mon, Wed\nFri,Mon',allOptions:[primary,secondary]};
+    const restored=unpackCompletionMetadata(packCompletionMetadata(p));
+    assert.equal(restored.allOptions[0].cutoffHours,cutoffHours);
+    assert.deepEqual(restored.allOptions[0].activeDays,['Mon','Wed','Fri']);
+    assert.deepEqual(restored.allOptions[0].startTimes,['09:00']);
+    assert.deepEqual(restored.allOptions[1],secondary);
+    assert.equal(primary.cutoffHours,12);
+  }
+  const empty=packCompletionMetadata({...product(),days:'',allOptions:[primary]});
+  assert.deepEqual(empty.allOptions[0].activeDays,[]);
+  const unspecified=packCompletionMetadata({optionCode:'COAST',allOptions:[primary]});
+  assert.equal(unspecified.allOptions[0].cutoffHours,12);
+  assert.deepEqual(unspecified.allOptions[0].activeDays,['Tue']);
+});
+test('editor availability changes reach primary-option readiness immediately without a reload',()=>{
+  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  const body=html.match(/function syncForm\(\)\{[^\n]*\}/)[0];
+  const current={...product(),allOptions:[{optionCode:'COAST',cutoffHours:12,activeDays:['Tue']}]};
+  const ctx={current,window:{syncStudioPrimaryOption:syncPrimaryOption},document:{querySelectorAll(){return [{name:'cutoffHours',value:'10'},{name:'days',value:'Mon,Wed,Fri'}];}}};
+  vm.createContext(ctx);vm.runInContext(body,ctx);ctx.syncForm();
+  assert.equal(current.allOptions[0].cutoffHours,'10');
+  assert.deepEqual(current.allOptions[0].activeDays,['Mon','Wed','Fri']);
 });
 const response=()=>({statusCode:0,headers:{},setHeader(k,v){this.headers[k]=v;},status(n){this.statusCode=n;return this;},json(b){this.body=b;return this;},send(b){this.body=b;return this;}});
 test('server rejects an unapproved Ready/Live request before any upstream write; Draft saving is unaffected',async()=>{

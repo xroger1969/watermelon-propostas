@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import * as policy from '../gyg-preparation-policy.js';
 import {publicationIssues,approveSellingPrice,approveProductReview} from '../product-integrity.js';
 import productsHandler from '../api/products.js';
+import {packCompletionMetadata,unpackCompletionMetadata} from '../completion-fields.js';
 
 function product(){
   const p={id:'WM-9963P14',status:'Draft',title:'South of Lisbon',shortTitle:'South bank',destination:'Almada',duration:'3 hours',summary:'Explore the south bank.',description:'Explore the south bank with your guide.',highlights:'See the river\nDiscover the coast\nExplore Almada',itinerary:'Meet the guide\nExplore Almada',included:'Guide',excluded:'Lunch',language:'English',groupType:'Private',maxGuests:'8',capacity:'8',days:'Mon,Wed,Fri',startTimes:'09:00',cutoffHours:'10',cancellation:'Confirmed policy',meetingPoint:'Confirmed point',adultPrice:'90',childPrice:'',priceType:'Per person',currency:'EUR',optionCode:'DEFAULT',optionTitle:'South of Lisbon',gallery:Array.from({length:7},(_,i)=>({url:`https://images.example/photo-${i}.jpg`,type:'image'})),inputSource:{gygPreparation:{version:1,selected:true,supplierId:'831862',pricing:{basePerPerson:90,perPerson:81,solo:162,currency:'EUR',source:'website_promotion',observedAt:'2026-11-11T10:00:00Z'},operations:{minParticipants:1,cutoffHours:10,seasonStart:'2027-01-01',seasonEnd:'2027-02-14',days:['Mon','Wed','Fri'],confirmed:true},photoQualityReviewed:true,websiteParityConfirmed:true}}};
@@ -89,6 +90,18 @@ test('cutoff accepts zero or ten, rejects missing/over-ten and inconsistent sour
   for(const cutoff of [0,10]){const p=product();p.cutoffHours=String(cutoff);p.inputSource.gygPreparation.operations.cutoffHours=cutoff;assert.equal(policy.gygPreparationIssues(p).some(x=>x.includes('antecedência')),false);}
   for(const cutoff of [undefined,null,'',11,NaN]){const p=product();p.inputSource.gygPreparation.operations.cutoffHours=cutoff;assert.ok(policy.gygPreparationIssues(p).some(x=>x.includes('antecedência')));}
   const p=product();p.days='Mon,Tue,Wed';assert.ok(policy.gygPreparationIssues(p).some(x=>x.includes('dias da ficha')));
+});
+test('saving corrected editor availability clears stale primary-option readiness failures',()=>{
+  const p=product();
+  p.allOptions=[{optionCode:p.optionCode,adultPrice:p.adultPrice,priceType:p.priceType,currency:p.currency,cutoffHours:12,activeDays:['Tue']}];
+  assert.ok(policy.gygPreparationIssues(p).some(x=>x.includes('antecedência')));
+  assert.ok(policy.gygPreparationIssues(p).some(x=>x.includes('dias da ficha')));
+  const saved=unpackCompletionMetadata(packCompletionMetadata(p));
+  assert.deepEqual(policy.gygPreparationIssues(saved),[]);
+  saved.cutoffHours='';saved.days='';
+  const cleared=unpackCompletionMetadata(packCompletionMetadata(saved));
+  assert.ok(policy.gygPreparationIssues(cleared).some(x=>x.includes('antecedência')));
+  assert.ok(policy.gygPreparationIssues(cleared).some(x=>x.includes('dias da ficha')));
 });
 
 test('tampered exported tiers, photos, participants and dates cannot activate a package',()=>{
