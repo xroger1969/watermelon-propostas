@@ -22,6 +22,7 @@ type Recommendation = {
   pricingMode?: "group" | "per_person";
   maxGuests?: number | null;
   price: number | null;
+  soloPrice?: number | null;
   currency: string;
   livePrice: boolean;
 };
@@ -641,8 +642,9 @@ export default function AIConcierge({
                           {item.price === null ? "On request" : money(item.price, item.currency)}
                         </strong>
                         {item.price !== null && (
-                          <em>{item.pricingMode === "group" ? "per group" : "per person"}{item.maxGuests ? ` · up to ${item.maxGuests} guests` : ""}</em>
+                          <em>{item.pricingMode === "group" ? "per group" : item.soloPrice != null ? "per person for 2+ guests" : "per person"}{item.maxGuests ? ` · up to ${item.maxGuests} guests` : ""}</em>
                         )}
+                        {item.soloPrice != null && <em>Solo total {money(item.soloPrice, item.currency)}</em>}
                       </div>
                       <button
                         type="button"

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { trackLeadConversion } from "@/lib/marketing";
-import { guestLimitLabel, inferProductRules, type PricingMode } from "@/lib/product-rules";
+import { guestLimitLabel, inferProductRules, isSoloPricingProduct, priceTotal, unitPriceForGuests, type PricingMode } from "@/lib/product-rules";
 
 type ProposalItem = {
   code: string;
@@ -77,16 +77,20 @@ function normalizeItem(item: Partial<ProposalItem>): ProposalItem {
     dietary: item.dietary || "",
     occasion: item.occasion || "",
     description: item.description || "",
-    pricingMode: item.pricingMode || inferredRules.pricingMode,
+    pricingMode: isSoloPricingProduct(item.code) ? "per_person" : item.pricingMode || inferredRules.pricingMode,
     maxGuests,
   };
 }
 
-function unitPrice(item: ProposalItem) {
+function baseUnitPrice(item: ProposalItem) {
   return Number.parseFloat(item.price.replace(",", ".")) || 0;
 }
 
-function itemRules(item: ProposalItem) {
+function unitPrice(item: ProposalItem) {
+  return unitPriceForGuests(baseUnitPrice(item), itemGuests(item), itemRules(item).pricingMode, item.code);
+}
+
+function itemRules(item: ProposalItem): { pricingMode: PricingMode; maxGuests: number | null } {
   const inferredRules = inferProductRules({
     code: item.code,
     title: item.title,
@@ -95,7 +99,7 @@ function itemRules(item: ProposalItem) {
   });
 
   return {
-    pricingMode: item.pricingMode || inferredRules.pricingMode,
+    pricingMode: isSoloPricingProduct(item.code) ? "per_person" : item.pricingMode || inferredRules.pricingMode,
     maxGuests: item.maxGuests ?? inferredRules.maxGuests,
   };
 }
@@ -108,7 +112,7 @@ function itemGuests(item: ProposalItem) {
 
 function itemSubtotal(item: ProposalItem) {
   const base = unitPrice(item);
-  return itemRules(item).pricingMode === "group" ? base : base * itemGuests(item);
+  return priceTotal(base, itemGuests(item), itemRules(item).pricingMode);
 }
 
 function timeLabel(item: ProposalItem) {
@@ -202,6 +206,7 @@ export default function ProposalBuilder() {
                 " = " +
                 money(subtotal)
             : "   Price: on request",
+          isSoloPricingProduct(item.code) && itemGuests(item) === 1 ? "   Solo booking: the total is the same as for two guests." : "",
           item.notes ? "   Special request: " + item.notes : "",
           "",
         ];
@@ -368,6 +373,11 @@ export default function ProposalBuilder() {
                             updateItem(index, { guests: String(limited) });
                           }}
                         />
+                        {isSoloPricingProduct(item.code) && baseUnitPrice(item) > 0 && (
+                          <small>
+                            {money(baseUnitPrice(item))} per person for 2 or more guests. A solo booking costs {money(unitPriceForGuests(baseUnitPrice(item), 1, rules.pricingMode, item.code))} in total, the same as two guests.
+                          </small>
+                        )}
                         {rules.maxGuests && (
                           <small>
                             Maximum {rules.maxGuests} guests.

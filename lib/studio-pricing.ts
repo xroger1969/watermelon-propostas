@@ -1,4 +1,5 @@
-import { inferProductRules, pricingModeFor, type ProductRules } from "./product-rules";
+import { inferProductRules, isSoloPricingProduct, normalizeProductCode, pricingModeFor, type ProductRules } from "./product-rules";
+import { directCatalogTariff } from "./catalog-tariff";
 
 type StudioOption = { optionCode: string; optionName: string; price?: number | null; currency?: string; priceType?: string; capacity?: number | null };
 type StudioProduct = { code: string; id?: string; title: string; description?: string; destination?: string; category?: string; duration?: string; image?: string; maxGuests?: number | null; price?: number | null; currency?: string; priceType?: string; options?: StudioOption[] };
@@ -15,14 +16,19 @@ export async function loadStudioCatalog(): Promise<StudioProduct[]> {
 }
 
 export function resolveCatalogPricing(products: StudioProduct[], input: { code: string; optionCode?: string; title?: string; optionName?: string }): ProductRules & { studio: boolean; price?: number | null; currency?: string; primaryOption?: boolean } {
-  const product = products.find(p => p.code === input.code || p.id === input.code);
-  if (!product) return { ...inferProductRules(input), studio: false };
+  const product = products.find(p => p.code === input.code || p.id === input.code || (isSoloPricingProduct(input.code) && normalizeProductCode(p.code) === normalizeProductCode(input.code)));
+  if (!product) {
+    // The selected tours have an operator-approved reference tariff. Never use
+    // a customer's supplied amount as their fallback selling price.
+    const reference = isSoloPricingProduct(input.code) ? directCatalogTariff(input.code) : undefined;
+    return { ...inferProductRules(input), studio: false, ...(reference || {}) };
+  }
   const option = product.options?.find(o => o.optionCode === input.optionCode);
   if (product.options?.length && !option) throw new Error("This option is no longer available. Please refresh the experience page.");
   const limits = [product.maxGuests, option?.capacity].filter((n): n is number => typeof n === "number" && n > 0);
   return {
     studio: true,
-    pricingMode: pricingModeFor(option?.priceType || product.priceType),
+    pricingMode: pricingModeFor(option?.priceType || product.priceType, input.code),
     maxGuests: limits.length ? Math.min(...limits) : null,
     price: option ? option.price ?? null : product.price ?? null,
     currency: option?.currency || product.currency || "EUR",

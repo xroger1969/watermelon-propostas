@@ -4,7 +4,7 @@ import {
   SUPABASE_BOOKING_PUBLISHABLE_KEY,
   SUPABASE_BOOKING_URL,
 } from "@/lib/supabase/config";
-import { priceTotal } from "@/lib/product-rules";
+import { isSoloPricingProduct, normalizeProductCode, priceTotal, unitPriceForGuests } from "@/lib/product-rules";
 import { loadStudioCatalog, resolveCatalogPricing } from "@/lib/studio-pricing";
 
 export const runtime = "nodejs";
@@ -84,11 +84,12 @@ export async function POST(request: Request) {
   let catalogue;
   try { catalogue = await loadStudioCatalog(); } catch { return NextResponse.json({ error: "Unable to verify the current catalogue. Please try again." }, { status: 503 }); }
   const pricingDb = createClient(SUPABASE_BOOKING_URL, SUPABASE_BOOKING_PUBLISHABLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: promotions, error: pricingError } = await pricingDb.from("watermelon_site_promotions").select("product_code,now_price,before_price,currency").in("product_code", rawItems.map(item => clean(item.code, 80)));
+  const { data: promotions, error: pricingError } = await pricingDb.from("watermelon_site_promotions").select("product_code,now_price,before_price,currency").in("product_code", rawItems.map(item => { const code = clean(item.code, 80); return isSoloPricingProduct(code) ? normalizeProductCode(code) : code; }));
   if (pricingError) return NextResponse.json({ error: "Unable to verify current offers. Please try again." }, { status: 503 });
   let preparedItems;
   try { preparedItems = rawItems.map((item, index) => {
-    const guests = Math.max(1, Math.min(50, Number(item.guests) || 1));
+    const guests = Number(item.guests ?? 1);
+    if (!Number.isInteger(guests) || guests < 1 || guests > 50) throw new Error("Invalid guest count.");
     const unitPrice =
       item.unitPrice === null || item.unitPrice === undefined
         ? null
@@ -103,14 +104,23 @@ export async function POST(request: Request) {
       optionCode: clean(item.optionCode, 80),
     });
 
-    const promotion = promotions?.find(p => p.product_code === productCode);
+    const promotion = promotions?.find(p => p.product_code === (isSoloPricingProduct(productCode) ? normalizeProductCode(productCode) : productCode));
     const promotedPrice = Number(promotion?.now_price);
     const promotional = (!rules.studio || rules.primaryOption) && promotedPrice > 0 && Number(promotion?.before_price) > promotedPrice;
+    const baseUnitPrice = promotional ? promotedPrice : rules.studio || isSoloPricingProduct(productCode) ? rules.price ?? null : unitPrice;
+    const verifiedUnitPrice = baseUnitPrice === null ? null : unitPriceForGuests(baseUnitPrice, guests, rules.pricingMode, productCode);
+    if (isSoloPricingProduct(productCode) && unitPrice !== verifiedUnitPrice) {
+      if (guests === 1 && verifiedUnitPrice !== null) {
+        const currency = promotional ? clean(promotion?.currency, 3).toUpperCase() || "EUR" : rules.currency || "EUR";
+        throw new Error(`The current total for one traveller is ${verifiedUnitPrice.toFixed(2)} ${currency}, the same as for two travellers. Review the updated price and send your request at https://www.watermelonexperiences.pt/#experiencias. Older app versions need an update to request this solo tour.`);
+      }
+      throw new Error("The price has changed. Please refresh the experience page before requesting a proposal.");
+    }
     return {
       item,
       index,
       guests,
-      unitPrice: promotional ? promotedPrice : rules.studio ? rules.price ?? null : unitPrice,
+      unitPrice: verifiedUnitPrice,
       productCode,
       experienceTitle,
       optionName,

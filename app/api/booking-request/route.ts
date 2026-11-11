@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import type { CreateBookingRequestInput } from "@/types/booking";
-import { priceTotal } from "@/lib/product-rules";
+import { isSoloPricingProduct, normalizeProductCode, priceTotal, unitPriceForGuests } from "@/lib/product-rules";
 import { loadStudioCatalog, resolveCatalogPricing } from "@/lib/studio-pricing";
 import {
   SUPABASE_BOOKING_PUBLISHABLE_KEY,
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
   const { data: promotion, error: promotionError } = await supabase
     .from("watermelon_site_promotions")
     .select("label,before_price,now_price,currency")
-    .eq("product_code", productCode)
+    .eq("product_code", isSoloPricingProduct(productCode) ? normalizeProductCode(productCode) : productCode)
     .maybeSingle();
 
   if (promotionError) {
@@ -115,11 +115,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const unitPrice = promotionApplied ? promotionNowPrice : productRules.studio ? productRules.price ?? null : requestedUnitPrice;
+  const baseUnitPrice = promotionApplied ? promotionNowPrice : productRules.studio || isSoloPricingProduct(productCode) ? productRules.price ?? null : requestedUnitPrice;
+  const unitPrice = baseUnitPrice === null ? null : unitPriceForGuests(baseUnitPrice, guests, productRules.pricingMode, productCode);
   const currency = promotionApplied
     ? clean(promotion?.currency, 3).toUpperCase() || "EUR"
     : productRules.currency || clean(input.currency, 3).toUpperCase() || "EUR";
   if (requestedUnitPrice !== unitPrice || (input.pricingMode && input.pricingMode !== productRules.pricingMode)) {
+    if (isSoloPricingProduct(productCode) && guests === 1 && unitPrice !== null) {
+      return NextResponse.json({ error: `The current total for one traveller is ${unitPrice.toFixed(2)} ${currency}, the same as for two travellers. Review the updated price and send your request at https://www.watermelonexperiences.pt/#experiencias. Older app versions need an update to request this solo tour.` }, { status: 409 });
+    }
     return NextResponse.json({ error: "The price or pricing basis has changed. Please refresh the experience page before booking." }, { status: 409 });
   }
   const estimatedTotal = unitPrice === null ? null : priceTotal(unitPrice, guests, productRules.pricingMode);
@@ -143,7 +147,7 @@ export async function POST(request: Request) {
       currency,
       estimated_total: estimatedTotal,
       site_promotion_applied: promotionApplied,
-      site_before_price: promotionApplied ? promotionBeforePrice : null,
+      site_before_price: promotionApplied ? unitPriceForGuests(promotionBeforePrice, guests, productRules.pricingMode, productCode) : null,
       site_promotion_label: promotionApplied
         ? clean(promotion?.label, 120) || "Website offer"
         : null,
