@@ -95,6 +95,12 @@ function galleryLayout(product,imported){
   // layout can only reorder photos already present in the returned gallery.
   return {version:1,order:[...new Set(items.map(galleryIdentity))],main:galleryIdentity(main)};
 }
+export function syncPrimaryOption(product){
+  if(!Array.isArray(product?.allOptions))return;
+  const primaryValues=Object.fromEntries(['optionTitle','adultPrice','childPrice','priceType','currency','cutoffHours'].filter(f=>product[f]!==undefined).map(f=>[f,product[f]]));
+  if(product.days!==undefined)primaryValues.activeDays=[...new Set((Array.isArray(product.days)?product.days:String(product.days??'').split(/[,\n]+/)).map(day=>String(day).trim()).filter(Boolean))];
+  product.allOptions=product.allOptions.map(o=>o.optionCode===product.optionCode?{...o,...primaryValues}:o);
+}
 export function packCompletionMetadata(product){
   if(!product||typeof product!=='object')return product;
   const inputSource=product.inputSource&&typeof product.inputSource==='object'?product.inputSource:{};
@@ -109,7 +115,7 @@ export function packCompletionMetadata(product){
   for(const [field,rule] of Object.entries(COMPLETION_FIELDS))if(rule.lines){
     packed[field]=Array.isArray(product[field])?product[field]:String(product[field]||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
   }
-  if(Array.isArray(product.allOptions))packed.allOptions=product.allOptions.map(o=>o.optionCode===product.optionCode?{...o,...Object.fromEntries(['optionTitle','adultPrice','childPrice','priceType','currency'].filter(f=>product[f]!==undefined).map(f=>[f,product[f]]))}:o);
+  syncPrimaryOption(packed);
   return packed;
 }
 export function unpackCompletionMetadata(product){
