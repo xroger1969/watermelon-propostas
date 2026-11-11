@@ -312,7 +312,11 @@ struct ExperienceCard: View {
                         if let option = product.availableOptions.first, let price = product.unitPrice(for: option) {
                             HStack(alignment: .firstTextBaseline) {
                                 Text(money(price, product.currency ?? "EUR")).font(.headline).foregroundStyle(Brand.navy)
-                                Text(product.basis(for: option) == .group ? "per group" : "per person").font(.caption).foregroundStyle(.secondary)
+                                Text(product.usesSoloPricing ? "per person for 2+ guests" : product.basis(for: option) == .group ? "per group" : "per person").font(.caption).foregroundStyle(.secondary)
+                            }
+                            if product.usesSoloPricing, let solo = product.total(for: option, guests: 1) {
+                                Text("Solo total: \(money(solo, product.currency ?? "EUR"))")
+                                    .font(.caption).foregroundStyle(.secondary)
                             }
                         } else { Text("Price on request").font(.subheadline.weight(.semibold)).foregroundStyle(Brand.green) }
                         Label("View details", systemImage: "arrow.right").font(.subheadline.weight(.semibold)).foregroundStyle(Brand.green)
@@ -587,7 +591,11 @@ struct AIConciergeView: View {
                                         HStack(alignment: .firstTextBaseline) {
                                             Text(money(price, product.currency ?? "EUR"))
                                                 .foregroundStyle(Brand.green).font(.subheadline.bold())
-                                            Text(product.basis(for: product.availableOptions[0]) == .group ? "per group" : "per person")
+                                            Text(product.usesSoloPricing ? "per person for 2+ guests" : product.basis(for: product.availableOptions[0]) == .group ? "per group" : "per person")
+                                                .font(.caption).foregroundStyle(.secondary)
+                                        }
+                                        if product.usesSoloPricing, let solo = product.total(for: product.availableOptions[0], guests: 1) {
+                                            Text("Solo total: \(money(solo, product.currency ?? "EUR"))")
                                                 .font(.caption).foregroundStyle(.secondary)
                                         }
                                     } else {

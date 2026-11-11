@@ -221,3 +221,9 @@
 "Not now" = "Niet nu";
 "Stop sharing with OpenAI" = "Stoppen met delen met OpenAI";
 "Permission required to use Watermelon AI." = "Toestemming is vereist om Watermelon AI te gebruiken.";
+
+"per person for 2+ guests" = "per persoon vanaf 2 deelnemers";
+
+"Solo total: %@" = "Totaal voor één persoon: %@";
+
+"One traveller pays the same total as two travellers." = "Eén persoon betaalt hetzelfde totaal als twee personen.";

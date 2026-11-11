@@ -54,6 +54,11 @@ struct Experience: Codable, Identifiable, Hashable {
     var place: String { destination ?? location ?? "Portugal" }
     var overview: String { description ?? summary ?? "" }
     var imageURL: URL? { URL(string: image ?? gallery?.first ?? "") }
+    var normalizedCode: String {
+        let value = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        return value.hasPrefix("WM-") ? String(value.dropFirst(3)) : value
+    }
+    var usesSoloPricing: Bool { ["9963P14", "9963P15", "9963P16"].contains(normalizedCode) }
     private func partnerURL(_ value: String?, domain: String) -> URL? {
         guard let value, let parts = URLComponents(string: value),
               parts.scheme == "https", parts.user == nil, parts.password == nil,
@@ -79,6 +84,7 @@ struct Experience: Codable, Identifiable, Hashable {
     }
 
     func basis(for option: ExperienceOption) -> PricingBasis? {
+        if usesSoloPricing { return .per_person }
         if let type = option.priceType ?? priceType {
             switch type {
             case "Per person", "per_person": return .per_person
@@ -105,14 +111,19 @@ struct Experience: Codable, Identifiable, Hashable {
         let value: Double?
         if isStudio == true {
             value = promotionApplied == true && option.id == availableOptions.first?.id ? price : option.price
-        } else { value = option.price ?? price }
+        } else { value = usesSoloPricing ? price : option.price ?? price }
         guard let value, value.isFinite, value > 0 else { return nil }
         return value
     }
 
+    func unitPrice(for option: ExperienceOption, guests: Int) -> Double? {
+        guard guests >= 1, guests <= guestLimit(for: option), let price = unitPrice(for: option) else { return nil }
+        return usesSoloPricing && guests == 1 ? (price * 2 * 100).rounded() / 100 : price
+    }
+
     func total(for option: ExperienceOption, guests: Int) -> Double? {
         guard guests >= 1, guests <= guestLimit(for: option),
-              let price = unitPrice(for: option), let basis = basis(for: option) else { return nil }
+              let price = unitPrice(for: option, guests: guests), let basis = basis(for: option) else { return nil }
         return ((basis == .group ? price : price * Double(guests)) * 100).rounded() / 100
     }
 }

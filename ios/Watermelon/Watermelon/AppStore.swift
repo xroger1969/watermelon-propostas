@@ -103,7 +103,7 @@ final class TravelStore: ObservableObject {
                   selection.guests <= product.guestLimit(for: option) else {
                 throw WatermelonError.message(String(localized: "Refresh the catalogue before sending this request."))
             }
-            guard product.unitPrice(for: option) == selection.experience.unitPrice(for: selection.option),
+            guard product.unitPrice(for: option, guests: selection.guests) == selection.experience.unitPrice(for: selection.option, guests: selection.guests),
                   product.basis(for: option) == selection.experience.basis(for: selection.option) else {
                 throw WatermelonError.message(String(localized: "The price has changed. Reopen the form to review it before sending."))
             }

@@ -221,3 +221,9 @@
 "Not now" = "Jetzt nicht";
 "Stop sharing with OpenAI" = "Datenweitergabe an OpenAI beenden";
 "Permission required to use Watermelon AI." = "Für Watermelon AI ist Ihre Zustimmung erforderlich.";
+
+"per person for 2+ guests" = "pro Person ab 2 Teilnehmern";
+
+"Solo total: %@" = "Gesamtpreis für eine Person: %@";
+
+"One traveller pays the same total as two travellers." = "Eine Person zahlt denselben Gesamtpreis wie zwei Personen.";
