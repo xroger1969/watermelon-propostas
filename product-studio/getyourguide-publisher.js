@@ -1,4 +1,8 @@
 
+function gygSelectedForPreparation(product){return window.gygPreparationPolicy?.gygSelected(product)===true;}
+function gygAccountIssues(product,payload){return window.gygPreparationPolicy?.gygPreparationIssues(product,payload)||['A carregar regras da conta GetYourGuide'];}
+function gygPriceLabel(value){return typeof value==='number'&&Number.isFinite(value)?new Intl.NumberFormat('pt-PT',{style:'currency',currency:'EUR'}).format(value):'Por confirmar';}
+
 const GYG_STATUS_ORDER = ["Not prepared","Ready","Submitted","In review","Published","Changes requested","Rejected","Paused","Archived"];
 
 function gygLines(value){
@@ -80,29 +84,34 @@ function gygOptions(product){
         optionCode:product.optionCode||"DEFAULT",
         optionTitle:product.optionTitle||"Standard",
         optionDescription:"",
-        priceType:product.priceType||"Per group",
+        priceType:product.priceType||"",
         currency:product.currency||"EUR",
         adultPrice:product.adultPrice||"",
         childPrice:product.childPrice||"",
         startTimes:gygLines(product.startTimes),
         activeDays:gygLines(product.days),
         capacity:Number(product.capacity||product.maxGuests||8),
-        cutoffHours:Number(product.cutoffHours||12)
+        cutoffHours:product.cutoffHours==null||product.cutoffHours===""?null:Number(product.cutoffHours)
       }];
-  return options.map(o=>({
+  const prepared=options.map(o=>({
     referenceCode:o.optionCode||"DEFAULT",
     title:o.optionTitle||"Standard",
     description:o.optionDescription||"",
-    priceType:o.priceType||"Per group",
+    priceType:o.priceType||"",
     currency:o.currency||"EUR",
     adultPrice:o.adultPrice===""?null:Number(o.adultPrice),
     childPrice:o.childPrice===""?null:Number(o.childPrice),
     activeDays:Array.isArray(o.activeDays)?o.activeDays:gygLines(o.activeDays),
     startTimes:Array.isArray(o.startTimes)?o.startTimes:gygLines(o.startTimes),
     capacity:Number(o.capacity||product.maxGuests||8),
-    bookingCutoffHours:Number(o.cutoffHours??12),
+    bookingCutoffHours:o.cutoffHours==null||o.cutoffHours===""?null:Number(o.cutoffHours),
     availabilityMode:"Fixed time slots"
   }));
+  if(gygSelectedForPreparation(product)){
+    const main=prepared.find(o=>o.referenceCode===product.optionCode)||prepared[0];
+    return main?[window.gygPreparationPolicy.gygProposalOption(product,main)]:[];
+  }
+  return prepared;
 }
 
 function buildGygPayload(product){
@@ -112,9 +121,12 @@ function buildGygPayload(product){
     storagePath:m.path||"",
     fileName:m.name||("image-"+(index+1)+".jpg"),
     main:index===0,
-    source:"watermelon"
+    source:m.source||"watermelon",
+    sourcePhotoId:m.sourcePhotoId||undefined,
+    width:m.width??undefined,
+    height:m.height??undefined
   })).filter(x=>x.url||x.storagePath);
-  if(!photos.length && product.viatorSnapshot?.image){
+  if(!photos.length && !gygSelectedForPreparation(product) && product.viatorSnapshot?.image){
     photos.push({
       url:product.viatorSnapshot.image,
       storagePath:"",
@@ -152,7 +164,7 @@ function buildGygPayload(product){
     dropoff:String(product.dropoff||"").trim(),
     languages:[product.language||"English"],
     groupType:product.groupType||"Private",
-    maxGuests:Number(product.maxGuests||product.capacity||8),
+    maxGuests:gygSelectedForPreparation(product)?2:Number(product.maxGuests||product.capacity||8),
     cancellationPolicy:String(product.cancellation||"").trim(),
     photos,
     options:gygOptions(product),
@@ -166,7 +178,7 @@ function buildGygPayload(product){
 }
 
 function gygReadiness(product,payload){
-  const missing=typeof window.studioPublicationIssues==='function'?window.studioPublicationIssues(product):['commercial review required'];
+  const missing=[...gygAccountIssues(product,payload),...(typeof window.studioPublicationIssues==='function'?window.studioPublicationIssues(product):['commercial review required'])];
   const warnings=[];
   if(!payload.title) missing.push("title");
   if(!payload.shortDescription) missing.push("short description");
@@ -215,8 +227,10 @@ async function persistGygProduct(product){
 async function prepareGygProduct(id,silent=false){
   const product=products.find(p=>p.id===id);
   if(!product) return;
+  if(!gygSelectedForPreparation(product)){if(!silent)toast("Este programa está fora do lote selecionado.");return;}
   const pub=gygPublication(product);
   const payload=buildGygPayload(product);
+  if(pub.payload?.publicUrl)payload.publicUrl=pub.payload.publicUrl;
   const readiness=gygReadiness(product,payload);
   const protectedStatuses=["Submitted","In review","Published","Changes requested","Rejected","Paused"];
   if(!protectedStatuses.includes(pub.status)){
@@ -224,10 +238,12 @@ async function prepareGygProduct(id,silent=false){
   }
   pub.payload=payload;
   pub.preparedAt=new Date().toISOString();
-  pub.notes=[
+  const previousNotes=String(pub.notes||" ").split("\n\n[Verificação GYG]")[0].trim();
+  const checks=[
     readiness.missing.length?"Missing: "+readiness.missing.join(", "):"",
     readiness.warnings.length?"Review: "+readiness.warnings.join(", "):""
   ].filter(Boolean).join(" · ");
+  pub.notes=[previousNotes,"[Verificação GYG] "+checks].filter(Boolean).join("\n\n");
   try{
     await persistGygProduct(product);
     if(!silent) toast(readiness.ready?"GetYourGuide package ready ✓":"Package prepared — some fields still need confirmation");
@@ -240,7 +256,7 @@ async function prepareGygProduct(id,silent=false){
 }
 
 async function prepareAllGetYourGuide(){
-  const candidates=products.filter(p=>p.status!=="Archived");
+  const candidates=products.filter(p=>p.status!=="Archived"&&gygSelectedForPreparation(p));
   if(!candidates.length){toast("No products to prepare");return}
   const btn=document.querySelector("#gygPrepareAll");
   if(btn){btn.disabled=true;btn.textContent="Preparing…"}
@@ -250,7 +266,7 @@ async function prepareAllGetYourGuide(){
     done++;
     if(btn) btn.textContent="Preparing "+done+"/"+candidates.length;
   }
-  if(btn){btn.disabled=false;btn.textContent="Prepare all products"}
+  if(btn){btn.disabled=false;btn.textContent="Preparar selecionados"}
   toast("GetYourGuide packages prepared: "+done);
   renderGetYourGuide();
 }
@@ -258,9 +274,11 @@ async function prepareAllGetYourGuide(){
 async function setGygStatus(id,status){
   const product=products.find(p=>p.id===id);
   if(!product) return;
-  if(['Ready','Submitted','Published'].includes(status)){const issues=window.studioPublicationIssues?.(product)||['commercial review required'];if(issues.length){toast('Rever no editor: '+issues.join(', '));return;}}
+  if(['Ready','Submitted','In review','Published'].includes(status)){const issues=gygReadiness(product,buildGygPayload(product)).missing;if(issues.length){toast('Ainda falta: '+issues.join(', '));renderGetYourGuide();return;}}
   const pub=gygPublication(product);
-  if(!pub.payload) pub.payload=buildGygPayload(product);
+  const publicUrl=pub.payload?.publicUrl;
+  pub.payload=buildGygPayload(product);
+  if(publicUrl)pub.payload.publicUrl=publicUrl;
   const now=new Date().toISOString();
   if(status==="Published"){
     const readiness=gygReadiness(product,buildGygPayload(product));
@@ -320,7 +338,7 @@ function gygPackText(payload){
   section("Drop-off",payload.dropoff);
   section("Languages",payload.languages);
   section("Cancellation",payload.cancellationPolicy);
-  section("Options",payload.options.map(o=>o.title+" | "+(o.adultPrice??"price pending")+" "+o.currency+" | "+(o.startTimes||[]).join(", ")+" | "+(o.activeDays||[]).join(", ")));
+  section("Options",payload.options.map(o=>o.title+" | "+o.priceType+" | "+(o.pricingTiers?.length?o.pricingTiers.map(t=>t.minParticipants+" participant(s): "+t.pricePerPerson+" "+o.currency+" per person; total "+t.totalPrice+" "+o.currency).join(" / "):(o.adultPrice??"price pending")+" "+o.currency)+" | "+(o.startTimes||[]).join(", ")+" | "+(o.activeDays||[]).join(", ")));
   section("Photos",payload.photos.map(p=>p.url||p.storagePath||p.fileName));
   return lines.join("\n");
 }
@@ -338,10 +356,10 @@ function openGygPack(id){
   const product=products.find(p=>p.id===id);
   if(!product) return;
   const pub=gygPublication(product);
-  const payload=pub.payload||buildGygPayload(product);
+  const payload=buildGygPayload(product);
   const r=gygReadiness(product,payload);
   const list=(arr)=>arr?.length?'<ul>'+arr.map(x=>'<li>'+esc(x)+'</li>').join("")+'</ul>':'<p class="hint">None</p>';
-  const options=(payload.options||[]).map(o=>'<div class="gyg-option"><b>'+esc(o.title)+'</b><span>'+esc(o.priceType)+' · '+(o.adultPrice==null?'price pending':esc(o.adultPrice+" "+o.currency))+'</span><span>'+esc((o.startTimes||[]).join(", ")||"times pending")+'</span></div>').join("");
+  const options=(payload.options||[]).map(o=>'<div class="gyg-option"><b>'+esc(o.title)+'</b><span>'+esc(o.priceType)+' · '+(o.adultPrice==null?'price pending':esc(o.adultPrice+" "+o.currency))+'</span>'+(o.pricingTiers||[]).map(t=>'<span>'+t.minParticipants+' pessoa(s): '+esc(gygPriceLabel(t.pricePerPerson))+' por pessoa · total '+esc(gygPriceLabel(t.totalPrice))+'</span>').join('')+'<span>'+esc((o.startTimes||[]).join(", ")||"Horários por confirmar")+'</span></div>').join("");
   const photos=(payload.photos||[]).map(p=>p.url?'<img src="'+esc(p.url)+'" alt="">':'<span class="chip">'+esc(p.fileName||"photo")+'</span>').join("");
   showModal(
     '<div class="gyg-pack-head"><div><p class="eyebrow">GETYOURGUIDE PACKAGE</p><h3>'+esc(payload.title||product.title)+'</h3><p class="hint">'+esc(payload.productReferenceCode)+'</p></div>'+gygStatusBadge(pub.status)+'</div>'+
@@ -374,13 +392,13 @@ function gygFieldBlock(label,value,wide=false){
 
 function copyGygPackage(id){
   const p=products.find(x=>x.id===id);if(!p)return;
-  const payload=gygPublication(p).payload||buildGygPayload(p);
+  const payload=buildGygPayload(p);
   copyGygText(gygPackText(payload),"Complete package");
 }
 
 function downloadGygPackage(id){
   const p=products.find(x=>x.id===id);if(!p)return;
-  const payload=gygPublication(p).payload||buildGygPayload(p);
+  const payload=buildGygPayload(p);
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
@@ -390,11 +408,11 @@ function downloadGygPackage(id){
 }
 
 function exportAllGetYourGuide(){
-  const payload=products.map(p=>({
+  const payload=products.filter(gygSelectedForPreparation).map(p=>({
     watermelonProductId:p.id,
     status:gygPublication(p).status,
     externalProductId:gygPublication(p).externalProductId||"",
-    package:gygPublication(p).payload||buildGygPayload(p)
+    package:buildGygPayload(p)
   }));
   const blob=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),provider:"getyourguide",products:payload},null,2)],{type:"application/json"});
   const a=document.createElement("a");
@@ -407,10 +425,11 @@ function exportAllGetYourGuide(){
 function filterGygProducts(){
   const q=(document.querySelector("#gygQ")?.value||"").toLowerCase();
   const s=document.querySelector("#gygStatus")?.value||"";
+  const scope=document.querySelector("#gygScope")?.value||"selected";
   renderGygTable(products.filter(p=>{
     const pub=gygPublication(p);
     const hay=[p.title,p.destination,p.id,p.viatorCode,pub.externalProductId].join(" ").toLowerCase();
-    return (!q||hay.includes(q))&&(!s||pub.status===s);
+    return (scope!=="selected"||gygSelectedForPreparation(p))&&(!q||hay.includes(q))&&(!s||pub.status===s);
   }));
 }
 
@@ -418,9 +437,9 @@ function renderGygTable(list){
   const area=document.querySelector("#gygTableArea");if(!area)return;
   if(!list.length){area.innerHTML='<div class="card empty">No products match this filter.</div>';return}
   area.innerHTML='<div class="card table-wrap"><table class="table gyg-table"><thead><tr><th>Product</th><th>Source</th><th>Package</th><th>GYG status</th><th>Needs attention</th><th></th></tr></thead><tbody>'+
-    list.map(p=>{
+    [...list].sort((a,b)=>Number(gygSelectedForPreparation(b))-Number(gygSelectedForPreparation(a))).map(p=>{
       const pub=gygPublication(p);
-      const payload=pub.payload||buildGygPayload(p);
+      const payload=buildGygPayload(p);
       const r=gygReadiness(p,payload);
       const completeness=gygProductCompleteness(p);
       return '<tr>'+
@@ -430,7 +449,7 @@ function renderGygTable(list){
         '<td>'+gygStatusBadge(pub.status)+(pub.externalProductId?'<br><span class="hint">ID '+esc(pub.externalProductId)+'</span>':'')+'</td>'+
         '<td>'+(r.missing.length?'<span class="gyg-missing">'+esc(r.missing.slice(0,3).join(", "))+(r.missing.length>3?'…':'')+'</span>':'<span class="gyg-ok">Ready</span>')+'</td>'+
         '<td><div class="row-actions gyg-actions">'+
-          '<button class="iconbtn" onclick="prepareGygProduct(\''+esc(p.id)+'\')">Prepare</button>'+
+          '<button class="iconbtn" '+(gygSelectedForPreparation(p)?'':'disabled ')+'onclick="prepareGygProduct(\''+esc(p.id)+'\')">Preparar</button>'+
           '<button class="iconbtn" onclick="openGygPack(\''+esc(p.id)+'\')">View pack</button>'+
           '<select class="gyg-state-select" onchange="setGygStatus(\''+esc(p.id)+'\',this.value)">'+
             GYG_STATUS_ORDER.map(s=>'<option '+(s===pub.status?'selected':'')+'>'+esc(s)+'</option>').join("")+
@@ -441,6 +460,19 @@ function renderGygTable(list){
   '</tbody></table></div>';
 }
 
+function gygSelectionHtml(){
+  const selected=products.filter(gygSelectedForPreparation);
+  if(!selected.length)return '<section class="card gyg-selection"><h2>Programas selecionados</h2><p>A seleção ainda não foi carregada. Os restantes produtos continuam no catálogo.</p></section>';
+  return '<section class="card gyg-selection"><h2>'+selected.length+' programas selecionados para preparação</h2><p>Uma pessoa paga o mesmo total de duas. Os valores abaixo são a proposta para a GetYourGuide; a submissão é feita após a revisão final.</p><div class="gyg-selection-grid">'+selected.map(p=>{
+    const prep=window.gygPreparationPolicy.gygPreparation(p),price=prep.pricing||{},count=window.gygPreparationPolicy.gygPhotoCount(p);
+    const issues=gygReadiness(p,buildGygPayload(p)).missing;
+    return '<article class="gyg-selected-product"><h3>'+esc(p.title)+'</h3><p class="hint">'+esc(p.id)+'</p><dl class="gyg-selected-prices"><div><dt>1 pessoa · total</dt><dd>'+esc(gygPriceLabel(price.solo))+'</dd></div><div><dt>2 pessoas · por pessoa</dt><dd>'+esc(gygPriceLabel(price.perPerson))+'</dd></div></dl><p class="hint">Total para 2: '+esc(gygPriceLabel(typeof price.perPerson==='number'?price.perPerson*2:null))+' · '+count+'/7 fotografias</p>'+
+      (price.source==='website_promotion'?'<p class="hint">Acompanha a promoção do site. Sem promoção: '+esc(gygPriceLabel(typeof price.basePerPerson==='number'?price.basePerPerson*2:null))+' sozinho / '+esc(gygPriceLabel(price.basePerPerson))+' por pessoa com 2.</p>':'')+
+      (issues.length?'<p class="gyg-selected-state">Em preparação</p><ul class="gyg-selected-gaps">'+issues.slice(0,4).map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>'+(issues.length>4?'<details><summary>Ver restantes verificações ('+(issues.length-4)+')</summary><ul class="gyg-selected-gaps">'+issues.slice(4).map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul></details>':''):'<p class="gyg-ok">Ficha completa para revisão final</p>')+
+      '<div class="actions"><button class="btn" onclick="editProduct(\''+esc(p.id)+'\')">Editar ficha</button><button class="btn primary" onclick="openGygPack(\''+esc(p.id)+'\')">Ver preparação</button></div></article>';
+  }).join('')+'</div><p class="hint">'+(products.length-selected.length)+' outros programas fora deste lote. Escalões para 3 ou mais pessoas ainda por confirmar na GetYourGuide.</p></section>';
+}
+
 function renderGetYourGuide(){
   const el=document.querySelector("#gygView");if(!el)return;
   const pubs=products.map(p=>gygPublication(p));
@@ -448,14 +480,16 @@ function renderGetYourGuide(){
   const pipeline=pubs.filter(x=>["Submitted","In review","Changes requested"].includes(x.status)).length;
   const published=pubs.filter(x=>x.status==="Published").length;
   el.innerHTML=
-    '<div class="topbar"><div><h1>GetYourGuide Publisher</h1><p>Prepare the Supplier Portal package from the Watermelon master catalogue.</p></div><div class="actions"><button id="gygPrepareAll" class="btn green" onclick="prepareAllGetYourGuide()">Prepare all products</button><button class="btn" onclick="exportAllGetYourGuide()">Export all JSON</button><a class="btn primary" href="https://supplier.getyourguide.com/home" target="_blank" rel="noopener">Open Supplier Portal →</a></div></div>'+
+    '<div class="topbar"><div><h1>Preparação GetYourGuide</h1><p>Conta 831862 · Watermelon Experiences</p></div><div class="actions"><button id="gygPrepareAll" class="btn green" onclick="prepareAllGetYourGuide()">Preparar selecionados</button><button class="btn" onclick="exportAllGetYourGuide()">Exportar selecionados</button><a class="btn primary" href="https://supplier.getyourguide.com/home" target="_blank" rel="noopener">Abrir Supplier Portal →</a></div></div>'+
+    gygSelectionHtml()+
+    '<details class="gyg-more"><summary>Mais opções · catálogo e integração</summary>'+
     '<div class="grid4"><div class="metric"><div class="label">Products</div><div class="value">'+products.length+'</div><div class="sub">Watermelon master catalogue</div></div><div class="metric"><div class="label">Ready</div><div class="value">'+ready+'</div><div class="sub">pacote estruturado, sujeito a triagem</div></div><div class="metric"><div class="label">Submitted / review</div><div class="value">'+pipeline+'</div><div class="sub">GetYourGuide pipeline</div></div><div class="metric"><div class="label">Published</div><div class="value">'+published+'</div><div class="sub">live on GetYourGuide</div></div></div>'+
     '<div class="card gyg-intro"><div><b>Connection prepared — activation pending</b><p>The Studio is already prepared for GetYourGuide. Products can be structured, reviewed and tracked here now. Live API catalogue access remains inactive until GetYourGuide partner credentials and published tour IDs are available.</p></div><div class="notice"><b>Professional status:</b> Until a product is Published and has a public GetYourGuide booking URL, the website shows the channel as <b>Not yet available</b>. Once the URL is saved here, the website can expose the GetYourGuide booking option automatically.</div></div>'+
     '<div id="gygIntegrationHub"></div>'+
     '<div id="gygEligibilityAudit"></div>'+
-    '<div class="toolbar gyg-toolbar"><input id="gygQ" class="search" placeholder="Search title, destination or code…" oninput="filterGygProducts()"><select id="gygStatus" class="search" style="max-width:210px" onchange="filterGygProducts()"><option value="">All GetYourGuide statuses</option>'+GYG_STATUS_ORDER.map(s=>'<option>'+esc(s)+'</option>').join("")+'</select></div>'+
-    '<div id="gygTableArea"></div>';
-  renderGygTable(products);
+    '<div class="toolbar gyg-toolbar"><select id="gygScope" class="search" style="max-width:210px" onchange="filterGygProducts()"><option value="selected">Selecionados para preparar</option><option value="all">Todos os programas</option></select><input id="gygQ" class="search" placeholder="Search title, destination or code…" oninput="filterGygProducts()"><select id="gygStatus" class="search" style="max-width:210px" onchange="filterGygProducts()"><option value="">All GetYourGuide statuses</option>'+GYG_STATUS_ORDER.map(s=>'<option>'+esc(s)+'</option>').join("")+'</select></div>'+
+    '<div id="gygTableArea"></div></details>';
+  renderGygTable(products.filter(gygSelectedForPreparation));
   if(typeof renderGygIntegrationHub==="function")renderGygIntegrationHub();
   if(typeof renderGygEligibilityAudit==="function")renderGygEligibilityAudit();
 }

@@ -1,5 +1,6 @@
 import {packCompletionMetadata,unpackCompletionMetadata} from '../completion-fields.js';
 import {publicationIssues,reviewFingerprint} from '../product-integrity.js';
+import {gygPreparationIssues} from '../gyg-preparation-policy.js';
 
 // Authentication is enforced for ALL project domains by Vercel Authentication.
 // Origin checks are additional CSRF protection, never treated as authentication.
@@ -21,15 +22,21 @@ export default async function handler(req,res){
       if(JSON.stringify(req.body).length>500000)return res.status(413).json({error:'Produto demasiado grande.'});
       const channel=product.getYourGuidePublication;
       const channelActive=['Ready','Submitted','In review','Published'].includes(channel?.status);
-      if(['Ready','Live'].includes(product.status)||channelActive){
+      // Active GYG records always pass the current account rules. An unchanged
+      // payload/status must not conceal newly changed pricing or preparation data.
+      if(channelActive){
+        const issues=[...new Set([...publicationIssues(product),...gygPreparationIssues(product,channel.payload)])];
+        if(!channel.payload)issues.push('pacote GetYourGuide em falta');
+        if(issues.length)return res.status(422).json({error:'Antes de ativar GetYourGuide: '+issues.join(', '),issues});
+      }
+      if(['Ready','Live'].includes(product.status)){
         const previousResponse=await fetch(url,{headers,signal:AbortSignal.timeout(15000)});
         if(!previousResponse.ok)throw new Error('Previous revision unavailable');
         const data=await previousResponse.json();
         const previous=data.products?.find(p=>p.id===product.id);
         const previousProduct=previous?unpackCompletionMetadata(previous):null;
         const unchangedLive=product.status==='Live'&&previousProduct?.status==='Live'&&reviewFingerprint(previousProduct)===reviewFingerprint(product);
-        const unchangedChannel=channelActive&&previousProduct?.getYourGuidePublication?.status===channel.status&&JSON.stringify(previousProduct.getYourGuidePublication.payload)===JSON.stringify(channel.payload);
-        if((['Ready','Live'].includes(product.status)&&!unchangedLive)||(channelActive&&!unchangedChannel)){
+        if(!unchangedLive){
           const issues=publicationIssues(product);
           if(issues.length)return res.status(422).json({error:'Antes de Ready/publicação: '+issues.join(', '),issues});
         }

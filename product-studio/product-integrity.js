@@ -61,9 +61,15 @@ export function optionsForReview(p) {
   const others=(p?.allOptions||[]).filter(o=>o.optionCode!==p.optionCode).map(o=>Object.fromEntries(fields.map(f=>[f,text(o[f])])));
   return [main,...others];
 }
-export function priceFingerprint(p) {return JSON.stringify(optionsForReview(p));}
+export function priceFingerprint(p) {
+  const values=optionsForReview(p),pricing=p?.inputSource?.gygPreparation?.pricing;
+  if(pricing)values.push({getYourGuidePricing:Object.fromEntries(['basePerPerson','perPerson','solo','currency'].map(key=>[key,pricing[key]]))});
+  return JSON.stringify(values);
+}
 export function reviewFingerprint(p) {
-  return JSON.stringify([PUBLIC_FIELDS.map(f=>text(p?.[f])),optionsForReview(p),(p?.allOptions||[]).filter(o=>o.optionCode!==p.optionCode).map(o=>[o.optionCode,o.startTimes,o.activeDays,o.capacity,o.cutoffHours]),p?.aiAssumptions||[],p?.aiMissing||[],(p?.gallery||[]).map(g=>g.path||g.url||'')]);
+  const values=[PUBLIC_FIELDS.map(f=>text(p?.[f])),optionsForReview(p),(p?.allOptions||[]).filter(o=>o.optionCode!==p.optionCode).map(o=>[o.optionCode,o.startTimes,o.activeDays,o.capacity,o.cutoffHours]),p?.aiAssumptions||[],p?.aiMissing||[],(p?.gallery||[]).map(g=>g.path||g.url||'')];
+  if(p?.inputSource?.gygPreparation)values.push(p.inputSource.gygPreparation);
+  return JSON.stringify(values);
 }
 export function safetyState(p) {return p?.inputSource?.studioSafety||{};}
 export function ensureSafety(p) {

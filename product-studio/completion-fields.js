@@ -59,11 +59,36 @@ export function pendingCompletionFields(product){
 
 // The existing cloud API persists inputSource as JSON. Carry editor metadata there
 // so per-field review/history survives reloads without changing the database schema.
+const IMPORTED_PHOTO_HOSTS = new Set(['dynamic-media.tacdn.com','media-cdn.tripadvisor.com','dynamic-media-cdn.tripadvisor.com','cache-graphicslib.viator.com']);
+// Existing photos from this operator's exact Viator product remain references;
+// no remote file is fetched by the server and no signed storage URL is persisted.
+export function importedPhotoReferences(items,product){
+  const code=String(product?.viatorCode||product?.id||'').replace(/^WM-/i,'').toUpperCase();
+  if(!/^\d+P\d+$/.test(code))return [];
+  const seen=new Set(),result=[];
+  for(const item of Array.isArray(items)?items:[]){
+    if(item?.path||item?.source!=='existing-watermelon-viator-listing'||item?.sourceProductCode!==code)continue;
+    try{
+      const url=new URL(item.url),source=new URL(item.sourceUrl);
+      if(url.protocol!=='https:'||url.username||url.password||url.port||!IMPORTED_PHOTO_HOSTS.has(url.hostname))continue;
+      if(source.protocol!=='https:'||source.username||source.password||source.port||!['viator.com','www.viator.com'].includes(source.hostname)||!source.pathname.endsWith('-'+code))continue;
+      const identity=url.hostname+url.pathname;
+      if(seen.has(identity))continue;
+      seen.add(identity);url.hash='';
+      result.push({url:url.href,name:String(item.name||'viator-photo.jpg').slice(0,150),source:item.source,sourceProductCode:code,sourceUrl:source.href,sourcePhotoId:String(item.sourcePhotoId||identity).slice(0,300),
+        width:Number.isInteger(item.width)&&item.width>0?item.width:null,height:Number.isInteger(item.height)&&item.height>0?item.height:null,
+        qualityNote:String(item.qualityNote||'').slice(0,500),isMain:!!item.isMain,sort:result.length});
+      if(result.length===40)break;
+    }catch{/* Ignore invalid or unrelated photo references. */}
+  }
+  return result;
+}
 export function packCompletionMetadata(product){
   if(!product||typeof product!=='object')return product;
   const inputSource=product.inputSource&&typeof product.inputSource==='object'?product.inputSource:{};
   const fieldValues=Object.fromEntries(Object.keys(COMPLETION_FIELDS).filter(f=>product[f]!==undefined).map(f=>[f,product[f]]));
-  const packed={...product,inputSource:{...inputSource,studioFieldValues:fieldValues,studioCompletion:{
+  const importedMedia=importedPhotoReferences(product.gallery,product);
+  const packed={...product,inputSource:{...inputSource,studioImportedMedia:importedMedia,studioFieldValues:fieldValues,studioCompletion:{
     version:1,aiCompletion:product.aiCompletion?{...product.aiCompletion,unsaved:false}:null,
     aiSourceUrl:String(product.aiSourceUrl||''),aiAutoComplete:!!product.aiAutoComplete
   }}};
@@ -76,9 +101,14 @@ export function packCompletionMetadata(product){
   return packed;
 }
 export function unpackCompletionMetadata(product){
+  if(!product||typeof product!=='object')return product;
   const state=product?.inputSource?.studioCompletion;
-  if(!state||state.version!==1)return product;
-  const values=Object.fromEntries(Object.entries(product.inputSource.studioFieldValues||{}).filter(([f])=>Object.hasOwn(COMPLETION_FIELDS,f)));
-  return {...product,...values,aiCompletion:state.aiCompletion||null,
-    aiSourceUrl:String(state.aiSourceUrl||''),aiAutoComplete:!!state.aiAutoComplete};
+  const values=state?.version===1?Object.fromEntries(Object.entries(product.inputSource.studioFieldValues||{}).filter(([f])=>Object.hasOwn(COMPLETION_FIELDS,f))):{};
+  const stored=Array.isArray(product.gallery)?product.gallery:[];
+  const imported=importedPhotoReferences(product.inputSource?.studioImportedMedia,product);
+  const paths=new Set(stored.map(p=>p.url));
+  const gallery=[...stored,...imported.filter(p=>!paths.has(p.url))];
+  const restored=state?.version===1?{...product,...values,aiCompletion:state.aiCompletion||null,
+    aiSourceUrl:String(state.aiSourceUrl||''),aiAutoComplete:!!state.aiAutoComplete}:product;
+  return imported.length?{...restored,gallery,mainImage:gallery[0]?.url||restored.mainImage||''}:restored;
 }
